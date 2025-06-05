@@ -4,12 +4,13 @@ import 'package:provider/provider.dart';
 import '../core/synth_parameters.dart';
 import '../core/audio_engine.dart';
 import '../services/firebase_service.dart';
-import '../widgets/hyperav_background.dart';
+// Removed hyperav_background - using embedded visualizer instead
 import '../widgets/professional_xy_pad.dart';
 import '../widgets/professional_knob_bank.dart';
 import '../widgets/drum_pads_sequencer.dart';
 import '../widgets/professional_sliders.dart';
 import '../widgets/enhanced_llm_generator.dart';
+import '../widgets/embedded_hyperav_visualizer.dart';
 import '../core/holographic_theme.dart';
 
 class ProfessionalHolographicInterface extends StatefulWidget {
@@ -28,12 +29,14 @@ class _ProfessionalHolographicInterfaceState extends State<ProfessionalHolograph
   Offset _drumPadsPosition = Offset(50, 450);
   Offset _slidersPosition = Offset(700, 100);
   Offset _llmGeneratorPosition = Offset(50, 50);
+  Offset _hyperavPosition = Offset(250, 300);
   
   bool _xyPadCollapsed = false;
   bool _knobBankCollapsed = false;
   bool _drumPadsCollapsed = false;
   bool _slidersCollapsed = false;
   bool _llmGeneratorCollapsed = false;
+  bool _hyperavCollapsed = false;
   
   // XY Pad parameter assignments
   SynthParameter _xyPadXParameter = SynthParameter.filterCutoff;
@@ -85,14 +88,7 @@ class _ProfessionalHolographicInterfaceState extends State<ProfessionalHolograph
                 opacity: _interfaceAnimation.value,
                 child: Stack(
                   children: [
-                    // HyperAV 4D Visualizer Background
-                    HyperAVBackground(
-                      geometryType: _currentGeometry,
-                      projectionMethod: _currentProjection,
-                      child: Container(), // Transparent overlay
-                    ),
-                    
-                    // Professional Interface Components
+                    // Professional Interface Components (HyperAV now embedded as component)
                     _buildInterfaceComponents(),
                     
                     // HyperAV Control Panel
@@ -189,6 +185,20 @@ class _ProfessionalHolographicInterfaceState extends State<ProfessionalHolograph
             setState(() => _slidersCollapsed = !_slidersCollapsed);
           },
           onParameterChanged: _handleParameterChange,
+        ),
+        
+        // Embedded HyperAV Visualizer
+        EmbeddedHyperAVVisualizer(
+          position: _hyperavPosition,
+          isCollapsed: _hyperavCollapsed,
+          width: 400,
+          height: 250,
+          onPositionChanged: (position) {
+            setState(() => _hyperavPosition = position);
+          },
+          onToggleCollapse: () {
+            setState(() => _hyperavCollapsed = !_hyperavCollapsed);
+          },
         ),
       ],
     );
