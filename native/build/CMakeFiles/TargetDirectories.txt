@@ -1,0 +1,15 @@
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/CMakeFiles/synthengine.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/CMakeFiles/rebuild_cache.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/CMakeFiles/list_install_components.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/CMakeFiles/install.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/CMakeFiles/install/local.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/CMakeFiles/install/strip.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/rtaudio.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/uninstall.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/edit_cache.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/rebuild_cache.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/list_install_components.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/install.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/install/local.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-build/CMakeFiles/install/strip.dir

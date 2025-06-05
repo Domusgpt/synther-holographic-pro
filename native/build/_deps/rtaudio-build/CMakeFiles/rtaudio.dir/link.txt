@@ -1,0 +1,1 @@
+/usr/bin/c++ -fPIC  -Wall -O3 -DNDEBUG -shared -Wl,-soname,librtaudio.so.8 -o librtaudio.so.8.0.0 CMakeFiles/rtaudio.dir/RtAudio.cpp.o CMakeFiles/rtaudio.dir/rtaudio_c.cpp.o 

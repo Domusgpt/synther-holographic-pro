@@ -1,0 +1,3 @@
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/CMakeFiles/rtaudio-populate.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/CMakeFiles/edit_cache.dir
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/CMakeFiles/rebuild_cache.dir

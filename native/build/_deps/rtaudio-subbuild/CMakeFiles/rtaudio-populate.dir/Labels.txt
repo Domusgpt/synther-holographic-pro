@@ -1,0 +1,14 @@
+# Target labels
+ rtaudio-populate
+# Source files and their labels
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/CMakeFiles/rtaudio-populate
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/CMakeFiles/rtaudio-populate.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/CMakeFiles/rtaudio-populate-complete.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-build.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-configure.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-download.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-install.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-mkdir.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-patch.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-test.rule
+/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-subbuild/rtaudio-populate-prefix/src/rtaudio-populate-stamp/rtaudio-populate-update.rule

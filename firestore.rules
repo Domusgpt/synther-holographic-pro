@@ -1,0 +1,70 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Users can read and write their own profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Presets rules
+    match /presets/{presetId} {
+      // Anyone can read public presets
+      allow read: if resource.data.isPublic == true;
+      
+      // Users can read their own presets (public or private)
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      
+      // Users can create presets if authenticated
+      allow create: if request.auth != null 
+        && request.auth.uid == request.resource.data.userId
+        && validatePresetData(request.resource.data);
+      
+      // Users can update their own presets
+      allow update: if request.auth != null 
+        && request.auth.uid == resource.data.userId
+        && validatePresetData(request.resource.data);
+      
+      // Users can delete their own presets
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Sessions - users can only access their own
+    match /sessions/{sessionId} {
+      allow read, write: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.userId;
+    }
+    
+    // AI presets - read-only for users, write-only for cloud functions
+    match /ai_presets/{presetId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Only cloud functions can write
+    }
+    
+    // Analytics - write-only, no read access for users
+    match /analytics/{docId} {
+      allow read: if false;
+      allow write: if request.auth != null;
+    }
+    
+    // Errors - write-only for cloud functions
+    match /errors/{docId} {
+      allow read, write: if false; // Only cloud functions
+    }
+    
+    // User liked presets subcollection
+    match /users/{userId}/liked_presets/{presetId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // Helper function to validate preset data
+    function validatePresetData(data) {
+      return data.keys().hasAll(['name', 'description', 'parameters', 'userId', 'isPublic'])
+        && data.name is string
+        && data.description is string
+        && data.parameters is map
+        && data.userId is string
+        && data.isPublic is bool;
+    }
+  }
+}
