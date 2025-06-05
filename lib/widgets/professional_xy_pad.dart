@@ -224,7 +224,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
       top: widget.position?.dy ?? 0,
       child: Container(
         width: widget.width,
-        height: widget.height + 120, // Extra space for controls
+        height: widget.height + 80, // Reduced extra space for controls
         child: Column(
           children: [
             // Header with collapse button
