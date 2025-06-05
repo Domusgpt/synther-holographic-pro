@@ -7,7 +7,6 @@
 .pub/
 build/
 flutter_*.png
-lib/generated_plugin_registrant.dart
 
 # VS Code
 .vscode/
@@ -51,10 +50,13 @@ web/flutter_service_worker.js
 firebase-debug.log*
 firestore-debug.log*
 
-# Environment variables
+# Environment variables - CRITICAL: Never commit these!
 .env
 .env.local
 .env.*.local
+**/.env
+**/api_keys.dart
+**/secrets.dart
 
 # Native builds
 native/build/

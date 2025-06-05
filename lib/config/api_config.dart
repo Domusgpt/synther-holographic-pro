@@ -16,9 +16,9 @@ class ApiConfig {
   // API Keys (replace with secure storage in production)
   static const String geminiApiKey = 'YOUR_GEMINI_API_KEY';
   
-  // Hugging Face API token
+  // Hugging Face API token - LOAD FROM ENVIRONMENT
   // Get yours from: https://huggingface.co/settings/tokens
-  static const String huggingFaceApiKey = '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';
+  static const String huggingFaceApiKey = 'YOUR_HUGGING_FACE_API_KEY';
   
   // Model endpoints
   static const String geminiModel = 'gemini-1.5-flash';
