@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import '../core/synth_parameters.dart';
 
 /// Firebase service for Synther Professional
@@ -25,15 +27,40 @@ class FirebaseService {
   
   /// Initialize Firebase services
   Future<void> initialize() async {
-    // Set up Firebase Functions region (optional)
-    _functions.useFunctionsEmulator('localhost', 5001); // For development
-    
-    // Enable offline persistence for Firestore
-    await _firestore.enablePersistence();
-    
-    // Anonymous sign-in for immediate use
-    if (_auth.currentUser == null) {
-      await signInAnonymously();
+    try {
+      // Skip functions emulator in production web deployment
+      if (!kIsWeb) {
+        try {
+          _functions.useFunctionsEmulator('localhost', 5001);
+        } catch (e) {
+          print('Functions emulator not available: $e');
+        }
+      }
+      
+      // Enable offline persistence for Firestore (web only, with additional safety)
+      if (kIsWeb) {
+        try {
+          await _firestore.enablePersistence(
+            const PersistenceSettings(synchronizeTabs: true),
+          );
+        } catch (e) {
+          print('Firestore persistence error (expected in some cases): $e');
+          // Persistence might already be enabled or not supported - this is okay
+        }
+      }
+      
+      // Anonymous sign-in for immediate use with additional null checks
+      try {
+        if (_auth.currentUser == null) {
+          await signInAnonymously();
+        }
+      } catch (e) {
+        print('Anonymous sign-in error: $e');
+        // Continue without authentication - app should still work
+      }
+    } catch (e) {
+      print('Firebase initialization error: $e');
+      // Don't throw - let app continue to work without Firebase
     }
   }
   
@@ -300,7 +327,7 @@ class FirebaseService {
           .child(fileName);
       
       final uploadTask = ref.putData(
-        await _readFileAsBytes(filePath),
+        Uint8List.fromList(await _readFileAsBytes(filePath)),
         SettableMetadata(contentType: 'audio/wav'),
       );
       

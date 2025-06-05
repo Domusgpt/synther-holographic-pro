@@ -459,6 +459,25 @@ class SynthParametersModel extends ChangeNotifier {
     };
   }
   
+  // Load from SynthParameters (for AI preset loading)
+  void loadParameters(SynthParameters parameters) {
+    setFilterCutoff(parameters.filterCutoff);
+    setFilterResonance(parameters.filterResonance);
+    setAttackTime(parameters.attackTime);
+    setReleaseTime(parameters.releaseTime);
+    setReverbMix(parameters.reverbMix);
+    setMasterVolume(parameters.masterVolume);
+    
+    if (parameters.xyPadX != null && parameters.xyPadY != null) {
+      setXYPadPosition(parameters.xyPadX!, parameters.xyPadY!);
+    }
+  }
+
+  // Get current parameters as SynthParameters (for AI preset saving)
+  SynthParameters getCurrentParameters() {
+    return SynthParameters.fromModel(this);
+  }
+
   // Load from a JSON representation
   void loadFromJson(Map<String, dynamic> json) {
     // Load envelope if nested
@@ -632,5 +651,70 @@ enum XYPadAssignment {
   filterResonance,
   oscillatorMix,
   reverbMix,
+}
+
+/// Simple data class for serializing synth parameters for AI/Firebase integration
+class SynthParameters {
+  final double filterCutoff;
+  final double filterResonance;
+  final double attackTime;
+  final double releaseTime;
+  final double reverbMix;
+  final double masterVolume;
+  final double? xyPadX;
+  final double? xyPadY;
+
+  const SynthParameters({
+    required this.filterCutoff,
+    required this.filterResonance,
+    required this.attackTime,
+    required this.releaseTime,
+    required this.reverbMix,
+    required this.masterVolume,
+    this.xyPadX,
+    this.xyPadY,
+  });
+
+  /// Create from JSON (used by Firebase)
+  factory SynthParameters.fromJson(Map<String, dynamic> json) {
+    return SynthParameters(
+      filterCutoff: (json['filterCutoff'] ?? 1000.0).toDouble(),
+      filterResonance: (json['filterResonance'] ?? 0.5).toDouble(),
+      attackTime: (json['attackTime'] ?? 0.01).toDouble(),
+      releaseTime: (json['releaseTime'] ?? 0.5).toDouble(),
+      reverbMix: (json['reverbMix'] ?? 0.2).toDouble(),
+      masterVolume: (json['masterVolume'] ?? 0.75).toDouble(),
+      xyPadX: json['xyPadX']?.toDouble(),
+      xyPadY: json['xyPadY']?.toDouble(),
+    );
+  }
+
+  /// Convert to JSON (used by Firebase)
+  Map<String, dynamic> toJson() {
+    return {
+      'filterCutoff': filterCutoff,
+      'filterResonance': filterResonance,
+      'attackTime': attackTime,
+      'releaseTime': releaseTime,
+      'reverbMix': reverbMix,
+      'masterVolume': masterVolume,
+      if (xyPadX != null) 'xyPadX': xyPadX,
+      if (xyPadY != null) 'xyPadY': xyPadY,
+    };
+  }
+
+  /// Create from SynthParametersModel
+  factory SynthParameters.fromModel(SynthParametersModel model) {
+    return SynthParameters(
+      filterCutoff: model.filterCutoff,
+      filterResonance: model.filterResonance,
+      attackTime: model.attackTime,
+      releaseTime: model.releaseTime,
+      reverbMix: model.reverbMix,
+      masterVolume: model.masterVolume,
+      xyPadX: model.xyPadX,
+      xyPadY: model.xyPadY,
+    );
+  }
 }
 

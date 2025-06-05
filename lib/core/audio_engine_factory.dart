@@ -1,7 +1,7 @@
 // Audio engine factory for platform-specific implementations
 import 'package:flutter/foundation.dart';
 import 'audio_engine.dart';
-import 'audio_engine_web.dart' if (dart.library.io) 'audio_engine.dart';
+import 'audio_engine_web.dart';
 
 AudioEngine createAudioEngine() {
   print('🏭 AudioEngine Factory: kIsWeb = $kIsWeb');

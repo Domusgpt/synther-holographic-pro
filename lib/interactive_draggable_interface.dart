@@ -43,6 +43,9 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   bool _keyboardCollapsed = false;
   bool _controlsCollapsed = false;
   bool _presetCollapsed = false;
+  
+  // AI preset generation state
+  bool _isGenerating = false;
 
   @override
   Widget build(BuildContext context) {
@@ -562,7 +565,6 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
 
   Widget _buildInteractivePresetBar() {
     final TextEditingController _controller = TextEditingController();
-    bool _isGenerating = false;
     
     return StatefulBuilder(
       builder: (context, setLocalState) {
@@ -609,12 +611,12 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
                   contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
                 style: TextStyle(color: HolographicTheme.primaryEnergy, fontSize: 12),
-                onSubmitted: (value) => _generateAIPreset(value, setLocalState),
+                onSubmitted: (value) => _generateAIPreset(value),
               ),
             ),
             SizedBox(width: 12),
             ElevatedButton(
-              onPressed: _isGenerating ? null : () => _generateAIPreset(_controller.text, setLocalState),
+              onPressed: _isGenerating ? null : () => _generateAIPreset(_controller.text),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 foregroundColor: HolographicTheme.primaryEnergy,
@@ -639,7 +641,7 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
     );
   }
   
-  Future<void> _generateAIPreset(String description, StateSetter setLocalState) async {
+  Future<void> _generateAIPreset(String description) async {
     if (description.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -650,11 +652,15 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
       return;
     }
     
-    setLocalState(() => _isGenerating = true);
+    setState(() => _isGenerating = true);
     
     try {
-      final firebaseService = Provider.of<FirebaseService>(context, listen: false);
+      final firebaseService = context.read<FirebaseService?>();
       final synthModel = Provider.of<SynthParametersModel>(context, listen: false);
+      
+      if (firebaseService == null) {
+        throw Exception('Firebase not initialized');
+      }
       
       // Generate AI preset using Firebase Cloud Functions
       final aiParameters = await firebaseService.generateAIPreset(description);
@@ -685,7 +691,7 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
         ),
       );
     } finally {
-      setLocalState(() => _isGenerating = false);
+      setState(() => _isGenerating = false);
     }
   }
   
@@ -762,7 +768,11 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   
   Future<void> _savePreset(String name, String description, SynthParameters parameters) async {
     try {
-      final firebaseService = Provider.of<FirebaseService>(context, listen: false);
+      final firebaseService = context.read<FirebaseService?>();
+      
+      if (firebaseService == null) {
+        throw Exception('Firebase not initialized');
+      }
       
       final presetId = await firebaseService.savePreset(
         name: name,

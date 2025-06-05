@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
 // Professional Audio Engine
 import 'core/audio_engine_factory.dart';
@@ -16,13 +17,15 @@ import 'core/synth_parameters.dart';
 import 'services/firebase_service.dart';
 
 // Professional Interface
-import 'interactive_draggable_interface.dart';
+import 'ui/professional_holographic_interface.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize Firebase
-  await Firebase.initializeApp();
+  // Initialize Firebase with proper error handling
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
   
   // Initialize Firebase services
   await FirebaseService.instance.initialize();
@@ -53,7 +56,7 @@ void main() async {
         ChangeNotifierProvider<SynthParametersModel>.value(value: synthParameters),
         Provider<FirebaseService>.value(value: FirebaseService.instance),
       ],
-      child: const InteractiveDraggableSynth(),
+      child: const ProfessionalHolographicInterface(),
     ),
   );
 }

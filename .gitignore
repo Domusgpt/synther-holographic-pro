@@ -1,0 +1,74 @@
+# Flutter/Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+lib/generated_plugin_registrant.dart
+
+# VS Code
+.vscode/
+
+# IntelliJ/Android Studio
+.idea/
+*.iml
+*.ipr
+*.iws
+.idea/
+android/.idea/
+android/app/.cxx/
+android/key.properties
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/flutter_export_environment.sh
+ios/ServiceDefinitions.json
+ios/Runner/GeneratedPluginRegistrant.*
+
+# macOS
+macos/Pods/
+macos/.symlinks/
+macos/Flutter/flutter_export_environment.sh
+
+# Windows
+windows/flutter/generated_plugin_registrant.cc
+windows/flutter/generated_plugin_registrant.h
+
+# Linux
+linux/flutter/generated_plugin_registrant.cc
+linux/flutter/generated_plugin_registrant.h
+
+# Web
+web/flutter_service_worker.js
+
+# Firebase
+.firebase/
+.firebaserc
+firebase-debug.log*
+firestore-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Native builds
+native/build/
+*.so
+*.a
+*.lib
+*.dll
+*.dylib
+
+# Logs
+*.log
+flutter_output.log
+server.pid
+
+# Local development
+local.properties
+.flutter-plugins-dependencies
