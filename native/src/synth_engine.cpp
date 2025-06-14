@@ -128,7 +128,24 @@ void SynthEngine::shutdown() {
         parameterCache.clear();
     }
     
+    // Free KissFFT resources
+    if (fftPlan) {
+        kiss_fftr_free(fftPlan);
+        fftPlan = nullptr;
+    }
+    kissFftInputBuffer.clear();
+    kissFftInputBuffer.shrink_to_fit();
+    kissFftOutputBuffer.clear();
+    kissFftOutputBuffer.shrink_to_fit();
+    fftMagnitudes.clear();
+    fftMagnitudes.shrink_to_fit();
+    analysisWindow.clear();
+    analysisWindow.shrink_to_fit();
+    analysisInputBuffer.clear(); // Was analysisBuffer previously
+    analysisInputBuffer.shrink_to_fit();
+
     initialized = false;
+    std::cout << "SynthEngine shutdown complete." << std::endl;
 }
 
 void SynthEngine::processAudio(float* outputBuffer, int numFrames, int numChannels) {
@@ -909,11 +926,11 @@ std::string SynthEngine::getCurrentPresetDataJson(const std::string& name) {
     // It's primarily to show the data gathering.
     // A better approach for FFI: C++ gathers data into struct, Dart pulls it field by field, Dart builds JSON.
     // Or C++ uses a proper JSON lib.
-    
+
     // Manual, simplified JSON string construction for parameters and MIDI map for FFI:
     std::string jsonOutput = "{";
     jsonOutput += "\"name\":\"" + name + "\",";
-    
+
     // Parameters
     jsonOutput += "\"parameters\":{";
     bool firstParam = true;
@@ -1051,77 +1068,121 @@ bool SynthEngine::applyPresetDataJson(const std::string& jsonString) {
 // Audio analysis functions for visualization
 
 void SynthEngine::initializeAudioAnalysis(int fftSze) {
-    fftSize = fftSze;
-    if (fftSize <= 0 || (fftSize & (fftSize - 1)) != 0) {
-        std::cerr << "Warning: fftSize must be a positive power of 2. Defaulting to 2048." << std::endl;
-        fftSize = 2048;
+    // Validate fftSize and store it
+    if (fftSze <= 0 || (fftSze & (fftSze - 1)) != 0) { // Check if not power of 2 or non-positive
+        std::cerr << "SynthEngine: Invalid fftSize " << fftSze << ". Must be a positive power of 2. Defaulting to " << this->fftSize << "." << std::endl;
+        // Use the existing this->fftSize if fftSze is invalid, assuming this->fftSize has a valid default.
+    } else {
+        this->fftSize = fftSze;
     }
-    fftMagnitudes.assign(fftSize / 2 + 1, 0.0f);
-    analysisWindow.assign(fftSize, 0.0f);
-    analysisBuffer.assign(fftSize, 0.0f);
 
-    const float PI_CONST = 3.14159265358979323846f;
-    for (int i = 0; i < fftSize; ++i) {
-        analysisWindow[i] = 0.5f * (1.0f - std::cos(2.0f * PI_CONST * static_cast<float>(i) / static_cast<float>(fftSize - 1)));
+    // Free existing plan if any (e.g. if re-initializing with new fftSize)
+    if (fftPlan) {
+        kiss_fftr_free(fftPlan);
+        fftPlan = nullptr;
     }
+
+    fftPlan = kiss_fftr_alloc(this->fftSize, 0 /*is_inverse_fft*/, nullptr, nullptr);
+    if (!fftPlan) {
+        std::cerr << "SynthEngine: Failed to allocate KissFFT plan for size " << this->fftSize << std::endl;
+        throw std::runtime_error("Failed to initialize KissFFT plan in initializeAudioAnalysis.");
+    }
+
+    // Allocate buffers based on the potentially updated fftSize
+    kissFftInputBuffer.assign(this->fftSize, 0.0f);
+    kissFftOutputBuffer.assign(this->fftSize / 2 + 1, {0.0f, 0.0f}); // kiss_fft_cpx {r,i}
+    this->fftMagnitudes.assign(this->fftSize / 2 + 1, 0.0f);
+
+    analysisWindow.assign(this->fftSize, 0.0f);
+    // M_PI might not be defined on all compilers by default with <cmath>
+    // Use a const float for PI.
+    const float PI_CONST = 3.14159265358979323846f;
+    for (int i = 0; i < this->fftSize; ++i) {
+        analysisWindow[i] = 0.5f * (1.0f - std::cos(2.0f * PI_CONST * static_cast<float>(i) / static_cast<float>(this->fftSize - 1)));
+    }
+    analysisInputBuffer.assign(this->fftSize, 0.0f);
+    std::cout << "SynthEngine: Audio analysis initialized with FFT size " << this->fftSize << std::endl;
 }
 
-// Placeholder for FFT function - THIS IS NOT A REAL FFT IMPLEMENTATION
-void SynthEngine::performFFT(const float* audio_block_input, float* fft_magnitudes_output) {
-    // This is a placeholder. A real FFT implementation (e.g., from a library like FFTW or KissFFT)
-    // would be complex and involve steps like:
-    // 1. Copy audio_block_input to a complex array or separate real/imag arrays.
-    // 2. Bit-reversal permutation of input if using Cooley-Tukey.
-    // 3. Iterative butterfly computations.
-    // 4. Calculation of magnitudes: sqrt(real^2 + imag^2) for each frequency bin.
-    //    The output fft_magnitudes_output should store these float magnitudes.
-
-    float totalMagnitude = 0.0f;
-    if (fftSize <= 0 || !audio_block_input || !fft_magnitudes_output) {
-        if(fft_magnitudes_output && !fftMagnitudes.empty()) { // Check fftMagnitudes is not empty before accessing
-             for (size_t i = 0; i < fftMagnitudes.size(); ++i) fft_magnitudes_output[i] = 0.0f;
+void SynthEngine::performFFT(const float* windowed_audio_block, float* magnitudes_output) {
+    if (!fftPlan || kissFftInputBuffer.empty() || kissFftOutputBuffer.empty() ||
+        !windowed_audio_block || !magnitudes_output) {
+        std::cerr << "SynthEngine::performFFT - Not initialized or invalid buffers/inputs." << std::endl;
+        if (magnitudes_output && !this->fftMagnitudes.empty()) { // this->fftMagnitudes has the correct size
+             std::fill(magnitudes_output, magnitudes_output + this->fftMagnitudes.size(), 0.0f);
         }
         return;
     }
-    for(int i = 0; i < fftSize; ++i) {
-         totalMagnitude += std::abs(audio_block_input[i]);
-    }
-    float avgMagnitude = (fftSize > 0) ? (totalMagnitude / static_cast<float>(fftSize)) : 0.0f;
 
-    if (fft_magnitudes_output && !fftMagnitudes.empty()){ // Check again before iterating
-        for (size_t i = 0; i < fftMagnitudes.size(); ++i) {
-            fft_magnitudes_output[i] = avgMagnitude * std::pow(0.85f, static_cast<float>(i)) * ( (i == 0) ? 1.0f : 0.7f);
-        }
+    // Copy windowed audio data to KissFFT input buffer
+    // kiss_fft_scalar is float by default in KissFFT. If it were double, a cast would be needed.
+    for(int i = 0; i < this->fftSize; ++i) {
+        kissFftInputBuffer[i] = static_cast<kiss_fft_scalar>(windowed_audio_block[i]);
+    }
+
+    // Perform FFT
+    kiss_fftr(fftPlan, kissFftInputBuffer.data(), kissFftOutputBuffer.data());
+
+    // Compute magnitudes and normalize
+    // DC component (bin 0)
+    // Normalization factor: For power, divide by N^2. For amplitude, divide by N.
+    // KissFFT output needs scaling by 1/N for rfft.
+    magnitudes_output[0] = std::fabsf(kissFftOutputBuffer[0].r) / static_cast<float>(this->fftSize);
+
+    // AC components (bins 1 to N/2-1)
+    // For these bins, magnitude is sqrt(r^2 + i^2).
+    // To get amplitude comparable to input signal, scale by 2/N.
+    for (int k = 1; k < this->fftSize / 2; ++k) {
+        float real = kissFftOutputBuffer[k].r;
+        float imag = kissFftOutputBuffer[k].i;
+        magnitudes_output[k] = std::sqrt(real * real + imag * imag) * 2.0f / static_cast<float>(this->fftSize);
+    }
+
+    // Nyquist component (bin N/2) - real part only, needs scaling by 1/N
+    // Ensure kissFftOutputBuffer has this element before accessing
+    if (this->fftSize / 2 < kissFftOutputBuffer.size()) {
+         magnitudes_output[this->fftSize / 2] = std::fabsf(kissFftOutputBuffer[this->fftSize / 2].r) / static_cast<float>(this->fftSize);
+    } else if (this->fftSize / 2 < (this->fftSize/2 +1) ) { // If kissFftOutputBuffer is exactly N/2+1
+         // This case should be covered by the loop if fftSize/2 is the last valid index of magnitudes_output
     }
 }
 
 void SynthEngine::updateAudioAnalysis(const float* buffer_input, int numFrames, int numChannels) {
-    if (!buffer_input || numFrames <= 0 || fftSize <= 0 || analysisBuffer.empty() || analysisWindow.empty() || fftMagnitudes.empty()) {
+    if (!buffer_input || numFrames <= 0 || this->fftSize <= 0 ||
+        analysisInputBuffer.empty() || analysisWindow.empty() || this->fftMagnitudes.empty() || !fftPlan) {
         amplitudeLevel.store(0.0); bassLevel.store(0.0); midLevel.store(0.0); highLevel.store(0.0); dominantFrequency.store(0.0);
         return;
     }
 
-    int samplesToCopy = std::min(numFrames, fftSize);
+    // For this implementation, we take the latest available 'fftSize' block of samples.
+    // A more advanced version would use a circular buffer.
+    int samplesToCopy = std::min(numFrames, this->fftSize);
+
+    // Fill analysisInputBuffer with the latest samples, mono-mixed
     for (int i = 0; i < samplesToCopy; ++i) {
-        int bufferIdx = (numFrames - samplesToCopy + i);
+        int bufferIdx = (numFrames - samplesToCopy + i); // Get from the end of the input buffer
         if (numChannels == 1) {
-            analysisBuffer[i] = buffer_input[bufferIdx];
+            analysisInputBuffer[i] = buffer_input[bufferIdx];
         } else {
-            analysisBuffer[i] = (buffer_input[bufferIdx * numChannels] + buffer_input[bufferIdx * numChannels + 1]) * 0.5f;
+            analysisInputBuffer[i] = (buffer_input[bufferIdx * numChannels] + buffer_input[bufferIdx * numChannels + 1]) * 0.5f;
         }
     }
-    for (int i = samplesToCopy; i < fftSize; ++i) {
-        analysisBuffer[i] = 0.0f;
+    // Zero-pad if not enough new samples were available
+    for (int i = samplesToCopy; i < this->fftSize; ++i) {
+        analysisInputBuffer[i] = 0.0f;
     }
 
-    for (int i = 0; i < fftSize; ++i) {
-        analysisBuffer[i] *= analysisWindow[i];
+    // Apply windowing function
+    for (int i = 0; i < this->fftSize; ++i) {
+        analysisInputBuffer[i] *= analysisWindow[i];
     }
 
-    performFFT(analysisBuffer.data(), fftMagnitudes.data());
+    // Perform actual FFT using KissFFT, results go into this->fftMagnitudes
+    performFFT(analysisInputBuffer.data(), this->fftMagnitudes.data());
 
     double currentMaxAmplitude = 0.0;
     for(int i = 0; i < numFrames; ++i) {
+         float sampleVal = (numChannels == 1) ? buffer_input[i] : (buffer_input[i * numChannels] + buffer_input[i * numChannels + 1]) * 0.5f;
          float sampleVal = (numChannels == 1) ? buffer_input[i] : (buffer_input[i * numChannels] + buffer_input[i * numChannels + 1]) * 0.5f;
          float absSampleVal = std::abs(sampleVal);
          if (absSampleVal > currentMaxAmplitude) {
@@ -1144,7 +1205,7 @@ void SynthEngine::updateAudioAnalysis(const float* buffer_input, int numFrames, 
 
     int bassEndBin = static_cast<int>((bassFreqMax / nyquist) * numSpectrumBins);
     bassEndBin = std::min(bassEndBin, numSpectrumBins);
-    
+
     int midEndBin = static_cast<int>((midFreqMax / nyquist) * numSpectrumBins);
     midEndBin = std::min(midEndBin, numSpectrumBins);
 
