@@ -112,15 +112,15 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
           width: 60,
           height: 60,
           decoration: BoxDecoration(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.2),
+            color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: HolographicTheme.primaryEnergy.withOpacity(0.6),
+              color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.4),
+                color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
                 blurRadius: 15,
                 spreadRadius: 3,
               ),
@@ -144,15 +144,15 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
         width: 80,
         height: 400,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.3),
+          color: Colors.black.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.4),
+            color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: HolographicTheme.primaryEnergy.withOpacity(0.2),
+              color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 3.0), // Adjusted
               blurRadius: 20,
               spreadRadius: 5,
             ),
@@ -180,14 +180,14 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: HolographicTheme.primaryEnergy.withOpacity(0.1),
+        color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(18),
           topRight: Radius.circular(18),
         ),
         border: Border(
           bottom: BorderSide(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.3),
+            color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 3.0), // Adjusted
             width: 1,
           ),
         ),
@@ -205,7 +205,7 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
                 letterSpacing: 1.5,
                 shadows: [
                   Shadow(
-                    color: HolographicTheme.primaryEnergy.withOpacity(0.8),
+                    color: HolographicTheme.primaryEnergy.withOpacity(0.6), // Adjusted
                     blurRadius: 4.0,
                   ),
                 ],
@@ -220,10 +220,10 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
               width: 24,
               height: 24,
               decoration: BoxDecoration(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.2),
+                color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: HolographicTheme.primaryEnergy.withOpacity(0.6),
+                  color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
                   width: 1,
                 ),
               ),
@@ -271,10 +271,10 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
               height: 25,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: slider.color.withOpacity(0.1),
+                color: slider.color.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: slider.color.withOpacity(0.4),
+                  color: slider.color.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
                   width: 1,
                 ),
               ),
@@ -282,7 +282,7 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
                 child: DropdownButton<SynthParameter>(
                   value: slider.parameter,
                   isExpanded: true,
-                  dropdownColor: Colors.black.withOpacity(0.9),
+                  dropdownColor: Colors.black.withOpacity(HolographicTheme.activeTransparency * 1.5), // Adjusted (Significantly reduced)
                   style: TextStyle(
                     color: slider.color,
                     fontSize: 8,
@@ -340,12 +340,12 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
                     color: Colors.transparent,
                     borderRadius: BorderRadius.circular(15),
                     border: Border.all(
-                      color: slider.color.withOpacity(0.6),
+                      color: slider.color.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
                       width: 2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: slider.color.withOpacity(0.3 * glowIntensity),
+                        color: slider.color.withOpacity(HolographicTheme.widgetTransparency * 3.0 * glowIntensity), // Adjusted
                         blurRadius: 10 * glowIntensity,
                         spreadRadius: 2 * glowIntensity,
                       ),
@@ -370,10 +370,10 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
               height: 20,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: slider.color.withOpacity(0.1),
+                color: slider.color.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: slider.color.withOpacity(0.4),
+                  color: slider.color.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
                   width: 1,
                 ),
               ),
@@ -386,7 +386,7 @@ class _ProfessionalSlidersState extends State<ProfessionalSliders>
                   fontWeight: FontWeight.bold,
                   shadows: [
                     Shadow(
-                      color: slider.color.withOpacity(0.8),
+                      color: slider.color.withOpacity(0.6), // Adjusted
                       blurRadius: 3.0,
                     ),
                   ],
@@ -479,7 +479,7 @@ class SliderPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final trackPaint = Paint()
-      ..color = color.withOpacity(0.2)
+      ..color = color.withOpacity(HolographicTheme.widgetTransparency * 2.0) // Adjusted
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
     
@@ -492,7 +492,7 @@ class SliderPainter extends CustomPainter {
     
     // Draw filled section
     final fillPaint = Paint()
-      ..color = color.withOpacity(0.6)
+      ..color = color.withOpacity(HolographicTheme.activeTransparency * 1.5) // Adjusted (was 0.6)
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -519,7 +519,7 @@ class SliderPainter extends CustomPainter {
     // Draw glow
     if (glowIntensity > 0.5) {
       final glowPaint = Paint()
-        ..color = color.withOpacity(0.4 * glowIntensity)
+        ..color = color.withOpacity(HolographicTheme.widgetTransparency * 4.0 * glowIntensity) // Adjusted
         ..style = PaintingStyle.fill;
       
       canvas.drawCircle(
@@ -533,7 +533,7 @@ class SliderPainter extends CustomPainter {
     for (int i = 0; i < 3; i++) {
       final particleY = thumbY + math.sin((i * 2.0 + glowIntensity * 10)) * 8;
       final particlePaint = Paint()
-        ..color = color.withOpacity(0.3 * glowIntensity)
+        ..color = color.withOpacity(HolographicTheme.widgetTransparency * 3.0 * glowIntensity) // Adjusted
         ..style = PaintingStyle.fill;
       
       canvas.drawCircle(

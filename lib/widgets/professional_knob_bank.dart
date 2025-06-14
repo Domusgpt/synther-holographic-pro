@@ -115,15 +115,15 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
           width: 60,
           height: 60,
           decoration: BoxDecoration(
-            color: HolographicTheme.secondaryEnergy.withOpacity(0.2),
+            color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: HolographicTheme.secondaryEnergy.withOpacity(0.6),
+              color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: HolographicTheme.secondaryEnergy.withOpacity(0.4),
+                color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
                 blurRadius: 15,
                 spreadRadius: 3,
               ),
@@ -147,15 +147,15 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
         width: 320,
         height: 420,
         decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.3),
+          color: Colors.black.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: HolographicTheme.secondaryEnergy.withOpacity(0.4),
+            color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: HolographicTheme.secondaryEnergy.withOpacity(0.2),
+              color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 3.0), // Adjusted
               blurRadius: 20,
               spreadRadius: 5,
             ),
@@ -183,14 +183,14 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
     return Container(
       height: 50,
       decoration: BoxDecoration(
-        color: HolographicTheme.secondaryEnergy.withOpacity(0.1),
+        color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
         borderRadius: BorderRadius.only(
           topLeft: Radius.circular(18),
           topRight: Radius.circular(18),
         ),
         border: Border(
           bottom: BorderSide(
-            color: HolographicTheme.secondaryEnergy.withOpacity(0.3),
+            color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 3.0), // Adjusted
             width: 1,
           ),
         ),
@@ -207,7 +207,7 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
               letterSpacing: 2.0,
               shadows: [
                 Shadow(
-                  color: HolographicTheme.secondaryEnergy.withOpacity(0.8),
+                  color: HolographicTheme.secondaryEnergy.withOpacity(0.6), // Adjusted
                   blurRadius: 6.0,
                 ),
               ],
@@ -221,10 +221,10 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: HolographicTheme.secondaryEnergy.withOpacity(0.2),
+                color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: HolographicTheme.secondaryEnergy.withOpacity(0.6),
+                  color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
                   width: 1,
                 ),
               ),
@@ -298,12 +298,12 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
                     shape: BoxShape.circle,
                     color: Colors.transparent,
                     border: Border.all(
-                      color: knob.color.withOpacity(0.6),
+                      color: knob.color.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
                       width: 2,
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: knob.color.withOpacity(0.4 * _glowAnimation.value),
+                        color: knob.color.withOpacity(HolographicTheme.widgetTransparency * 4.0 * _glowAnimation.value), // Adjusted
                         blurRadius: 15 * _glowAnimation.value,
                         spreadRadius: 3 * _glowAnimation.value,
                       ),
@@ -326,10 +326,10 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
             Container(
               height: 25,
               decoration: BoxDecoration(
-                color: knob.color.withOpacity(0.1),
+                color: knob.color.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
-                  color: knob.color.withOpacity(0.4),
+                  color: knob.color.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
                   width: 1,
                 ),
               ),
@@ -342,7 +342,7 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
                   fontWeight: FontWeight.bold,
                   shadows: [
                     Shadow(
-                      color: knob.color.withOpacity(0.8),
+                      color: knob.color.withOpacity(0.6), // Adjusted
                       blurRadius: 3.0,
                     ),
                   ],
@@ -356,7 +356,7 @@ class _ProfessionalKnobBankState extends State<ProfessionalKnobBank>
             Text(
               knob.label,
               style: TextStyle(
-                color: knob.color.withOpacity(0.8),
+                color: knob.color.withOpacity(0.7), // Adjusted
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.0,
@@ -458,7 +458,7 @@ class ProfessionalKnobPainter extends CustomPainter {
 
   void _drawOuterRing(Canvas canvas, Offset center, double radius) {
     final paint = Paint()
-      ..color = color.withOpacity(0.3 * glowIntensity)
+      ..color = color.withOpacity(HolographicTheme.widgetTransparency * 3.0 * glowIntensity) // Adjusted
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
     
@@ -467,7 +467,7 @@ class ProfessionalKnobPainter extends CustomPainter {
 
   void _drawValueArc(Canvas canvas, Offset center, double radius) {
     final paint = Paint()
-      ..color = color.withOpacity(0.8)
+      ..color = color.withOpacity(0.7) // Adjusted (was 0.8)
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
@@ -503,7 +503,7 @@ class ProfessionalKnobPainter extends CustomPainter {
     
     // Draw indicator glow
     final glowPaint = Paint()
-      ..color = color.withOpacity(0.6 * glowIntensity)
+      ..color = color.withOpacity(HolographicTheme.hoverTransparency * glowIntensity) // Adjusted
       ..style = PaintingStyle.fill;
     
     canvas.drawCircle(indicatorPos, 8, glowPaint);
@@ -521,7 +521,7 @@ class ProfessionalKnobPainter extends CustomPainter {
       );
       
       final particlePaint = Paint()
-        ..color = color.withOpacity(0.4 * glowIntensity)
+        ..color = color.withOpacity(HolographicTheme.widgetTransparency * 4.0 * glowIntensity) // Adjusted
         ..style = PaintingStyle.fill;
       
       canvas.drawCircle(particlePos, 1.5, particlePaint);
