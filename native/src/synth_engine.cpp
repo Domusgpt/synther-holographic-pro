@@ -17,9 +17,20 @@ SynthEngine& SynthEngine::getInstance() {
     return instance;
 }
 
-SynthEngine::SynthEngine() : initialized(false), sampleRate(44100), bufferSize(512),
-                           masterVolume(0.75f), masterMute(false), audioPlatform(nullptr) {
-    // Full initialization happens in initialize()
+// In SynthEngine::SynthEngine() constructor
+SynthEngine::SynthEngine()
+    : initialized(false), sampleRate(44100), bufferSize(512),
+      masterMute(false), audioPlatform(nullptr),
+      fftSize(2048), // Default FFT size, can be made configurable
+      masterVolume(0.75f, 20.0f, 44100), // Initial val, default smooth time, default SR (SR updated in initialize)
+      midiLearnActive(false), parameterIdToLearn(-1),
+      isRecordingAutomation(false), isPlayingAutomation(false),
+      automationParameterChangeCallback(nullptr)
+      // automationRecordStartTime, automationPlaybackStartTime are default constructed
+      // recordedAutomation, automationPlaybackIndices are default constructed
+{
+    // Smoothing time for masterVolume will be properly set in initialize() once sampleRate is known.
+    // ccToParameterMap and lastCcValue are default constructed.
 }
 
 SynthEngine::~SynthEngine() {
@@ -32,9 +43,13 @@ bool SynthEngine::initialize(int sr, int bs, float initialVolume) {
     }
     
     try {
-        sampleRate = sr;
+        sampleRate = sr; // Set sampleRate first
         bufferSize = bs;
-        masterVolume = initialVolume;
+        masterVolume.setCurrentAndTarget(initialVolume);
+        masterVolume.setSmoothingTime(20.0f, sampleRate); // Default smoothing time e.g. 20ms
+
+        // Initialize audio analysis (FFT related)
+        initializeAudioAnalysis(fftSize);
         
         // Initialize wavetable manager
         wavetableManager = std::make_unique<synth::WavetableManager>();
@@ -126,21 +141,27 @@ void SynthEngine::processAudio(float* outputBuffer, int numFrames, int numChanne
     }
     
     // Process audio for each frame
+    // Get smoothed master volume per-sample. If smoothing factor is very small (long smooth time),
+    // it might be optimized to get it once per block, but per-sample is safest for responsiveness.
     for (int frame = 0; frame < numFrames; ++frame) {
+        float currentSmoothedMasterVolume = masterVolume.getNextValue();
+
         float sampleLeft = 0.0f;
         float sampleRight = 0.0f;
         
         // Process all oscillators
         for (auto& osc : oscillators) {
-            float oscSample = osc->process();
+            float oscSample = osc->process(); // Oscillator internal params (vol, pan, detune) should be smoothed too
             
             // Apply envelope
             if (envelope && envelope->isActive()) {
-                oscSample *= envelope->process();
+                oscSample *= envelope->process(); // Envelope output is inherently smoothed
             }
             
             // Apply filter
             if (filter) {
+                // filter->process() is assumed to use internal SmoothedParameterF for cutoff/resonance
+                // and call getNextValue() on them.
                 oscSample = filter->process(oscSample);
             }
             
@@ -152,12 +173,14 @@ void SynthEngine::processAudio(float* outputBuffer, int numFrames, int numChanne
         // Add granular synthesis if active
         if (granularSynth) {
             float granLeft = 0.0f, granRight = 0.0f;
+            // Granular synth parameters (pitch, position etc.) should also be smoothed internally
             granularSynth->process(granLeft, granRight);
             sampleLeft += granLeft;
             sampleRight += granRight;
         }
         
         // Apply effects
+        // Effect parameters (mix, time, feedback) should also be smoothed internally by the effect's process method.
         if (delay) {
             sampleLeft = delay->process(sampleLeft);
             sampleRight = delay->process(sampleRight);
@@ -169,8 +192,8 @@ void SynthEngine::processAudio(float* outputBuffer, int numFrames, int numChanne
         }
         
         // Apply master volume
-        sampleLeft *= masterVolume;
-        sampleRight *= masterVolume;
+        sampleLeft *= currentSmoothedMasterVolume;
+        sampleRight *= currentSmoothedMasterVolume;
         
         // Write to output buffer
         if (numChannels == 1) {
@@ -185,6 +208,43 @@ void SynthEngine::processAudio(float* outputBuffer, int numFrames, int numChanne
     
     // Update audio analysis
     updateAudioAnalysis(outputBuffer, numFrames, numChannels);
+
+    // Automation Playback Logic
+    if (isPlayingAutomation.load()) {
+        std::lock_guard<std::mutex> lock(automationMutex);
+        // Get current time relative to playback start
+        // Using a simple double for time. In a real engine, this might be sample-based.
+        double currentPlaybackTime = std::chrono::duration<double>(
+            std::chrono::high_resolution_clock::now() - automationPlaybackStartTime
+        ).count();
+
+        for (auto& pair : recordedAutomation) {
+            int paramId = pair.first;
+            AutomationTrack& track = pair.second;
+
+            // Ensure playback index exists for this track
+            if (automationPlaybackIndices.find(paramId) == automationPlaybackIndices.end()) {
+                automationPlaybackIndices[paramId] = 0;
+            }
+            size_t& nextEventIdx = automationPlaybackIndices[paramId];
+
+            while (nextEventIdx < track.size() && track[nextEventIdx].timestamp <= currentPlaybackTime) {
+                const auto& event = track[nextEventIdx];
+
+                // Apply the parameter change, marking it as 'fromAutomation'
+                // This setParameter call will update the actual synth module and the parameterCache
+                this->setParameter(event.parameterId, event.value, true);
+
+                // Invoke the callback to notify Dart/Flutter of the change
+                if (automationParameterChangeCallback) {
+                   automationParameterChangeCallback(event.parameterId, event.value);
+                }
+                // std::cout << "Automation playing: Param " << event.parameterId << " Val " << event.value << " Time " << event.timestamp << std::endl;
+
+                nextEventIdx++;
+            }
+        }
+    }
 }
 
 bool SynthEngine::noteOn(int note, int velocity) {
@@ -271,31 +331,87 @@ bool SynthEngine::processMidiEvent(unsigned char status, unsigned char data1, un
     try {
         // Basic MIDI message parsing
         unsigned char messageType = status & 0xF0; // Top 4 bits = message type
-        unsigned char channel = status & 0x0F;     // Bottom 4 bits = channel
+        // unsigned char channel = status & 0x0F;  // Channel currently not used for routing
         
         switch (messageType) {
             case 0x90: // Note On
-                if (data2 > 0) {
-                    return noteOn(data1, data2);
-                } else {
-                    // Note On with velocity 0 is equivalent to Note Off
-                    return noteOff(data1);
-                }
+                return (data2 > 0) ? noteOn(data1, data2) : noteOff(data1);
                 
             case 0x80: // Note Off
                 return noteOff(data1);
+
+            case 0xE0: // Pitch Bend
+                {
+                    int lsb = data1;
+                    int msb = data2;
+                    int bendValue = (msb << 7) | lsb; // Combine LSB and MSB for 14-bit value
+                    // Normalize from 0-16383 to -1.0 to 1.0 (8192 is center)
+                    float normalizedBend = (static_cast<float>(bendValue) - 8192.0f) / 8192.0f;
+                    return setParameter(SynthParameterId::pitchBend, normalizedBend);
+                }
+
+            case 0xD0: // Channel Aftertouch (Channel Pressure)
+                {
+                    float normalizedPressure = static_cast<float>(data1) / 127.0f;
+                    return setParameter(SynthParameterId::channelAftertouch, normalizedPressure);
+                }
                 
             case 0xB0: // Control Change
-                // Handle various MIDI CC messages
-                switch (data1) {
-                    case 7: // Volume
-                        return setParameter(SynthParameterId::masterVolume, data2 / 127.0f);
-                    case 1: // Modulation wheel - map to filter cutoff
-                        return setParameter(SynthParameterId::filterCutoff, 
-                                           20.0f + (data2 / 127.0f) * 19980.0f); // 20Hz to 20kHz
-                    default:
-                        // Unhandled CC
-                        return false;
+                {
+                    int ccNumber = data1;
+                    int ccValue = data2;
+                    float normalizedCcValue = static_cast<float>(ccValue) / 127.0f;
+
+                    if (midiLearnActive.load()) {
+                        std::lock_guard<std::mutex> lock(midiMappingMutex);
+                        int paramIdToMap = parameterIdToLearn.load();
+                        if (paramIdToMap != -1) {
+                            // Remove existing mapping for this paramId if it exists for another CC
+                            for (auto it = ccToParameterMap.begin(); it != ccToParameterMap.end(); ) {
+                                if (it->second == paramIdToMap) {
+                                    it = ccToParameterMap.erase(it);
+                                } else {
+                                    ++it;
+                                }
+                            }
+                            ccToParameterMap[ccNumber] = paramIdToMap;
+                            lastCcValue[ccNumber] = ccValue;
+                            std::cout << "MIDI Learn: Mapped CC " << ccNumber << " to ParamID " << paramIdToMap << std::endl;
+                        }
+                        stopMidiLearn(); // Automatically stop learn mode after one event
+                        return true;
+                    } else {
+                        std::lock_guard<std::mutex> lock(midiMappingMutex);
+                        auto it = ccToParameterMap.find(ccNumber);
+                        if (it != ccToParameterMap.end()) {
+                            // Found a mapping
+                            int mappedParamId = it->second;
+                            // Unlock before calling setParameter to avoid potential recursive lock if setParameter also logs/uses MIDI
+                            // However, setParameter itself has a lock on parameterCache, so it's generally okay.
+                            // For safety, if setParameter could ever call back into MIDI processing or learn logic, unlock earlier.
+                            // For now, keeping it simple.
+                            setParameter(mappedParamId, normalizedCcValue);
+                            lastCcValue[ccNumber] = ccValue;
+                            return true;
+                        } else {
+                            // No mapping found, fallback to hardcoded or generic CCs
+                            // For now, keeping existing hardcoded CCs as fallback:
+                            // This part can be removed if only mapped CCs are desired.
+                            switch (ccNumber) {
+                                case 7: // Volume
+                                    return setParameter(SynthParameterId::masterVolume, normalizedCcValue);
+                                case 1: // Modulation wheel - map to filter cutoff
+                                    return setParameter(SynthParameterId::filterCutoff,
+                                                       20.0f + normalizedCcValue * 19980.0f); // 20Hz to 20kHz
+                                default:
+                                    // Optionally map to generic CC synth parameters if needed
+                                    // if (ccNumber >= 0 && ccNumber <= 119) {
+                                    //    return setParameter(SynthParameterId::genericCCStart + ccNumber, normalizedCcValue);
+                                    // }
+                                    return false; // Unhandled CC
+                            }
+                        }
+                    }
                 }
                 
             default:
@@ -311,29 +427,50 @@ bool SynthEngine::processMidiEvent(unsigned char status, unsigned char data1, un
     }
 }
 
-bool SynthEngine::setParameter(int parameterId, float value) {
+bool SynthEngine::setParameter(int parameterId, float value, bool fromAutomation) {
     if (!initialized) {
         return false;
     }
     
     try {
-        // Update parameter cache
+        // Record automation event if recording and not from automation playback
+        if (isRecordingAutomation.load() && !fromAutomation) {
+            std::lock_guard<std::mutex> lock(automationMutex);
+            // Only record if there's a change, or record all settings? For now, record all calls.
+            // More sophisticated: check against last recorded value for this param to avoid redundant points.
+            double timestamp = std::chrono::duration<double>(
+                std::chrono::high_resolution_clock::now() - automationRecordStartTime
+            ).count();
+            recordedAutomation[parameterId].push_back({parameterId, value, timestamp});
+            // std::cout << "Automation recording: Param " << parameterId << " Val " << value << " Time " << timestamp << std::endl;
+        }
+
+        // Update parameter cache (always, regardless of source)
         {
             std::lock_guard<std::mutex> lock(parameterMutex);
             parameterCache[parameterId] = value;
         }
         
-        // Handle parameter based on ID
+        // Handle parameter based on ID (apply to synth modules)
+        // This part remains largely the same, applying the value to the actual sound-producing components.
         switch (parameterId) {
             // Master parameters
             case SynthParameterId::masterVolume:
-                masterVolume = value;
+                masterVolume.setTarget(value);
                 return true;
-                
             case SynthParameterId::masterMute:
                 masterMute = (value >= 0.5f);
                 return true;
-                
+            case SynthParameterId::pitchBend:
+                // TODO: Implement actual pitch bend logic (e.g., apply to oscillator frequencies)
+                // For now, just caching it.
+                // std::cout << "Pitch Bend set to: " << value << std::endl;
+                return true;
+            case SynthParameterId::channelAftertouch:
+                // TODO: Implement actual aftertouch logic (e.g., map to filter cutoff, LFO depth, volume)
+                // std::cout << "Channel Aftertouch set to: " << value << std::endl;
+                return true;
+
             // Filter parameters
             case SynthParameterId::filterCutoff:
                 if (filter) {
@@ -559,19 +696,21 @@ float SynthEngine::getParameter(int parameterId) {
         switch (parameterId) {
             // Master parameters
             case SynthParameterId::masterVolume:
-                return masterVolume;
+                return masterVolume.getCurrentValueNonSmoothed(); // Return target value
                 
             case SynthParameterId::masterMute:
                 return masterMute ? 1.0f : 0.0f;
                 
             // Filter parameters
+            // Assuming Filter class has getTargetValue() or equivalent for its smoothed parameters
+            // These are hypothetical method names for the Filter class
             case SynthParameterId::filterCutoff:
-                return filter ? static_cast<float>(filter->getCutoff()) : 1000.0f;
+                return filter ? filter->getCutoffTarget() : 1000.0f;
                 
             case SynthParameterId::filterResonance:
-                return filter ? filter->getResonance() : 0.5f;
+                return filter ? filter->getResonanceTarget() : 0.5f;
                 
-            // Add other parameter getters as needed
+            // Add other parameter getters as needed. They should return the TARGET value of smoothed params.
                 
             default:
                 return 0.0f; // Unhandled parameter ID
@@ -655,82 +794,408 @@ bool SynthEngine::loadGranularBuffer(const std::vector<float>& buffer) {
     }
 }
 
+// --- MIDI Learn Methods ---
+void SynthEngine::startMidiLearn(int parameterId) {
+    parameterIdToLearn.store(parameterId);
+    midiLearnActive.store(true);
+    std::cout << "SynthEngine: MIDI Learn started for parameter ID: " << parameterId << std::endl;
+}
+
+void SynthEngine::stopMidiLearn() {
+    midiLearnActive.store(false);
+    parameterIdToLearn.store(-1);
+    std::cout << "SynthEngine: MIDI Learn stopped." << std::endl;
+}
+
+// --- Automation Control Methods ---
+void SynthEngine::startAutomationRecording() {
+    std::lock_guard<std::mutex> lock(automationMutex);
+    // Clear previous automation when starting a new recording.
+    // Alternatively, one might want to append or manage multiple named automation clips.
+    recordedAutomation.clear();
+    automationPlaybackIndices.clear();
+
+    isRecordingAutomation.store(true);
+    isPlayingAutomation.store(false);
+    automationRecordStartTime = std::chrono::high_resolution_clock::now();
+    std::cout << "SynthEngine: Automation Recording Started." << std::endl;
+}
+
+void SynthEngine::stopAutomationRecording() {
+    isRecordingAutomation.store(false);
+    std::cout << "SynthEngine: Automation Recording Stopped." << std::endl;
+    // Optionally sort tracks by timestamp if events could be out of order (shouldn't be if recorded sequentially)
+    // for (auto& pair : recordedAutomation) {
+    //    std::sort(pair.second.begin(), pair.second.end(), [](const AutomationEvent& a, const AutomationEvent& b) {
+    //        return a.timestamp < b.timestamp;
+    //    });
+    // }
+}
+
+void SynthEngine::startAutomationPlayback() {
+    std::lock_guard<std::mutex> lock(automationMutex);
+    if (recordedAutomation.empty()) {
+        std::cout << "SynthEngine: No automation data to play." << std::endl;
+        isPlayingAutomation.store(false); // Ensure it's off
+        return;
+    }
+
+    // Reset playback indices for all tracks
+    automationPlaybackIndices.clear();
+    for (const auto& pair : recordedAutomation) {
+        automationPlaybackIndices[pair.first] = 0;
+    }
+
+    isPlayingAutomation.store(true);
+    isRecordingAutomation.store(false); // Stop recording if it was active
+    automationPlaybackStartTime = std::chrono::high_resolution_clock::now();
+    std::cout << "SynthEngine: Automation Playback Started." << std::endl;
+}
+
+void SynthEngine::stopAutomationPlayback() {
+    isPlayingAutomation.store(false);
+    std::cout << "SynthEngine: Automation Playback Stopped." << std::endl;
+}
+
+void SynthEngine::clearAutomationData() {
+    std::lock_guard<std::mutex> lock(automationMutex);
+    recordedAutomation.clear();
+    automationPlaybackIndices.clear();
+    isRecordingAutomation.store(false); // Also stop recording if active
+    isPlayingAutomation.store(false);   // And playback
+    std::cout << "SynthEngine: Automation Data Cleared." << std::endl;
+}
+
+bool SynthEngine::hasAutomationData() const {
+    std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(automationMutex)); // See note in .h if this becomes an issue
+    return !recordedAutomation.empty();
+}
+
+void SynthEngine::setParameterChangeCallback(std::function<void(int, float)> callback) {
+    automationParameterChangeCallback = callback;
+}
+
+// --- Preset Management Methods ---
+
+// NOTE: Proper JSON serialization/deserialization is complex without a library.
+// The toJsonString and fromJsonString in SynthPreset are EXTREMELY basic placeholders.
+// A real implementation would use something like nlohmann/json.
+
+std::string SynthEngine::getCurrentPresetDataJson(const std::string& name) {
+    SynthPreset preset;
+    preset.name = name;
+
+    { // Parameters
+        std::lock_guard<std::mutex> lock(parameterMutex);
+        preset.parameters = this->parameterCache;
+        // Ensure all SmoothedParameter current TARGETS are in parameterCache.
+        // getParameter() already returns target for masterVolume.
+        // For other smoothed params (filter, etc.), their getTarget() should be reflected in cache.
+        // For simplicity, we assume parameterCache holds the desired "savable" state.
+    }
+    { // MIDI Mappings
+        std::lock_guard<std::mutex> lock(midiMappingMutex);
+        preset.midiC পরিবর্তনMappings = this->ccToParameterMap;
+    }
+    { // Automation Data - conceptual copy
+      // This would be complex to serialize fully. For now, just acknowledge it.
+      // If we were to serialize, we'd need to iterate recordedAutomation.
+      // preset.automationTracks = this->recordedAutomation; // Deep copy needed
+    }
+    // TODO: Add wavetable selections, granular sample info, etc.
+
+    // Using the very basic toJsonString placeholder from the struct.
+    // This will NOT be robust JSON for complex data like automation.
+    // It's primarily to show the data gathering.
+    // A better approach for FFI: C++ gathers data into struct, Dart pulls it field by field, Dart builds JSON.
+    // Or C++ uses a proper JSON lib.
+    
+    // Manual, simplified JSON string construction for parameters and MIDI map for FFI:
+    std::string jsonOutput = "{";
+    jsonOutput += "\"name\":\"" + name + "\",";
+    
+    // Parameters
+    jsonOutput += "\"parameters\":{";
+    bool firstParam = true;
+    for (const auto& pair : preset.parameters) {
+        if (!firstParam) jsonOutput += ",";
+        jsonOutput += "\"" + std::to_string(pair.first) + "\":" + std::to_string(pair.second);
+        firstParam = false;
+    }
+    jsonOutput += "},";
+
+    // MIDI Mappings
+    jsonOutput += "\"midiMappings\":{";
+    bool firstMidiMap = true;
+    for (const auto& pair : preset.midiC পরিবর্তনMappings) {
+        if (!firstMidiMap) jsonOutput += ",";
+        jsonOutput += "\"" + std::to_string(pair.first) + "\":" + std::to_string(pair.second);
+        firstMidiMap = false;
+    }
+    jsonOutput += "}";
+    // Automation data would go here if serialized
+
+    jsonOutput += "}";
+    return jsonOutput;
+}
+
+// Applies a map of parameters. fromPresetOrAutomation helps distinguish source.
+bool SynthEngine::applyParameterMap(const std::unordered_map<int, float>& parameters, bool fromPresetOrAutomation) {
+    bool success = true;
+    for (const auto& pair : parameters) {
+        if (!setParameter(pair.first, pair.second, fromPresetOrAutomation)) {
+            success = false;
+            // Optionally log an error for the specific parameter
+        }
+    }
+    return success;
+}
+
+// Applies MIDI control change mappings.
+bool SynthEngine::applyMidiMap(const std::unordered_map<int, int>& midiMappings) {
+    std::lock_guard<std::mutex> lock(midiMappingMutex);
+    ccToParameterMap = midiMappings; // Replace current mappings
+    // Potentially clear lastCcValue or update it based on new mappings if needed
+    return true;
+}
+
+
+bool SynthEngine::applyPresetDataJson(const std::string& jsonString) {
+    // This is where proper JSON parsing is CRITICAL.
+    // The SynthPreset::fromJsonString is a placeholder and NOT functional for real JSON.
+    // We will simulate parsing for parameters and MIDI maps only for this example.
+
+    std::cout << "SynthEngine: Applying preset from JSON string (length " << jsonString.length() << ")" << std::endl;
+    // Example: Manually parse a very specific format like the one constructed in getCurrentPresetDataJson
+    // THIS IS NOT A ROBUST JSON PARSER.
+    SynthPreset preset; // Dummy preset object
+
+    // Simulated parsing for "parameters": {...}
+    std::string params_key = "\"parameters\":{";
+    size_t params_start = jsonString.find(params_key);
+    if (params_start != std::string::npos) {
+        size_t params_end = jsonString.find("}", params_start);
+        if (params_end != std::string::npos) {
+            std::string params_content = jsonString.substr(params_start + params_key.length(), params_end - (params_start + params_key.length()));
+            // Crude parsing of "id":value pairs
+            size_t current_pos = 0;
+            while(current_pos < params_content.length()) {
+                size_t p_id_start = params_content.find("\"", current_pos);
+                if (p_id_start == std::string::npos) break;
+                size_t p_id_end = params_content.find("\"", p_id_start + 1);
+                if (p_id_end == std::string::npos) break;
+                std::string p_id_str = params_content.substr(p_id_start + 1, p_id_end - (p_id_start + 1));
+
+                size_t p_val_start = params_content.find(":", p_id_end);
+                if (p_val_start == std::string::npos) break;
+                size_t p_val_end = params_content.find(",", p_val_start + 1);
+                if (p_val_end == std::string::npos) p_val_end = params_content.length(); // last item
+
+                std::string p_val_str = params_content.substr(p_val_start + 1, p_val_end - (p_val_start + 1));
+                try {
+                    preset.parameters[std::stoi(p_id_str)] = std::stof(p_val_str);
+                } catch (const std::exception& e) { /* ignore parse error for this crude parser */ }
+                current_pos = p_val_end + 1;
+            }
+        }
+    }
+
+    // Simulated parsing for "midiMappings": {...}
+    std::string map_key = "\"midiMappings\":{";
+    size_t map_start = jsonString.find(map_key);
+     if (map_start != std::string::npos) {
+        size_t map_end = jsonString.find("}", map_start);
+        if (map_end != std::string::npos) {
+            std::string map_content = jsonString.substr(map_start + map_key.length(), map_end - (map_start + map_key.length()));
+            size_t current_pos = 0;
+            while(current_pos < map_content.length()) {
+                 size_t m_cc_start = map_content.find("\"", current_pos);
+                if (m_cc_start == std::string::npos) break;
+                size_t m_cc_end = map_content.find("\"", m_cc_start + 1);
+                if (m_cc_end == std::string::npos) break;
+                std::string m_cc_str = map_content.substr(m_cc_start + 1, m_cc_end - (m_cc_start + 1));
+
+                size_t m_pid_start = map_content.find(":", m_cc_end);
+                if (m_pid_start == std::string::npos) break;
+                size_t m_pid_end = map_content.find(",", m_pid_start + 1);
+                if (m_pid_end == std::string::npos) m_pid_end = map_content.length();
+
+                std::string m_pid_str = map_content.substr(m_pid_start + 1, m_pid_end - (m_pid_start + 1));
+                 try {
+                    preset.midiC পরিবর্তনMappings[std::stoi(m_cc_str)] = std::stoi(m_pid_str);
+                } catch (const std::exception& e) { /* ignore */ }
+                current_pos = m_pid_end + 1;
+            }
+        }
+    }
+
+    // Apply parsed data
+    bool paramsOk = applyParameterMap(preset.parameters, true); // fromPreset = true
+    bool midiOk = applyMidiMap(preset.midiC পরিবর্তনMappings);
+
+    // TODO: Apply automation data from preset.automationTracks
+    // This would involve:
+    // 1. std::lock_guard<std::mutex> lock(automationMutex);
+    // 2. recordedAutomation = preset.automationTracks; // (or merge)
+    // 3. automationPlaybackIndices.clear(); // Reset for new data
+    // 4. Potentially sort each track by timestamp.
+    // 5. Update hasAutomationData appropriately.
+
+    // TODO: Apply wavetable selections, granular sample info etc.
+
+    std::cout << "SynthEngine: Preset application finished." << std::endl;
+    return paramsOk && midiOk; // For now, only reflects param and MIDI map application
+}
+
+
 // Audio analysis functions for visualization
+
+void SynthEngine::initializeAudioAnalysis(int fftSze) {
+    fftSize = fftSze;
+    if (fftSize <= 0 || (fftSize & (fftSize - 1)) != 0) {
+        std::cerr << "Warning: fftSize must be a positive power of 2. Defaulting to 2048." << std::endl;
+        fftSize = 2048;
+    }
+    fftMagnitudes.assign(fftSize / 2 + 1, 0.0f);
+    analysisWindow.assign(fftSize, 0.0f);
+    analysisBuffer.assign(fftSize, 0.0f);
+
+    const float PI_CONST = 3.14159265358979323846f;
+    for (int i = 0; i < fftSize; ++i) {
+        analysisWindow[i] = 0.5f * (1.0f - std::cos(2.0f * PI_CONST * static_cast<float>(i) / static_cast<float>(fftSize - 1)));
+    }
+}
+
+// Placeholder for FFT function - THIS IS NOT A REAL FFT IMPLEMENTATION
+void SynthEngine::performFFT(const float* audio_block_input, float* fft_magnitudes_output) {
+    // This is a placeholder. A real FFT implementation (e.g., from a library like FFTW or KissFFT)
+    // would be complex and involve steps like:
+    // 1. Copy audio_block_input to a complex array or separate real/imag arrays.
+    // 2. Bit-reversal permutation of input if using Cooley-Tukey.
+    // 3. Iterative butterfly computations.
+    // 4. Calculation of magnitudes: sqrt(real^2 + imag^2) for each frequency bin.
+    //    The output fft_magnitudes_output should store these float magnitudes.
+
+    float totalMagnitude = 0.0f;
+    if (fftSize <= 0 || !audio_block_input || !fft_magnitudes_output) {
+        if(fft_magnitudes_output && !fftMagnitudes.empty()) { // Check fftMagnitudes is not empty before accessing
+             for (size_t i = 0; i < fftMagnitudes.size(); ++i) fft_magnitudes_output[i] = 0.0f;
+        }
+        return;
+    }
+    for(int i = 0; i < fftSize; ++i) {
+         totalMagnitude += std::abs(audio_block_input[i]);
+    }
+    float avgMagnitude = (fftSize > 0) ? (totalMagnitude / static_cast<float>(fftSize)) : 0.0f;
+
+    if (fft_magnitudes_output && !fftMagnitudes.empty()){ // Check again before iterating
+        for (size_t i = 0; i < fftMagnitudes.size(); ++i) {
+            fft_magnitudes_output[i] = avgMagnitude * std::pow(0.85f, static_cast<float>(i)) * ( (i == 0) ? 1.0f : 0.7f);
+        }
+    }
+}
+
+void SynthEngine::updateAudioAnalysis(const float* buffer_input, int numFrames, int numChannels) {
+    if (!buffer_input || numFrames <= 0 || fftSize <= 0 || analysisBuffer.empty() || analysisWindow.empty() || fftMagnitudes.empty()) {
+        amplitudeLevel.store(0.0); bassLevel.store(0.0); midLevel.store(0.0); highLevel.store(0.0); dominantFrequency.store(0.0);
+        return;
+    }
+
+    int samplesToCopy = std::min(numFrames, fftSize);
+    for (int i = 0; i < samplesToCopy; ++i) {
+        int bufferIdx = (numFrames - samplesToCopy + i);
+        if (numChannels == 1) {
+            analysisBuffer[i] = buffer_input[bufferIdx];
+        } else {
+            analysisBuffer[i] = (buffer_input[bufferIdx * numChannels] + buffer_input[bufferIdx * numChannels + 1]) * 0.5f;
+        }
+    }
+    for (int i = samplesToCopy; i < fftSize; ++i) {
+        analysisBuffer[i] = 0.0f;
+    }
+
+    for (int i = 0; i < fftSize; ++i) {
+        analysisBuffer[i] *= analysisWindow[i];
+    }
+
+    performFFT(analysisBuffer.data(), fftMagnitudes.data());
+
+    double currentMaxAmplitude = 0.0;
+    for(int i = 0; i < numFrames; ++i) {
+         float sampleVal = (numChannels == 1) ? buffer_input[i] : (buffer_input[i * numChannels] + buffer_input[i * numChannels + 1]) * 0.5f;
+         float absSampleVal = std::abs(sampleVal);
+         if (absSampleVal > currentMaxAmplitude) {
+             currentMaxAmplitude = absSampleVal;
+         }
+    }
+    amplitudeLevel.store(currentMaxAmplitude);
+
+    float nyquist = static_cast<float>(sampleRate) / 2.0f;
+    if (nyquist <= 0) nyquist = 22050.0f;
+
+    float bassFreqMax = 250.0f;
+    float midFreqMax = 4000.0f;
+
+    int numSpectrumBins = fftSize / 2;
+    if (numSpectrumBins <=0) {
+        bassLevel.store(0.0); midLevel.store(0.0); highLevel.store(0.0); dominantFrequency.store(0.0);
+        return;
+    }
+
+    int bassEndBin = static_cast<int>((bassFreqMax / nyquist) * numSpectrumBins);
+    bassEndBin = std::min(bassEndBin, numSpectrumBins);
+    
+    int midEndBin = static_cast<int>((midFreqMax / nyquist) * numSpectrumBins);
+    midEndBin = std::min(midEndBin, numSpectrumBins);
+
+    double bassSum = 0.0, midSum = 0.0, highSum = 0.0;
+    double maxMagnitudeInSpectrum = -1.0;
+    int dominantBinIndex = 0;
+
+    for (int i = 0; i <= numSpectrumBins; ++i) {
+        if (static_cast<size_t>(i) >= fftMagnitudes.size()) break;
+        float mag = fftMagnitudes[i];
+        if (mag < 0.0f) mag = 0.0f;
+
+        if (mag > maxMagnitudeInSpectrum) {
+            maxMagnitudeInSpectrum = mag;
+            dominantBinIndex = i;
+        }
+        float currentBinFreq = (static_cast<float>(i) / static_cast<float>(numSpectrumBins)) * nyquist;
+        if (currentBinFreq <= bassFreqMax) {
+            bassSum += mag;
+        } else if (currentBinFreq <= midFreqMax) {
+            midSum += mag;
+        } else {
+            highSum += mag;
+        }
+    }
+
+    int bassBinsCount = bassEndBin + 1;
+    int midBinsCount = midEndBin - bassEndBin;
+    int highBinsCount = numSpectrumBins - midEndBin;
+
+    bassLevel.store(bassBinsCount > 0 ? (bassSum / static_cast<double>(bassBinsCount)) : 0.0);
+    midLevel.store(midBinsCount > 0 ? (midSum / static_cast<double>(midBinsCount)) : 0.0);
+    highLevel.store(highBinsCount > 0 ? (highSum / static_cast<double>(highBinsCount)) : 0.0);
+
+    float dominantFreqValue = (numSpectrumBins > 0) ? ((static_cast<float>(dominantBinIndex) / static_cast<float>(numSpectrumBins)) * nyquist) : 0.0f;
+    dominantFrequency.store(dominantFreqValue);
+}
+
+// Audio analysis functions for visualization (getters)
 double SynthEngine::getBassLevel() const {
     return bassLevel.load();
 }
-
 double SynthEngine::getMidLevel() const {
     return midLevel.load();
 }
-
 double SynthEngine::getHighLevel() const {
     return highLevel.load();
 }
-
 double SynthEngine::getAmplitudeLevel() const {
     return amplitudeLevel.load();
 }
-
 double SynthEngine::getDominantFrequency() const {
     return dominantFrequency.load();
-}
-
-void SynthEngine::updateAudioAnalysis(const float* buffer, int numFrames, int numChannels) {
-    if (!buffer || numFrames <= 0) {
-        return;
-    }
-    
-    // Simple frequency band analysis using basic filtering
-    double bassSum = 0.0, midSum = 0.0, highSum = 0.0, totalSum = 0.0;
-    double maxAmplitude = 0.0;
-    
-    // Process samples (mix down to mono if stereo)
-    for (int frame = 0; frame < numFrames; ++frame) {
-        float sample = 0.0f;
-        if (numChannels == 1) {
-            sample = buffer[frame];
-        } else {
-            // Mix stereo to mono
-            sample = (buffer[frame * numChannels] + buffer[frame * numChannels + 1]) * 0.5f;
-        }
-        
-        float absSample = std::abs(sample);
-        totalSum += absSample;
-        maxAmplitude = std::max(maxAmplitude, static_cast<double>(absSample));
-        
-        // Simple frequency band separation using sample analysis
-        // This is a simplified approach - in practice, you'd use FFT
-        
-        // Bass: Low frequency emphasis (slower changes)
-        bassFilterState = bassFilterState * 0.95f + sample * 0.05f;
-        bassSum += std::abs(bassFilterState);
-        
-        // Mid: Medium frequency emphasis
-        midFilterState = midFilterState * 0.8f + sample * 0.2f;
-        midSum += std::abs(midFilterState);
-        
-        // High: High frequency emphasis (faster changes)
-        float highPass = sample - (midFilterState * 0.7f);
-        highFilterState = highFilterState * 0.3f + highPass * 0.7f;
-        highSum += std::abs(highFilterState);
-    }
-    
-    // Normalize and update atomic values
-    if (numFrames > 0) {
-        bassLevel.store(bassSum / numFrames);
-        midLevel.store(midSum / numFrames);
-        highLevel.store(highSum / numFrames);
-        amplitudeLevel.store(maxAmplitude);
-        
-        // Simple dominant frequency estimation based on which band is strongest
-        double maxBand = std::max({bassSum, midSum, highSum});
-        if (maxBand == bassSum) {
-            dominantFrequency.store(100.0); // Approximate bass frequency
-        } else if (maxBand == midSum) {
-            dominantFrequency.store(1000.0); // Approximate mid frequency
-        } else {
-            dominantFrequency.store(5000.0); // Approximate high frequency
-        }
-    }
 }

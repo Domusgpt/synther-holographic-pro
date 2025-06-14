@@ -11,9 +11,9 @@ class HolographicTheme {
   static const Color successEnergy = Color(0xFF00FF80); // Electric Green
   
   // Transparency levels
-  static const double widgetTransparency = 0.15;
-  static const double hoverTransparency = 0.25;
-  static const double activeTransparency = 0.35;
+  static const double widgetTransparency = 0.05; // Lowered for more translucency
+  static const double hoverTransparency = 0.15; // Adjusted proportionally
+  static const double activeTransparency = 0.25; // Adjusted proportionally
   
   // Glow effects
   static const double baseGlowRadius = 8.0;
@@ -186,7 +186,7 @@ class HolographicTheme {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: energyColor.withOpacity(0.2),
+        color: energyColor.withOpacity(0.1), // Lowered for more translucency
         borderRadius: BorderRadius.circular(size / 2),
         border: Border.all(
           color: energyColor.withOpacity(0.6),
@@ -211,7 +211,7 @@ class HolographicTheme {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: energyColor.withOpacity(0.3),
+        color: energyColor.withOpacity(0.15), // Lowered for more translucency
         borderRadius: BorderRadius.circular(2.0),
         boxShadow: createEnergyGlow(color: energyColor, radius: 3.0),
       ),

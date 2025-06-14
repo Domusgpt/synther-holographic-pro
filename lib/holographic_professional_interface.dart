@@ -158,7 +158,7 @@ class _HolographicProfessionalSynthState extends State<HolographicProfessionalSy
                 height: 40,
                 padding: EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withOpacity(HolographicTheme.widgetTransparency * 2), // Adjusted opacity
                   borderRadius: BorderRadius.vertical(top: Radius.circular(10)),
                   border: Border(
                     bottom: BorderSide(
@@ -239,7 +239,7 @@ class _HolographicProfessionalSynthState extends State<HolographicProfessionalSy
             decoration: InputDecoration(
               hintText: 'Describe your sound (e.g., "ethereal pad with crystal resonance")...',
               hintStyle: TextStyle(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.5),
+                color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted opacity
                 fontSize: 14,
               ),
               border: OutlineInputBorder(
@@ -264,7 +264,7 @@ class _HolographicProfessionalSynthState extends State<HolographicProfessionalSy
             // TODO: Implement LLM preset generation
           },
           style: ElevatedButton.styleFrom(
-            backgroundColor: HolographicTheme.primaryEnergy.withOpacity(0.2),
+            backgroundColor: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.activeTransparency), // Adjusted opacity
             foregroundColor: HolographicTheme.primaryEnergy,
             side: BorderSide(color: HolographicTheme.primaryEnergy),
           ),
@@ -321,7 +321,7 @@ class _HolographicProfessionalSynthState extends State<HolographicProfessionalSy
                 child: Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withOpacity(HolographicTheme.widgetTransparency * 2), // Adjusted opacity
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(color: HolographicTheme.secondaryEnergy),
                   ),
@@ -423,7 +423,7 @@ class _HolographicProfessionalSynthState extends State<HolographicProfessionalSy
                   margin: EdgeInsets.all(1),
                   decoration: BoxDecoration(
                     color: isPressed 
-                        ? HolographicTheme.primaryEnergy.withOpacity(0.2)
+                        ? HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.activeTransparency) // Adjusted opacity
                         : Colors.transparent,
                     border: Border.all(
                       color: isPressed 
@@ -462,7 +462,7 @@ class _HolographicProfessionalSynthState extends State<HolographicProfessionalSy
                         child: Container(
                           decoration: BoxDecoration(
                             color: _pressedKeys.contains(_octave * 12 + whiteKeys[i] + 1)
-                                ? HolographicTheme.secondaryEnergy.withOpacity(0.3)
+                                ? HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.activeTransparency) // Adjusted opacity
                                 : Colors.transparent,
                             border: Border.all(
                               color: HolographicTheme.secondaryEnergy,
@@ -691,14 +691,14 @@ class XYPadPainter extends CustomPainter {
     canvas.drawLine(
       Offset(centerX, 0),
       Offset(centerX, size.height),
-      paint..strokeWidth = 1..style = PaintingStyle.stroke..color = HolographicTheme.primaryEnergy.withOpacity(0.3),
+      paint..strokeWidth = 1..style = PaintingStyle.stroke..color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 4), // Adjusted opacity
     );
     
     // Horizontal line
     canvas.drawLine(
       Offset(0, centerY),
       Offset(size.width, centerY),
-      paint..color = HolographicTheme.primaryEnergy.withOpacity(0.3),
+      paint..color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 4), // Adjusted opacity
     );
     
     // Center dot with glow
@@ -711,7 +711,7 @@ class XYPadPainter extends CustomPainter {
     canvas.drawCircle(
       Offset(centerX, centerY),
       12,
-      paint..style = PaintingStyle.stroke..strokeWidth = 2..color = HolographicTheme.primaryEnergy.withOpacity(0.5),
+      paint..style = PaintingStyle.stroke..strokeWidth = 2..color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted opacity
     );
   }
   
@@ -732,7 +732,7 @@ class KnobPainter extends CustomPainter {
     
     // Draw arc background
     final backgroundPaint = Paint()
-      ..color = color.withOpacity(0.2)
+      ..color = color.withOpacity(HolographicTheme.widgetTransparency * 4) // Adjusted opacity
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4;
     

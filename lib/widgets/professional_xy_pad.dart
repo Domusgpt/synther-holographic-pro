@@ -194,15 +194,15 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
           width: 60,
           height: 60,
           decoration: BoxDecoration(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.2),
+            color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: HolographicTheme.primaryEnergy.withOpacity(0.6),
+              color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
               width: 2,
             ),
             boxShadow: [
               BoxShadow(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.4),
+                color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
                 blurRadius: 15,
                 spreadRadius: 3,
               ),
@@ -252,10 +252,10 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
       width: widget.width,
       height: 40,
       decoration: BoxDecoration(
-        color: HolographicTheme.primaryEnergy.withOpacity(0.1),
+        color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: HolographicTheme.primaryEnergy.withOpacity(0.4),
+          color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
           width: 1,
         ),
       ),
@@ -271,7 +271,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
               letterSpacing: 2.0,
               shadows: [
                 Shadow(
-                  color: HolographicTheme.primaryEnergy.withOpacity(0.8),
+                  color: HolographicTheme.primaryEnergy.withOpacity(0.6), // Adjusted
                   blurRadius: 4.0,
                 ),
               ],
@@ -285,10 +285,10 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
               width: 30,
               height: 30,
               decoration: BoxDecoration(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.2),
+                color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
                 borderRadius: BorderRadius.circular(15),
                 border: Border.all(
-                  color: HolographicTheme.primaryEnergy.withOpacity(0.6),
+                  color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
                   width: 1,
                 ),
               ),
@@ -338,10 +338,10 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
     return Container(
       height: 50,
       decoration: BoxDecoration(
-        color: HolographicTheme.secondaryEnergy.withOpacity(0.1),
+        color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: HolographicTheme.secondaryEnergy.withOpacity(0.4),
+          color: HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
           width: 1,
         ),
       ),
@@ -353,7 +353,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
             child: Text(
               label,
               style: TextStyle(
-                color: HolographicTheme.secondaryEnergy.withOpacity(0.8),
+                color: HolographicTheme.secondaryEnergy.withOpacity(0.7), // Adjusted
                 fontSize: 10,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.0,
@@ -365,7 +365,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
               child: DropdownButton<SynthParameter>(
                 value: currentParameter,
                 isExpanded: true,
-                dropdownColor: Colors.black.withOpacity(0.9),
+                dropdownColor: Colors.black.withOpacity(HolographicTheme.activeTransparency * 1.5), // Adjusted (Significantly reduced)
                 style: TextStyle(
                   color: HolographicTheme.secondaryEnergy,
                   fontSize: 12,
@@ -420,12 +420,12 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
           color: Colors.transparent,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.6),
+            color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), // Adjusted
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: HolographicTheme.primaryEnergy.withOpacity(0.3),
+              color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 3.0), // Adjusted
               blurRadius: 20,
               spreadRadius: 5,
             ),
@@ -483,15 +483,15 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
     return Container(
       height: 40,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withOpacity(HolographicTheme.widgetTransparency), // Adjusted
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: color.withOpacity(0.4),
+          color: color.withOpacity(HolographicTheme.widgetTransparency * 4.0), // Adjusted
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.2),
+            color: color.withOpacity(HolographicTheme.widgetTransparency * 2.0), // Adjusted
             blurRadius: 10,
             spreadRadius: 2,
           ),
@@ -503,7 +503,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
           Text(
             label,
             style: TextStyle(
-              color: color.withOpacity(0.8),
+              color: color.withOpacity(0.7), // Adjusted
               fontSize: 10,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
@@ -517,7 +517,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
               fontWeight: FontWeight.bold,
               shadows: [
                 Shadow(
-                  color: color.withOpacity(0.8),
+                  color: color.withOpacity(0.6), // Adjusted
                   blurRadius: 4.0,
                 ),
               ],
@@ -607,7 +607,7 @@ class XYPadPainter extends CustomPainter {
 
   void _drawGrid(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = HolographicTheme.primaryEnergy.withOpacity(0.2 * glowIntensity)
+      ..color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0 * glowIntensity) // Adjusted
       ..strokeWidth = 1
       ..style = PaintingStyle.stroke;
     
@@ -639,7 +639,7 @@ class XYPadPainter extends CustomPainter {
     
     // Glow effect
     final glowPaint = Paint()
-      ..color = HolographicTheme.primaryEnergy.withOpacity(0.3)
+      ..color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 3.0) // Adjusted
       ..style = PaintingStyle.fill;
     
     canvas.drawCircle(center, 20, glowPaint);
@@ -685,7 +685,7 @@ class XYPadPainter extends CustomPainter {
     // X parameter indicator (bottom)
     final xPos = touchPosition.dx * size.width;
     final xPaint = Paint()
-      ..color = HolographicTheme.primaryEnergy.withOpacity(0.6)
+      ..color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency) // Adjusted
       ..strokeWidth = 2;
     
     canvas.drawLine(
@@ -697,7 +697,7 @@ class XYPadPainter extends CustomPainter {
     // Y parameter indicator (right)
     final yPos = touchPosition.dy * size.height;
     final yPaint = Paint()
-      ..color = HolographicTheme.secondaryEnergy.withOpacity(0.6)
+      ..color = HolographicTheme.secondaryEnergy.withOpacity(HolographicTheme.hoverTransparency) // Adjusted
       ..strokeWidth = 2;
     
     canvas.drawLine(
