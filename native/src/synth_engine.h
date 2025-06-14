@@ -7,8 +7,13 @@
 #include <atomic>
 #include <unordered_map>
 #include <functional>
-#include <cmath> // For std::exp
+#include <cmath> // For std::exp, std::sqrt, std::abs
 #include <chrono> // For automation timing
+#include <vector> // Already here, but ensure it's used for kiss_fft_scalar etc.
+
+// KissFFT includes - assuming they are in the include path via CMake
+#include "kiss_fftr.h"
+// Note: kiss_fft.h might also be needed if _kiss_fft_guts.h is not self-contained for kiss_fft_cpx
 
 // Forward declarations
 class Oscillator;
@@ -282,10 +287,17 @@ private:
     
     // Audio analysis data
     // These will be updated by the new FFT based analyzer
-    std::vector<float> fftMagnitudes; // To store FFT results
-    std::vector<float> analysisWindow; // Windowing function for FFT
-    std::vector<float> analysisBuffer; // Buffer to hold audio data for FFT
-    int fftSize; // e.g. 1024, 2048
+    std::vector<float> fftMagnitudes;  // Stores the final magnitude spectrum (size fftSize/2 + 1)
+    std::vector<float> analysisWindow; // Windowing function for FFT input (size fftSize)
+    std::vector<float> analysisInputBuffer; // Buffer to hold audio data for FFT input, after windowing (size fftSize)
+                                         // Renamed from analysisBuffer for clarity vs KissFFT's own types
+    int fftSize{2048}; // Default, can be set in initializeAudioAnalysis
+
+    // KissFFT specific members
+    kiss_fftr_cfg fftPlan{nullptr};              // KissFFT plan for real FFT
+    std::vector<kiss_fft_scalar> kissFftInputBuffer; // Input buffer for kiss_fftr (float / double based on KissFFT build)
+                                                 // kiss_fft_scalar is float by default.
+    std::vector<kiss_fft_cpx> kissFftOutputBuffer;   // Output buffer for kiss_fftr (complex values)
 
     mutable std::atomic<double> bassLevel{0.0};
     mutable std::atomic<double> midLevel{0.0};
