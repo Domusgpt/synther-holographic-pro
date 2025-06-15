@@ -143,17 +143,6 @@ class _HypercubeVisualizerState extends State<HypercubeVisualizer>
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 1.5,
-          colors: [
-            Color(0xFF000010),
-            Color(0xFF000020),
-            Color(0xFF000000),
-          ],
-        ),
-      ),
       child: Stack(
         children: [
           // 4D Visualizer WebView

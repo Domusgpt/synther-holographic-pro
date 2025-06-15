@@ -109,35 +109,53 @@ All interface elements must be:
 
 ## Development Phases
 
-### Phase 1: Core Framework ✅
-- [x] HyperAV visualizer integration
-- [x] Basic Flutter UI framework
-- [x] Audio engine foundation
-- [x] Parameter synchronization
+### Phase 1: Foundational Architecture & Core Audio (Complete)
+*   **Status:** Complete.
+*   **Details:** Core audio engine using RtAudio/WebAudio, FFI bridge, basic parameter control, and initial visualizer established.
 
-### Phase 2: Holographic UI (Current)
-- [ ] Remove overlay filters from visualizer
-- [ ] Implement holographic/translucent UI elements
-- [ ] Add drag/resize/collapse functionality
-- [ ] Vaporwave aesthetic styling
+### Phase 2: Holographic UI & Visualizer Integration (Substantially Complete)
+*   **Status:** Substantially Complete.
+*   **Key Achievements:**
+    *   Holographic widget system (draggable, resizable, collapsible).
+    *   Glassmorphism and neon aesthetics.
+    *   Primary UI layout (`SyntherUnifiedInterface` in `main_unified.dart`).
+    *   Hypercube visualizer integrated as a background layer.
+    *   Transparent UI elements allowing the visualizer to show through.
+*   **Minor Pending Items:**
+    *   Further refinement of holographic widget styling and animations.
+    *   Performance optimizations for complex UI scenes.
+    *   Complete removal of redundant/older UI files (`holographic_professional_interface.dart`, `holographic_synthesizer_interface.dart`, etc.) after ensuring all unique functionalities are migrated.
 
-### Phase 3: Advanced Controls
-- [ ] XY Pad with dropdown assignments
-- [ ] Keyboard with split keys and bendwheels
-- [ ] Parameter knobs with MIDI learn
-- [ ] LLM preset generator
+### Phase 3: Advanced Controls & Initial Feature Set (In Progress)
+*   **Status:** In Progress.
+*   **Item Status:**
+    *   **XY Pad:** Implemented (`HolographicXYPad`). Basic touch input for two-parameter control is functional.
+        *   *Needed:* Advanced assignment options, curve responses.
+    *   **Holographic Keyboard:** Implemented (`HolographicKeyboard`). Basic note on/off functionality.
+        *   *Needed:* Full velocity sensitivity, aftertouch visualization (requires engine support), pitch bend/mod wheel integration. Some TODOs exist in `synth_engine.cpp` for pitch bend and aftertouch.
+    *   **Parameter Knobs:** Implemented (`HolographicAssignableKnob`, `NeonOrbitalControl`). Knobs can be assigned to various synth parameters via a dropdown.
+        *   *Needed:* Full MIDI learn functionality (currently noted as a future enhancement, several TODOs in `control_panel_widget.dart` relate to this). Comprehensive mapping for all `SynthParameterType` enum values to `AudioEngine` getters/setters (partially complete, TODOs in `holographic_assignable_knob.dart`).
+    *   **LLM Preset Generator:** Basic functionality implemented (`LLMPresetButton` in `main_unified.dart`).
+        *   *Needed:* More sophisticated preset generation models, user input for generation guidance.
+    *   **Visualizer Bridge:** Implemented (`MorphUIVisualizerBridge`). Parameters can animate visualizer.
+        *   *Needed:* Smoothing, performance optimization (TODO in `parameter_visualizer_bridge.dart`), ensure all relevant parameters are bridged.
+    *   **Automation System:** Basic UI elements for automation controls exist (`AutomationControlsWidget`).
+        *   *Needed:* Full implementation of automation recording/playback, event handling (TODOs in `automation_controls_widget.dart` and `synth_engine.cpp` for applying automation from presets).
 
-### Phase 4: Professional Features
-- [ ] Full MIDI I/O implementation
-- [ ] Automation recording/playback
-- [ ] Preset management system
-- [ ] Performance optimization
+### Phase 4: Advanced Audio Engine Features (Planned)
+*   **Key Pending Features:**
+    *   Wavetable synthesis (TODOs in `synth_engine.cpp` regarding wavetable selection in presets).
+    *   Granular synthesis elements.
+    *   Expanded effects section (more built-in effects, routing).
+    *   Modulation matrix improvements.
 
-### Phase 5: Cross-Platform Polish
-- [ ] Native audio optimization for each platform
-- [ ] Touch/gesture optimization for mobile
-- [ ] Keyboard shortcuts for desktop
-- [ ] Final UI/UX polish
+### Phase 5: Professional Polish & Extensibility (Planned)
+*   **Key Pending Features:**
+    *   Full MIDI mapping system (beyond basic learn for knobs).
+    *   Plugin support (VST/AU, if feasible).
+    *   Advanced preset management and sharing (partial TODO in `layout_preset_selector.dart` for sharing).
+    *   Comprehensive in-app documentation and tutorials.
+    *   Accessibility improvements.
 
 ## File Structure
 ```

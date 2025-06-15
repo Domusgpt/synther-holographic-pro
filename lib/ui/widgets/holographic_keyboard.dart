@@ -147,10 +147,11 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
   void _onKeyPressed(SplitKey key, double velocity) {
     setState(() {
       key.isPressed = true;
-      key.velocity = velocity;
+      key.velocity = velocity; // Store the actual velocity
       _pressedKeys.add(key.midiNote);
     });
-    widget.onNoteOn?.call(key.midiNote);
+    // Call onNoteOn with the calculated velocity
+    widget.onNoteOn?.call(key.midiNote, velocity);
   }
   
   void _onKeyReleased(SplitKey key) {
@@ -344,8 +345,29 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
     return Positioned(
       left: key.position.dx,
       top: key.position.dy,
+      // Use a Builder to get the correct RenderBox for the key to calculate local Y position accurately
+      // relative to the key itself, not just the GestureDetector.
+      // However, GestureDetector's onTapDown details.localPosition is already relative to the GestureDetector.
+      // If the GestureDetector is the same size as the key, this is fine.
       child: GestureDetector(
-        onTapDown: (_) => _onKeyPressed(key, 0.8),
+        onTapDown: (details) {
+          // Ensure key.size.height is not zero to avoid division by zero.
+          if (key.size.height == 0) return;
+
+          final keyHeight = key.size.height;
+          // Clamp localPosition.dy to be within the key's bounds (0 to keyHeight)
+          final localDy = details.localPosition.dy.clamp(0.0, keyHeight);
+
+          // Normalize Y position: 0.0 at the top of the key, 1.0 at the bottom.
+          final normalizedY = localDy / keyHeight;
+
+          // Velocity: higher Y (further down the key) = higher velocity.
+          // Map [0.0, 1.0] to [0.2, 1.0] (minVelocity 0.2, range 0.8)
+          final calculatedVelocity = (normalizedY * 0.8) + 0.2;
+
+          // Pass calculated velocity, ensuring it's clamped between 0.1 and 1.0
+          _onKeyPressed(key, calculatedVelocity.clamp(0.1, 1.0));
+        },
         onTapUp: (_) => _onKeyReleased(key),
         onTapCancel: () => _onKeyReleased(key),
         onPanUpdate: widget.splitMode 

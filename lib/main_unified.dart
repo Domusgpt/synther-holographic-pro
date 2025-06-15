@@ -15,8 +15,10 @@ import 'design_system/components/components.dart';
 import 'design_system/layout/morph_layout_manager.dart';
 
 // Holographic UI Components
-import 'ui/holographic_widgets.dart';
+import 'ui/holographic_widgets.dart'; // Contains HolographicXYPad
+import 'ui/holographic/holographic_widget.dart'; // Import for HolographicWidget itself
 import 'ui/vaporwave_interface.dart';
+import 'ui/widgets/holographic_assignable_knob.dart';
 
 // Advanced Features
 import 'features/llm_presets/llm_preset_service.dart';
@@ -100,18 +102,12 @@ class _SyntherUnifiedInterfaceState extends State<SyntherUnifiedInterface> {
                 Positioned.fill(
                   child: HypercubeVisualizer(
                     audioEngine: context.watch<AudioEngine>(),
-                    visualizerBridge: context.watch<MorphUIVisualizerBridge>(),
                   ),
                 ),
                 
                 // Glassmorphic UI Overlay
                 Positioned.fill(
-                  child: VaporwaveInterface(
-                    // Combines holographic aesthetics with Morph UI functionality
-                    useGlassmorphism: true,
-                    enableHolographicEffects: true,
-                    audioEngine: context.watch<AudioEngine>(),
-                  ),
+                  child: VaporwaveInterface(),
                 ),
                 
                 // Professional Parameter Controls
@@ -169,61 +165,132 @@ class MorphParameterPanel extends StatelessWidget {
   
   @override
   Widget build(BuildContext context) {
-    return GlassmorphicPane(
-      blur: 20,
-      opacity: 0.1,
-      child: HolographicContainer(
-        enableNeonGlow: true,
-        child: Row(
-          children: [
-            // Professional Knobs with Holographic Effects
-            Expanded(
-              child: HolographicKnob(
-                label: 'Cutoff',
-                value: audioEngine.cutoff,
-                onChanged: (value) {
-                  audioEngine.setCutoff(value);
-                  visualizerBridge.animateParameter('cutoff', value);
-                },
-                enableOrbitalAnimation: true,
-              ),
+    // The MorphParameterPanel is typically given a space by its parent Positioned widget.
+    // We'll use a Stack to allow HolographicWidgets to float.
+    // A Container with a fixed height might be needed if the Stack is not constrained by its parent.
+    // For now, assuming the parent Positioned provides sufficient constraints.
+    return SizedBox( // Explicitly give MorphParameterPanel a height, useful for Stack
+      height: 300, // Example height, adjust as needed
+      child: Stack(
+        children: [
+          HolographicWidget(
+            title: synthParameterTypeToString(SynthParameterType.filterCutoff),
+            initialPosition: const Offset(0, 0), // Relative to Stack
+            initialSize: const Size(180, 220),   // Smaller size for individual knob
+            isDraggable: true,
+            isResizable: true,
+            isCollapsible: true,
+            child: Padding( // Add padding inside HolographicWidget if needed
+              padding: const EdgeInsets.all(8.0),
+              child: HolographicAssignableKnob(
+                  audioEngine: audioEngine,
+                  initialParameter: SynthParameterType.filterCutoff,
+                  onAssignmentChanged: (type, value) {
+                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
+                  },
+                  onValueUpdated: (type, value) {
+                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
+                  },
+                ),
             ),
-            
-            Expanded(
-              child: HolographicKnob(
-                label: 'Resonance', 
-                value: audioEngine.resonance,
-                onChanged: (value) {
-                  audioEngine.setResonance(value);
-                  visualizerBridge.animateParameter('resonance', value);
-                },
-                enableOrbitalAnimation: true,
-              ),
+          ),
+
+          HolographicWidget(
+            title: synthParameterTypeToString(SynthParameterType.filterResonance),
+            initialPosition: const Offset(200, 0), // Positioned to the right
+            initialSize: const Size(180, 220),    // Smaller size
+            isDraggable: true,
+            isResizable: true,
+            isCollapsible: true,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: HolographicAssignableKnob(
+                  audioEngine: audioEngine,
+                  initialParameter: SynthParameterType.filterResonance,
+                  onAssignmentChanged: (type, value) {
+                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
+                  },
+                  onValueUpdated: (type, value) {
+                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
+                  },
+                ),
             ),
-            
-            // XY Pad with Morph UI + Holographic effects
-            Expanded(
-              flex: 2,
+          ),
+
+          HolographicWidget(
+            title: "XY Pad",
+            initialPosition: const Offset(400, 0), // Positioned further to the right
+            initialSize: const Size(300, 220),     // Larger for XY pad
+            isDraggable: true,
+            isResizable: true,
+            isCollapsible: true,
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
               child: HolographicXYPad(
-                xLabel: 'Attack',
-                yLabel: 'Decay',
-                xValue: audioEngine.attack,
-                yValue: audioEngine.decay,
-                onChanged: (x, y) {
-                  audioEngine.setAttack(x);
-                  audioEngine.setDecay(y);
-                  visualizerBridge.animateParameters({
-                    'attack': x,
-                    'decay': y,
-                  });
-                },
-                enableMorphEffects: true,
-              ),
+                  xLabel: 'Attack',
+                  yLabel: 'Decay',
+                  xValue: audioEngine.attackTime,
+                  yValue: audioEngine.decayTime,
+                  onChanged: (x, y) {
+                    audioEngine.setAttackTime(x * 5);
+                    audioEngine.setDecayTime(y * 5);
+                    visualizerBridge.animateParameters({
+                      'attack': x,
+                      'decay': y,
+                    });
+                  },
+                  enableMorphEffects: true, // This prop might need to be part of HolographicXYPad
+                ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
+  }
+
+  void _updateAudioParameter(
+      SynthParameterType type,
+      double value,
+      AudioEngine engine,
+      MorphUIVisualizerBridge bridge) {
+    String paramName = 'unknown';
+    switch (type) {
+      case SynthParameterType.filterCutoff:
+        engine.setFilterCutoff(value * 20000); // Assuming 0-1 from knob
+        paramName = 'cutoff';
+        break;
+      case SynthParameterType.filterResonance:
+        engine.setFilterResonance(value);
+        paramName = 'resonance';
+        break;
+      case SynthParameterType.oscLfoRate:
+        // engine.setLfoRate(value * 20); // Example: Max 20Hz
+        paramName = 'lforate';
+        break;
+      case SynthParameterType.oscPulseWidth:
+        // engine.setPulseWidth(value);
+        paramName = 'pulsewidth';
+        break;
+      case SynthParameterType.reverbMix:
+        engine.setReverbMix(value);
+        paramName = 'reverbmix';
+        break;
+      case SynthParameterType.delayFeedback:
+        // engine.setDelayFeedback(value);
+        paramName = 'delayfeedback';
+        break;
+      case SynthParameterType.attackTime:
+        engine.setAttackTime(value * 5); // Example: Max 5s
+        paramName = 'attack';
+        break;
+      case SynthParameterType.decayTime:
+        engine.setDecayTime(value * 5); // Example: Max 5s
+        paramName = 'decay';
+        break;
+    }
+    if (paramName != 'unknown') {
+      bridge.animateParameter(paramName, value);
+    }
   }
 }
 
