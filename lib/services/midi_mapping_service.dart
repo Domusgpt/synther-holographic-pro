@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart'; // For @immutable
-import 'package:synther_app/ui/widgets/holographic_assignable_knob.dart'; // For SynthParameterType
+import '../ui/widgets/holographic_assignable_knob.dart';
 
 /// Identifies a MIDI Continuous Controller (CC) message.
 ///

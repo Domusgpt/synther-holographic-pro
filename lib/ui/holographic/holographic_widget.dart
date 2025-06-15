@@ -269,13 +269,11 @@ class _HolographicWidgetState extends State<HolographicWidget>
         decoration: BoxDecoration(
           color: widget.energyColor.withOpacity(0.6),
           shape: BoxShape.circle,
-          boxShadow: [
-            HolographicTheme.createEnergyGlow(
-              color: widget.energyColor,
-              intensity: glowIntensity,
-              radius: 12.0,
-            ),
-          ],
+          boxShadow: HolographicTheme.createEnergyGlow(
+            color: widget.energyColor,
+            intensity: glowIntensity,
+            blurRadius: 12.0,
+          ),
         ),
         child: Icon(
           Icons.add,

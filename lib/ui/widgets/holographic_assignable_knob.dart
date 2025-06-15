@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:glassmorphism/glassmorphism.dart'; // For HolographicDropdown styling
-import 'package:synther_app/ui/holographic/holographic_widget.dart';
-import 'package:synther_app/features/shared_controls/control_knob_widget.dart';
-import 'package:synther_app/core/audio_engine.dart'; // Corrected import
-import 'dart:async'; // For Timer
-import 'package:synther_app/ui/holographic/holographic_theme.dart'; // For HolographicTheme colors
-// import 'package:synther_app/features/visualizer_bridge/morph_ui_visualizer_bridge.dart'; // If needed
+import '../holographic/holographic_widget.dart';
+import '../../features/shared_controls/control_knob_widget.dart';
+import '../../core/audio_engine.dart';
+import '../../services/midi_mapping_service.dart';
+import 'dart:async';
+import '../../core/holographic_theme.dart';
 
 /// Enum for assignable synthesizer parameters.
 enum SynthParameterType {
@@ -300,7 +300,6 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
   Widget build(BuildContext context) {
     return HolographicWidget(
       title: synthParameterTypeToString(_selectedParameter), // Dynamic title based on selected param
-      childPadding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 16.0),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.spaceBetween, // Ensure controls are spaced out
         children: [
@@ -342,8 +341,11 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
                   // ControlKnob itself doesn't have onDragStart/End, so onChanged is main trigger
                   child: ControlKnob(
                       value: _currentValue,
+                      min: 0.0,
+                      max: 1.0,
+                      label: synthParameterTypeToString(_selectedParameter),
                       size: 110,
-                      thumbColor: const Color(0xFF00FFFF),
+                      knobColor: const Color(0xFF00FFFF),
                       trackColor: Colors.white.withOpacity(0.2),
                       onChanged: (double newValue) {
                         _handleInteractionStart(); // Consider interaction started
@@ -378,7 +380,7 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
               children: [
                 IconButton(
                   icon: Icon(
-                    _isLearningMidi ? Icons.mic_on : Icons.settings_remote_outlined, // Example: change icon
+                    _isLearningMidi ? Icons.mic : Icons.settings_remote, // Example: change icon
                     color: _isLearningMidi ? Colors.redAccent : Color(0xFF00FFFF).withOpacity(0.7),
                   ),
                   tooltip: _isLearningMidi ? 'MIDI Learn Active... (Tap to Cancel)' : (_currentMapping != null ? 'Change MIDI Map ($_currentMapping)' : 'Start MIDI Learn'),

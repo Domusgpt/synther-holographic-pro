@@ -24,18 +24,21 @@ class HolographicTheme {
   static const Duration hoverDuration = Duration(milliseconds: 200);
   static const Duration activeDuration = Duration(milliseconds: 100);
   static const Duration collapseDuration = Duration(milliseconds: 300);
+  static const Duration generalAnimationDuration = Duration(milliseconds: 300);
   
   /// Creates energy glow effect with specified color and intensity
   static List<BoxShadow> createEnergyGlow({
     required Color color,
     double intensity = 1.0,
-    double radius = baseGlowRadius,
+    double blurRadius = baseGlowRadius,
+    double? radius, // Deprecated, use blurRadius
   }) {
+    final effectiveRadius = blurRadius;
     return [
       BoxShadow(
         color: color.withOpacity(0.6 * intensity),
-        blurRadius: radius * intensity,
-        spreadRadius: (radius * 0.3) * intensity,
+        blurRadius: effectiveRadius * intensity,
+        spreadRadius: (effectiveRadius * 0.3) * intensity,
       ),
     ];
   }

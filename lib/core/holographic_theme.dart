@@ -15,6 +15,15 @@ class HolographicTheme {
   static const Color electricBlue = Color(0xFF0099FF);
   static const Color neonPurple = Color(0xFF9900FF);
   static const Color holographicPink = Color(0xFFFF3399);
+  static const Color accentEnergy = Color(0xFFFFD700);
+  
+  // Transparency levels
+  static const double widgetTransparency = 0.05;
+  static const double hoverTransparency = 0.15;
+  static const double activeTransparency = 0.25;
+  
+  // Animation durations
+  static const Duration generalAnimationDuration = Duration(milliseconds: 300);
   
   // Gradient Definitions
   static const LinearGradient energyGradient = LinearGradient(
@@ -72,6 +81,23 @@ class HolographicTheme {
       blurRadius: blurRadius * intensity,
       spreadRadius: spreadRadius * intensity,
     );
+  }
+  
+  // Create energy glow effect - returns list for compatibility
+  static List<BoxShadow> createEnergyGlow({
+    required Color color,
+    double intensity = 1.0,
+    double blurRadius = 15.0,
+    double spreadRadius = 3.0,
+  }) {
+    return [
+      energyGlow(
+        color: color,
+        intensity: intensity,
+        blurRadius: blurRadius,
+        spreadRadius: spreadRadius,
+      ),
+    ];
   }
   
   // Text Styles with Glow Effects

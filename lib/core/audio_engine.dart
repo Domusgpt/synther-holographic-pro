@@ -3,8 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:synther_app/services/midi_mapping_service.dart'; // For MidiMappingService and MidiCcMessage
-import 'package:synther_app/ui/widgets/holographic_assignable_knob.dart'; // For SynthParameterType
+import '../services/midi_mapping_service.dart';
+import '../ui/widgets/holographic_assignable_knob.dart';
 
 class AudioEngine extends ChangeNotifier {
   static const MethodChannel _channel = MethodChannel('synther/audio');

@@ -12,7 +12,7 @@ import 'holographic_widgets.dart';
 /// Revolutionary Vaporwave Holographic Interface
 /// 
 // Import for HolographicKeyboard and its callback type
-import 'package:synther_app/ui/widgets/holographic_keyboard.dart';
+import 'widgets/holographic_keyboard.dart';
 
 /// Features intense parallax effects, skeuomorphic depth, and neon aesthetics
 class VaporwaveInterface extends StatefulWidget {
