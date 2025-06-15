@@ -237,21 +237,43 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     function calculateAudioLevels() {
-        if (!analyser || !freqData) {
-            console.warn("Audio analyzer not available");
+        let currentFreqData;
+        let currentBufferLength;
+        let usingSyntherData = false;
+
+        if (window.syntherFftData && window.syntherFftData.length > 0) {
+            currentFreqData = window.syntherFftData;
+            currentBufferLength = window.syntherFftData.length; // This is N/2 + 1
+            usingSyntherData = true;
+            // console.log("Using Synther FFT data: " + currentBufferLength + " bins");
+        } else if (analyser && freqData) {
+            analyser.getByteFrequencyData(freqData); // Original microphone data
+            analyser.getByteTimeDomainData(timeData); // Original microphone data
+            currentFreqData = freqData;
+            currentBufferLength = analyser.frequencyBinCount; // This is N/2
+        } else {
+            // console.warn("Audio analyzer not available and no Synther FFT data.");
+            // Fallback to simulation if NO data source is available
+            const simulationTime = Date.now() / 1000;
+            // ... (keep existing simulation logic as a final fallback) ...
+            const pulseRate = Math.sin(simulationTime * 0.8) * 0.5 + 0.5;
+            analysisData.bass = 0.3 + Math.random() * 0.3 + pulseRate * 0.3;
+            analysisData.mid = 0.4 + Math.random() * 0.4 + pulseRate * 0.2;
+            analysisData.high = 0.2 + Math.random() * 0.3 + pulseRate * 0.1;
+            const alpha = 0.2;
+            analysisData.bassSmooth = analysisData.bassSmooth * (1 - alpha) + analysisData.bass * alpha;
+            analysisData.midSmooth = analysisData.midSmooth * (1 - alpha) + analysisData.mid * alpha;
+            analysisData.highSmooth = analysisData.highSmooth * (1 - alpha) + analysisData.high * alpha;
             return;
         }
         
         try {
-            // Get both frequency and time domain data
-            analyser.getByteFrequencyData(freqData);
-            analyser.getByteTimeDomainData(timeData);
-            
-            // Check if we're getting any audio signal
-            const hasAudioSignal = freqData.some(value => value > 0);
-            if (!hasAudioSignal) {
-                console.warn("No audio signal detected - check microphone permissions and input");
-                
+            // Check if we're getting any audio signal (applies mainly to mic input)
+            // If using Synther data, assume it's valid if present.
+            const hasAudioSignal = usingSyntherData || currentFreqData.some(value => value > 0);
+
+            if (!hasAudioSignal && !usingSyntherData) { // only run simulation if not using synther data and mic fails
+                console.warn("No audio signal detected from microphone - check permissions and input. Using simulation.");
                 // Generate simulated data with musical patterns
                 const simulationTime = Date.now() / 1000;
                 const notePattern = Math.floor(simulationTime % 8); // Cycle through 8 patterns
@@ -294,23 +316,33 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             // Calculate frequency bands
-            const bufferLength = analyser.frequencyBinCount;
-            const nyquist = audioContext.sampleRate / 2;
-            const bassBand = [20, 250], midBand = [250, 4000], highBand = [4000, 12000];
-            const freqPerBin = nyquist / bufferLength;
+            // const bufferLength = analyser.frequencyBinCount; // Now currentBufferLength
+            const nyquist = audioContext ? audioContext.sampleRate / 2 : 22050; // Fallback Nyquist if no audioContext
+            // For Synther FFT data, currentBufferLength is N/2 + 1. For analyser.frequencyBinCount, it's N/2.
+            // The number of bins to iterate for freqPerBin calculation should be N/2.
+            const numEffectiveBins = usingSyntherData ? currentBufferLength - 1 : currentBufferLength;
+
+            const bassBand = [20, 250], midBand = [250, 4000], highBand = [4000, nyquist * 0.8]; // Cap high band
+            const freqPerBin = nyquist / numEffectiveBins;
             
             let bassSum = 0, midSum = 0, highSum = 0;
             let bassCount = 0, midCount = 0, highCount = 0;
-            let maxEnergyBin = 0, maxEnergy = 0;
+            let maxEnergyBin = 0;
+            let maxEnergy = 0.0; // Use float for energy if data is float
             
             // Analyze frequency bands
-            for (let i = 0; i < bufferLength; i++) {
+            // Iterate up to currentBufferLength (which is N/2 or N/2+1)
+            for (let i = 0; i < currentBufferLength; i++) {
                 const freq = i * freqPerBin;
-                const value = freqData[i] / 255.0;
+                // If using Synther's FFT data, it's already normalized magnitudes (0-1).
+                // If using microphone analyser.getByteFrequencyData, it's 0-255.
+                const value = usingSyntherData ? currentFreqData[i] : (currentFreqData[i] / 255.0);
                 
                 // Track maximum energy bin for dominant frequency
-                if (freqData[i] > maxEnergy && freq > 80) { // Ignore very low frequencies
-                    maxEnergy = freqData[i];
+                 // For Synther data, maxEnergy should be compared with `value`. For mic, with `currentFreqData[i]`.
+                let rawEnergyForMax = usingSyntherData ? value * 255 : currentFreqData[i]; // Approx reverse normalization for comparison consistency
+                if (rawEnergyForMax > maxEnergy && freq > 80 && freq < 10000) { // Ignore very low/high for dominant detection
+                    maxEnergy = rawEnergyForMax;
                     maxEnergyBin = i;
                 }
                 
@@ -326,17 +358,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // Calculate averages with safety checks
             const bassAvg = bassCount > 0 ? bassSum / bassCount : 0;
             const midAvg = midCount > 0 ? midSum / midCount : 0;
             const highAvg = highCount > 0 ? highSum / highCount : 0;
             
-            // Set dominant frequency and strength
             analysisData.dominantPitch = maxEnergyBin * freqPerBin;
-            analysisData.dominantPitchValue = maxEnergy / 255.0;
+            analysisData.dominantPitchValue = maxEnergy / 255.0; // Still normalized based on 0-255 scale for consistency
             
-            // Perform pitch detection
-            const pitchData = detectPitch(freqData, audioContext.sampleRate);
+            // Perform pitch detection. If using Synther data, detectPitch might need adjustment
+            // as it expects Uint8Array. For now, it will use Synther's magnitudes if available.
+            // A more robust detectPitch would take normalized float magnitudes.
+            const pitchData = detectPitch(currentFreqData, audioContext ? audioContext.sampleRate : 44100, usingSyntherData);
             analysisData.pitch = pitchData;
             
             // Update raw values
@@ -1026,6 +1058,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Start the visualization and render loop immediately with random data
         mainVisualizerCore.start(); 
+
+        // Signal to Flutter bridge that the visualizer core is now initialized and ready
+        if (window.signalVisualizerCoreReady) {
+            console.log("visualizer-main.js: Signaling visualizer core ready to flutter-bridge.");
+            window.signalVisualizerCoreReady();
+        } else {
+            console.warn("visualizer-main.js: window.signalVisualizerCoreReady not found. Flutter bridge might not initialize correctly.");
+        }
+
         requestAnimationFrame(mainUpdateLoop);
         
         // Check if we're in an iframe in a web environment (likely to have permission issues)
@@ -1061,4 +1102,24 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log("Initialization complete - visualization running");
     }
     initialize();
+
+    // Function to be called by flutter-bridge.js to show/hide native UI controls
+    window.setVisualizerControlsVisibility = function(show) {
+        const controlsContainer = document.getElementById('visualizerControlsContainer');
+        if (controlsContainer) {
+            if (show) {
+                controlsContainer.classList.remove('controls-hidden');
+                console.log("Visualizer native controls shown.");
+            } else {
+                controlsContainer.classList.add('controls-hidden');
+                console.log("Visualizer native controls hidden.");
+            }
+        } else {
+            console.warn("setVisualizerControlsVisibility: #visualizerControlsContainer not found.");
+        }
+    };
+    // By default, controls should be hidden via CSS class in index-hyperav.html.
+    // If not, ensure they are hidden on script load:
+    // window.setVisualizerControlsVisibility(false);
+    // However, this is better handled by default HTML/CSS state.
 });
