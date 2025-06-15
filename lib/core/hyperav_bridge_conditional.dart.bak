@@ -1,0 +1,43 @@
+// HyperAV Bridge - Platform-agnostic interface with conditional imports
+// 
+// This file provides a unified interface to the HyperAV 4D visualizer system
+// that works across all platforms by using conditional imports.
+//
+// On web: Uses dart:html to create iframes and communicate with JavaScript
+// On mobile: Uses stub implementation since visualizer is web-only
+
+// Conditional imports - the correct way to handle platform-specific code
+import 'hyperav_bridge_interface.dart'
+    if (dart.library.html) 'hyperav_bridge_web.dart'
+    if (dart.library.io) 'hyperav_bridge_mobile.dart';
+
+// Export the interface
+export 'hyperav_bridge_interface.dart';
+
+/// Convenience getter for the HyperAV Bridge instance
+/// 
+/// Usage:
+/// ```dart
+/// await HyperAVBridge.initialize();
+/// HyperAVBridge.updateVisualizerParameter('cutoff', 0.75);
+/// ```
+class HyperAVBridge {
+  static HyperAVBridgeInterface? _instance;
+  static HyperAVBridgeInterface get instance => _instance ??= createHyperAVBridge();
+  
+  // Convenience static methods that delegate to the instance
+  static Future<void> initialize() => instance.initialize();
+  static void mountVisualizerBackground(dynamic container) => instance.mountVisualizerBackground(container);
+  static void updateVisualizerParameter(String paramName, double value) => instance.updateVisualizerParameter(paramName, value);
+  static void updateAudioData({
+    required double bass,
+    required double mid,
+    required double high,
+    double? pitch,
+    String? note,
+  }) => instance.updateAudioData(bass: bass, mid: mid, high: high, pitch: pitch, note: note);
+  static void triggerVisualizerEffect(String effectName, {Map<String, dynamic>? params}) => instance.triggerVisualizerEffect(effectName, params: params);
+  static void setGeometryType(String geometryType) => instance.setGeometryType(geometryType);
+  static void setProjectionMethod(String projectionMethod) => instance.setProjectionMethod(projectionMethod);
+  static void dispose() => instance.dispose();
+}

@@ -36,51 +36,7 @@ abstract class HyperAVBridgeInterface {
   void dispose();
 }
 
-/// Default implementation that will be overridden by platform-specific versions
-class HyperAVBridgeImpl extends HyperAVBridgeInterface {
-  @override
-  Future<void> initialize() async {
-    debugPrint('HyperAV Bridge: Using default implementation');
-  }
-  
-  @override
-  void mountVisualizerBackground(dynamic container) {
-    // No-op in default implementation
-  }
-  
-  @override
-  void updateVisualizerParameter(String paramName, double value) {
-    // No-op in default implementation
-  }
-  
-  @override
-  void updateAudioData({
-    required double bass,
-    required double mid,
-    required double high,
-    double? pitch,
-    String? note,
-  }) {
-    // No-op in default implementation
-  }
-  
-  @override
-  void triggerVisualizerEffect(String effectName, {Map<String, dynamic>? params}) {
-    // No-op in default implementation
-  }
-  
-  @override
-  void setGeometryType(String geometryType) {
-    // No-op in default implementation
-  }
-  
-  @override
-  void setProjectionMethod(String projectionMethod) {
-    // No-op in default implementation
-  }
-  
-  @override
-  void dispose() {
-    // No-op in default implementation
-  }
+/// Factory function to create platform-specific implementation
+HyperAVBridgeInterface createHyperAVBridge() {
+  throw UnsupportedError('Platform not supported');
 }

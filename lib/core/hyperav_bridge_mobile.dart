@@ -2,6 +2,9 @@
 import 'package:flutter/foundation.dart';
 import 'hyperav_bridge_interface.dart';
 
+/// Factory function for mobile platform
+HyperAVBridgeInterface createHyperAVBridge() => HyperAVBridgeImpl();
+
 /// Mobile-specific implementation of HyperAV Bridge
 /// This is a stub implementation since 4D visualizer is web-only
 class HyperAVBridgeImpl extends HyperAVBridgeInterface {

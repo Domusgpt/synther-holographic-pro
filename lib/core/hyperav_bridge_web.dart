@@ -4,6 +4,9 @@ import 'dart:js' as js;
 import 'package:flutter/foundation.dart';
 import 'hyperav_bridge_interface.dart';
 
+/// Factory function for web platform
+HyperAVBridgeInterface createHyperAVBridge() => HyperAVBridgeImpl();
+
 /// Web-specific implementation of HyperAV Bridge
 class HyperAVBridgeImpl extends HyperAVBridgeInterface {
   html.IFrameElement? _visualizerFrame;

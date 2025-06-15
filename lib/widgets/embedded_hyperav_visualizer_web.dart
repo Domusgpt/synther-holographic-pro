@@ -5,6 +5,25 @@ import 'dart:html' as html;
 import '../core/holographic_theme.dart';
 import 'embedded_hyperav_visualizer_interface.dart';
 
+/// Factory function for web platform
+EmbeddedHyperAVVisualizerWidget createEmbeddedHyperAVVisualizer({
+  Key? key,
+  Offset? position,
+  Function(Offset)? onPositionChanged,
+  bool isCollapsed = false,
+  VoidCallback? onToggleCollapse,
+  double width = 400.0,
+  double height = 300.0,
+}) => EmbeddedHyperAVVisualizer(
+  key: key,
+  position: position,
+  onPositionChanged: onPositionChanged,
+  isCollapsed: isCollapsed,
+  onToggleCollapse: onToggleCollapse,
+  width: width,
+  height: height,
+);
+
 class EmbeddedHyperAVVisualizer extends EmbeddedHyperAVVisualizerWidget {
   const EmbeddedHyperAVVisualizer({
     Key? key,

@@ -236,3 +236,16 @@ abstract class EmbeddedHyperAVVisualizerState<T extends EmbeddedHyperAVVisualize
     super.dispose();
   }
 }
+
+/// Factory function to create platform-specific visualizer
+EmbeddedHyperAVVisualizerWidget createEmbeddedHyperAVVisualizer({
+  Key? key,
+  Offset? position,
+  Function(Offset)? onPositionChanged,
+  bool isCollapsed = false,
+  VoidCallback? onToggleCollapse,
+  double width = 400.0,
+  double height = 300.0,
+}) {
+  throw UnsupportedError('Platform not supported');
+}
