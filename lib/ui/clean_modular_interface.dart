@@ -18,19 +18,25 @@ class CleanModularInterface extends StatefulWidget {
 class _CleanModularInterfaceState extends State<CleanModularInterface>
     with TickerProviderStateMixin {
   
-  // Component positions
-  Offset _knob1Position = Offset(50, 100);
-  Offset _knob2Position = Offset(250, 100);
-  Offset _knob3Position = Offset(450, 100);
-  Offset _xyPadPosition = Offset(50, 300);
-  Offset _visualizerPosition = Offset(300, 200);
+  // Component positions - Better spread across screen
+  Offset _knob1Position = Offset(80, 120);
+  Offset _knob2Position = Offset(350, 120);
+  Offset _knob3Position = Offset(620, 120);
+  Offset _knob4Position = Offset(80, 350);
+  Offset _knob5Position = Offset(350, 350);
+  Offset _xyPadPosition = Offset(80, 500);
+  Offset _visualizerPosition = Offset(450, 300);
+  Offset _sequencerPosition = Offset(850, 120);
   
   // Component states
   bool _knob1Collapsed = false;
   bool _knob2Collapsed = false;
   bool _knob3Collapsed = false;
+  bool _knob4Collapsed = false;
+  bool _knob5Collapsed = false;
   bool _xyPadCollapsed = false;
   bool _visualizerCollapsed = false;
+  bool _sequencerCollapsed = false;
   
   late AnimationController _backgroundController;
   late Animation<double> _backgroundAnimation;
@@ -99,26 +105,43 @@ class _CleanModularInterfaceState extends State<CleanModularInterface>
               end: Alignment.bottomRight,
               colors: [
                 Colors.black,
-                HolographicTheme.primaryEnergy.withOpacity(0.1 * _backgroundAnimation.value),
+                HolographicTheme.primaryEnergy.withOpacity(0.15 * _backgroundAnimation.value),
                 Colors.black,
-                HolographicTheme.secondaryEnergy.withOpacity(0.1 * _backgroundAnimation.value),
+                HolographicTheme.secondaryEnergy.withOpacity(0.15 * _backgroundAnimation.value),
+                Colors.black,
+                HolographicTheme.tertiaryEnergy.withOpacity(0.1 * _backgroundAnimation.value),
                 Colors.black,
               ],
             ),
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              backgroundBlendMode: BlendMode.overlay,
-              gradient: RadialGradient(
-                center: Alignment.center,
-                radius: 1.5,
-                colors: [
-                  Colors.transparent,
-                  HolographicTheme.primaryEnergy.withOpacity(0.05 * _backgroundAnimation.value),
-                  Colors.transparent,
-                ],
+          child: Stack(
+            children: [
+              // Radial gradient overlay
+              Container(
+                decoration: BoxDecoration(
+                  backgroundBlendMode: BlendMode.overlay,
+                  gradient: RadialGradient(
+                    center: Alignment.center,
+                    radius: 1.5,
+                    colors: [
+                      Colors.transparent,
+                      HolographicTheme.primaryEnergy.withOpacity(0.08 * _backgroundAnimation.value),
+                      Colors.transparent,
+                    ],
+                  ),
+                ),
               ),
-            ),
+              
+              // Grid pattern overlay
+              CustomPaint(
+                painter: HolographicGridPainter(
+                  opacity: 0.1 * _backgroundAnimation.value,
+                  primaryColor: HolographicTheme.primaryEnergy,
+                  secondaryColor: HolographicTheme.secondaryEnergy,
+                ),
+                size: Size.infinite,
+              ),
+            ],
           ),
         );
       },
@@ -231,6 +254,46 @@ class _CleanModularInterfaceState extends State<CleanModularInterface>
           ),
         ),
         
+        // Knob 4 - Attack Time
+        Positioned(
+          left: _knob4Position.dx,
+          top: _knob4Position.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                _knob4Position += details.delta;
+              });
+            },
+            child: HolographicAssignableKnob(
+              initialParameter: SynthParameterType.attackTime,
+              audioEngine: Provider.of<AudioEngine>(context, listen: false),
+              onEnergyColorChange: (color) {
+                // Color change callback
+              },
+            ),
+          ),
+        ),
+        
+        // Knob 5 - Decay Time
+        Positioned(
+          left: _knob5Position.dx,
+          top: _knob5Position.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                _knob5Position += details.delta;
+              });
+            },
+            child: HolographicAssignableKnob(
+              initialParameter: SynthParameterType.decayTime,
+              audioEngine: Provider.of<AudioEngine>(context, listen: false),
+              onEnergyColorChange: (color) {
+                // Color change callback
+              },
+            ),
+          ),
+        ),
+        
         // XY Pad
         Positioned(
           left: _xyPadPosition.dx,
@@ -261,6 +324,20 @@ class _CleanModularInterfaceState extends State<CleanModularInterface>
               _visualizerCollapsed = !_visualizerCollapsed;
             });
           },
+        ),
+        
+        // Drum Sequencer
+        Positioned(
+          left: _sequencerPosition.dx,
+          top: _sequencerPosition.dy,
+          child: GestureDetector(
+            onPanUpdate: (details) {
+              setState(() {
+                _sequencerPosition += details.delta;
+              });
+            },
+            child: _buildDrumSequencer(),
+          ),
         ),
       ],
     );
@@ -335,4 +412,136 @@ class _CleanModularInterfaceState extends State<CleanModularInterface>
       ),
     );
   }
+
+  Widget _buildDrumSequencer() {
+    return Container(
+      width: 300,
+      height: 180,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(
+          color: HolographicTheme.tertiaryEnergy.withOpacity(0.6),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: HolographicTheme.tertiaryEnergy.withOpacity(0.3),
+            blurRadius: 15,
+            spreadRadius: 3,
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Title bar
+          Container(
+            height: 30,
+            decoration: BoxDecoration(
+              color: HolographicTheme.tertiaryEnergy.withOpacity(0.1),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(13),
+                topRight: Radius.circular(13),
+              ),
+            ),
+            child: Center(
+              child: Text(
+                'DRUM SEQUENCER',
+                style: TextStyle(
+                  color: HolographicTheme.tertiaryEnergy,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+            ),
+          ),
+          
+          // Sequencer grid
+          Expanded(
+            child: Container(
+              margin: EdgeInsets.all(8),
+              child: GridView.builder(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 8,
+                  crossAxisSpacing: 2,
+                  mainAxisSpacing: 2,
+                ),
+                itemCount: 32,
+                itemBuilder: (context, index) {
+                  bool isActive = index % 3 == 0; // Some pattern for demo
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: isActive 
+                        ? HolographicTheme.tertiaryEnergy.withOpacity(0.6)
+                        : Colors.black.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(
+                        color: HolographicTheme.tertiaryEnergy.withOpacity(0.3),
+                        width: 1,
+                      ),
+                      boxShadow: isActive ? [
+                        BoxShadow(
+                          color: HolographicTheme.tertiaryEnergy.withOpacity(0.4),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ] : null,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Custom painter for holographic grid background
+class HolographicGridPainter extends CustomPainter {
+  final double opacity;
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  HolographicGridPainter({
+    required this.opacity,
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint1 = Paint()
+      ..color = primaryColor.withOpacity(opacity)
+      ..strokeWidth = 1;
+
+    final paint2 = Paint()
+      ..color = secondaryColor.withOpacity(opacity * 0.5)
+      ..strokeWidth = 0.5;
+
+    const double spacing = 50.0;
+
+    // Draw vertical lines
+    for (double x = 0; x < size.width; x += spacing) {
+      canvas.drawLine(
+        Offset(x, 0),
+        Offset(x, size.height),
+        x % (spacing * 2) == 0 ? paint1 : paint2,
+      );
+    }
+
+    // Draw horizontal lines
+    for (double y = 0; y < size.height; y += spacing) {
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        y % (spacing * 2) == 0 ? paint1 : paint2,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
