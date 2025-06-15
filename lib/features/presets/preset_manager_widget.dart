@@ -193,7 +193,7 @@ class _PresetManagerWidgetState extends State<PresetManagerWidget> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          backgroundColor: Colors.black.withOpacity(0.85),
+          backgroundColor: Colors.black.withOpacity(HolographicTheme.hoverTransparency * 1.2), // Adjusted for more translucency
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
             side: BorderSide(color: HolographicTheme.primaryEnergy.withOpacity(0.7), width: 1.5),
@@ -298,7 +298,7 @@ class _PresetManagerWidgetState extends State<PresetManagerWidget> {
                              AlertDialog(
                                title: Text("Delete Preset?", style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.warningEnergy)),
                                content: Text("Delete '${preset.name}'? This cannot be undone.", style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.secondaryEnergy)),
-                               backgroundColor: Colors.black.withOpacity(0.85),
+                                backgroundColor: Colors.black.withOpacity(HolographicTheme.hoverTransparency * 1.2), // Adjusted for more translucency
                                actions: [
                                  TextButton(child: Text("Cancel", style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.secondaryEnergy)), onPressed: () => Navigator.of(ctx).pop(false)),
                                  ElevatedButton(child: Text("Delete", style: TextStyle(color: Colors.black87)), style: ElevatedButton.styleFrom(backgroundColor: HolographicTheme.warningEnergy), onPressed: () => Navigator.of(ctx).pop(true)),

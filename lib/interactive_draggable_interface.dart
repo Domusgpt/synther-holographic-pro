@@ -50,80 +50,17 @@ class _PanelConfig {
 }
 
 // Static members for FFI callback interaction (Workaround for FFI limitations)
-// WARNING: This is a simplified approach for this environment and has limitations.
-// A robust solution would use a proper event bus or Isolate communication.
-List<_PanelConfig> _staticPanelListRef = [];
-void Function()? _staticTriggerRebuildRef; // Using VoidCallback as a generic StateSetter
-bool _staticIsVaultAreaVisible = true; // Default state for vault visibility via MIDI
+import 'dart:async'; // For StreamSubscription
+import 'core/services/ui_midi_event_service.dart'; // Import the new service
 
 // Top-level or static function for FFI callback
 void _staticHandleUiControlMidiMessage(int targetPanelId, int ccNumber, int ccValue) {
-  print("Static MIDI UI CB: PanelID=$targetPanelId, CC=$ccNumber, Val=$ccValue");
-
-  if (_staticPanelListRef.isEmpty) return;
-
-  if (ccNumber == 110) { // UI_TOGGLE_VAULT (Global action)
-    _staticIsVaultAreaVisible = !_staticIsVaultAreaVisible;
-     _staticTriggerRebuildRef?.call();
-    return;
-  }
-
-  if (targetPanelId < 0 || targetPanelId >= _staticPanelListRef.length) {
-    print("StaticHandleUiControlMidiMessage: TargetPanelId $targetPanelId out of bounds for _staticPanelListRef length ${_staticPanelListRef.length}.");
-    return;
-  }
-  final panel = _staticPanelListRef[targetPanelId];
-  bool changed = false;
-
-  switch (ccNumber) {
-    case 102: // UI_VISIBILITY
-      bool newVisibility = ccValue >= 64;
-      if (panel.isVisibleInWorkspace != newVisibility) {
-        panel.isVisibleInWorkspace = newVisibility;
-        changed = true;
-      }
-      break;
-    case 103: // UI_COLLAPSED_STATE
-      bool newCollapsedState = ccValue >= 64;
-      if (panel.isCollapsed != newCollapsedState) {
-        panel.isCollapsed = newCollapsedState;
-        changed = true;
-      }
-      break;
-    case 104: // UI_POSITION_X (Normalized)
-      panel.normX = (ccValue / 127.0).clamp(-0.1, 0.9); // Allow slight offscreen for X
-      changed = true;
-      break;
-    case 105: // UI_POSITION_Y (Normalized)
-      panel.normY = (ccValue / 127.0).clamp(0.0, 0.9);  // Allow slight offscreen for Y (bottom)
-      changed = true;
-      break;
-    case 106: // UI_SIZE_WIDTH (Normalized)
-      panel.normWidth = (ccValue / 127.0).clamp(0.15, 1.0); // Min width 15% of screen
-      changed = true;
-      break;
-    case 107: // UI_SIZE_HEIGHT (Normalized)
-      panel.normHeight = (ccValue / 127.0).clamp(0.1, 1.0);  // Min height 10% of screen
-      changed = true;
-      break;
-    // CC 108 (UI_VISUAL_THEME_VARIATION) is conceptual and not implemented here
-    default:
-      print("StaticHandleUiControlMidiMessage: Unhandled UI CC $ccNumber for panel $targetPanelId");
-      break;
-  }
-
-  if (changed) {
-    _staticTriggerRebuildRef?.call();
-  }
+  // This function now only publishes events to the UiMidiEventService.
+  // It no longer directly manipulates UI state.
+  print("Static FFI CB received: PanelID=$targetPanelId, CC=$ccNumber, Val=$ccValue. Publishing to service.");
+  UiMidiEventService().publishEvent(targetPanelId, ccNumber, ccValue);
 }
 
-// IMPORTANT: The static FFI callback mechanism (_staticHandleUiControlMidiMessage,
-// _staticPanelListRef, _staticTriggerRebuildRef) is a temporary workaround for this
-// development environment due to limitations in directly calling instance methods from FFI.
-// In a production application, this should be replaced with a robust global state
-// management solution (e.g., a dedicated ChangeNotifier for UI events, an event bus/stream
-// like rxdart, or by integrating with SynthParametersModel if appropriate) to avoid
-// potential issues with static state and ensure cleaner architecture.
 class InteractiveDraggableSynth extends StatefulWidget {
   const InteractiveDraggableSynth({Key? key}) : super(key: key);
   
@@ -135,6 +72,8 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   
   final List<_PanelConfig> _panels = []; // Instance list
   late NativeAudioLib _nativeAudioLib; // FFI instance
+  StreamSubscription<UiMidiEvent>? _uiMidiEventSubscription;
+  bool _isVaultAreaVisible = true; // Instance variable, replaces _staticIsVaultAreaVisible
 
   @override
   void initState() {
@@ -142,20 +81,14 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
     _initializePanels();
     _nativeAudioLib = NativeAudioLib(); // Initialize FFI
 
-    // Setup static references for FFI callback
-    // This is a workaround. Proper state management (Streams, global ChangeNotifier) is preferred.
-    _staticPanelListRef = _panels;
-    _staticTriggerRebuildRef = () {
-      if (mounted) {
-        setState(() {});
-      }
-    };
+    // Subscribe to UI MIDI events from the service
+    _uiMidiEventSubscription = UiMidiEventService().events.listen(_handleUiControlEventFromStream);
 
-    // Register the UI MIDI control callback
+    // Register the UI MIDI control callback (still uses the static trampoline)
     try {
         final callbackPointer = Pointer.fromFunction<UiControlMidiCallbackNative>(_staticHandleUiControlMidiMessage, 0);
         _nativeAudioLib.registerUiControlMidiCallback(callbackPointer);
-        print("UI MIDI Control Callback Registered.");
+        print("UI MIDI Control Callback Registered (via static trampoline to event service).");
     } catch (e) {
         print("Error registering UI MIDI control callback: $e");
     }
@@ -163,12 +96,69 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   
   @override
   void dispose() {
-    _staticTriggerRebuildRef = null; // Clear static reference
-    _staticPanelListRef = []; // Clear static reference
+    _uiMidiEventSubscription?.cancel(); // Cancel the stream subscription
     // TODO: Add an FFI function to unregister the callback if SynthEngine supports it.
+    // Consider calling UiMidiEventService().dispose() if this is the main/root widget of the app.
     super.dispose();
   }
 
+  void _handleUiControlEventFromStream(UiMidiEvent event) {
+    print("Instance handling event from stream: ${event.toString()}");
+
+    if (event.ccNumber == 110) { // UI_TOGGLE_VAULT (Global action)
+      setState(() {
+        _isVaultAreaVisible = !_isVaultAreaVisible;
+      });
+      return;
+    }
+
+    if (event.targetPanelId < 0 || event.targetPanelId >= _panels.length) {
+      print("_handleUiControlEventFromStream: TargetPanelId ${event.targetPanelId} out of bounds for _panels length ${_panels.length}.");
+      return;
+    }
+    final panel = _panels[event.targetPanelId];
+    bool changed = false;
+
+    switch (event.ccNumber) {
+      case 102: // UI_VISIBILITY
+        bool newVisibility = event.ccValue >= 64;
+        if (panel.isVisibleInWorkspace != newVisibility) {
+          panel.isVisibleInWorkspace = newVisibility;
+          changed = true;
+        }
+        break;
+      case 103: // UI_COLLAPSED_STATE
+        bool newCollapsedState = event.ccValue >= 64;
+        if (panel.isCollapsed != newCollapsedState) {
+          panel.isCollapsed = newCollapsedState;
+          changed = true;
+        }
+        break;
+      case 104: // UI_POSITION_X (Normalized)
+        panel.normX = (event.ccValue / 127.0).clamp(-0.1, 0.9);
+        changed = true;
+        break;
+      case 105: // UI_POSITION_Y (Normalized)
+        panel.normY = (event.ccValue / 127.0).clamp(0.0, 0.9);
+        changed = true;
+        break;
+      case 106: // UI_SIZE_WIDTH (Normalized)
+        panel.normWidth = (event.ccValue / 127.0).clamp(0.15, 1.0);
+        changed = true;
+        break;
+      case 107: // UI_SIZE_HEIGHT (Normalized)
+        panel.normHeight = (event.ccValue / 127.0).clamp(0.1, 1.0);
+        changed = true;
+        break;
+      default:
+        print("_handleUiControlEventFromStream: Unhandled UI CC ${event.ccNumber} for panel ${event.targetPanelId}");
+        break;
+    }
+
+    if (changed) {
+      setState(() {});
+    }
+  }
 
   void _initializePanels() {
     _panels.clear();
@@ -210,8 +200,8 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   }
 
   Widget _buildVaultArea() {
-    // Use the static visibility flag for the vault area itself
-    if (!_staticIsVaultAreaVisible) return const SizedBox.shrink();
+    // Use the instance visibility flag for the vault area itself
+    if (!_isVaultAreaVisible) return const SizedBox.shrink();
 
     final hiddenPanels = _panels.where((p) => !p.isVisibleInWorkspace).toList();
     if (hiddenPanels.isEmpty) {
