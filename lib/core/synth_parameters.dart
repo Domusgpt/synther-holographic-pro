@@ -46,6 +46,13 @@ class SynthParametersModel extends ChangeNotifier {
   XYPadAssignment _xAxisAssignment = XYPadAssignment.filterCutoff;
   XYPadAssignment _yAxisAssignment = XYPadAssignment.filterResonance;
   
+  // New XY Pad musical context fields
+  // TODO: Move MusicalScale enum to a shared file (e.g., lib/core/music_theory.dart) and import here.
+  // For now, defined inline for diff clarity.
+  MusicalScale xyPadScaleX = MusicalScale.Chromatic;
+  int xyPadRootNoteX = 0; // MIDI offset for C (0-11)
+  int xyPadPitch = 60;    // Current quantized MIDI note output of X-axis
+
   // Granular parameters
   late final GranularParameters _granularParameters;
   
@@ -136,6 +143,12 @@ class SynthParametersModel extends ChangeNotifier {
   double get xyPadY => _xyPadY;
   XYPadAssignment get xAxisAssignment => _xAxisAssignment;
   XYPadAssignment get yAxisAssignment => _yAxisAssignment;
+
+  // New XY Pad musical context getters
+  MusicalScale get xyPadSelectedScaleX => xyPadScaleX; // Renamed for clarity in getter
+  int get xyPadSelectedRootNoteX => xyPadRootNoteX; // Renamed for clarity in getter
+  int get xyPadCurrentPitchX => xyPadPitch; // Renamed for clarity in getter
+
   GranularParameters get granularParameters => _granularParameters;
   
   // Aliases for morph_app.dart compatibility
@@ -303,6 +316,27 @@ class SynthParametersModel extends ChangeNotifier {
     _applyXYPadMapping();
     notifyListeners();
   }
+
+  // New XY Pad musical context setters
+  void setXYPadScaleX(MusicalScale newScale) {
+    xyPadScaleX = newScale;
+    // Potentially trigger re-quantization or update related state if needed immediately
+    notifyListeners();
+  }
+
+  void setXYPadRootNoteX(int newRootNote) {
+    xyPadRootNoteX = newRootNote.clamp(0, 11);
+    // Potentially trigger re-quantization or update related state if needed immediately
+    notifyListeners();
+  }
+
+  void setXYPadXPitch(int newPitch) {
+    // This primarily reflects the output of the XY pad's X-axis quantization.
+    // It might not directly set an engine parameter unless the engine consumes this exact value.
+    // The XYPadWidget itself sends the quantized pitch to a dedicated engine parameter.
+    xyPadPitch = newPitch;
+    notifyListeners();
+  }
   
   // Oscillator management
   void addOscillator() {
@@ -455,7 +489,24 @@ class SynthParametersModel extends ChangeNotifier {
       'xyPadY': _xyPadY,
       'xAxisAssignment': _xAxisAssignment.index,
       'yAxisAssignment': _yAxisAssignment.index,
+
+      // New XY Pad musical context fields
+      'xyPadScaleX': xyPadScaleX.index,
+      'xyPadRootNoteX': xyPadRootNoteX,
+      'xyPadPitch': xyPadPitch, // Current output, might be optional to save but good for restoring UI state
+
       'granular': _granularParameters.toJson(),
+
+      // IMPORTANT FOR NATIVE PRESETS:
+      // The C++ SynthPreset struct and its toJsonString/fromJsonString methods
+      // in native/src/synth_engine.cpp will need to be updated to
+      // serialize/deserialize these new XY Pad musical settings:
+      // - "xyPadScaleX": (int, from MusicalScale.index)
+      // - "xyPadRootNoteX": (int)
+      // - "xyPadPitch": (int) - current output, might be optional to save
+      // - "xAxisAssignment": (int, from XYPadAssignment.index) - already exists
+      // - "yAxisAssignment": (int, from XYPadAssignment.index) - already exists
+      // This ensures presets saved/loaded by the native engine are complete.
     };
   }
   
@@ -523,8 +574,17 @@ class SynthParametersModel extends ChangeNotifier {
     
     _xyPadX = json['xyPadX'] ?? 0.5;
     _xyPadY = json['xyPadY'] ?? 0.5;
-    _xAxisAssignment = XYPadAssignment.values[json['xAxisAssignment'] ?? 0];
-    _yAxisAssignment = XYPadAssignment.values[json['yAxisAssignment'] ?? 1];
+    _xAxisAssignment = XYPadAssignment.values[json['xAxisAssignment'] ?? XYPadAssignment.filterCutoff.index];
+    _yAxisAssignment = XYPadAssignment.values[json['yAxisAssignment'] ?? XYPadAssignment.filterResonance.index];
+
+    // Load new XY Pad musical context fields
+    // TODO: Move MusicalScale enum to a shared file and import for direct use here.
+    // Assuming MusicalScale.values is accessible or using index directly for now.
+    // If MusicalScale is not directly accessible, use a helper or default.
+    // For this diff, we'll assume it's been moved and is available.
+    xyPadScaleX = MusicalScale.values[json['xyPadScaleX'] ?? MusicalScale.Chromatic.index];
+    xyPadRootNoteX = json['xyPadRootNoteX'] ?? 0;
+    xyPadPitch = json['xyPadPitch'] ?? 60; // Default to C4 if not present
     
     // Load oscillators
     _oscillators.clear();
@@ -645,12 +705,20 @@ enum FilterType {
   highShelf,
 }
 
+// TODO: Move MusicalScale enum to a shared file (e.g. lib/core/music_theory.dart or parameter_definitions.dart)
+// Defined here temporarily for the diff to work and for context.
+enum MusicalScale { Chromatic, Major, MinorNatural, MinorHarmonic, MinorMelodic, PentatonicMajor, PentatonicMinor, Blues, Dorian, Mixolydian }
+
+
 /// Possible XY pad parameter assignments
 enum XYPadAssignment {
   filterCutoff,
   filterResonance,
   oscillatorMix,
   reverbMix,
+  // Consider adding a 'QuantizedPitch' or similar if X-axis is always pitch now,
+  // or make the X-axis assignment dropdown control aspects of the pitch quantization.
+  // For now, existing assignments are kept.
 }
 
 /// Simple data class for serializing synth parameters for AI/Firebase integration

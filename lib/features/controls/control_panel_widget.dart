@@ -266,7 +266,7 @@ class _ControlPanelWidgetState extends State<ControlPanelWidget> {
       child: DropdownButton<SynthParameter>(
         value: control.assignedParameter,
         isDense: true,
-        dropdownColor: Colors.black.withOpacity(HolographicTheme.activeTransparency * 2.8),
+        dropdownColor: Colors.black.withOpacity(HolographicTheme.hoverTransparency * 1.5), // Adjusted for more translucency
         underline: Container(),
         icon: Icon(Icons.arrow_drop_down, color: HolographicTheme.secondaryEnergy.withOpacity(0.8), size: 18),
         style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.secondaryEnergy, fontSize: 10, glowIntensity: 0.2),
@@ -333,23 +333,85 @@ class _HolographicKnob extends StatefulWidget {
   __HolographicKnobState createState() => __HolographicKnobState();
 }
 
-class __HolographicKnobState extends State<_HolographicKnob> {
+class __HolographicKnobState extends State<_HolographicKnob> with SingleTickerProviderStateMixin {
+  bool _isHovering = false;
+  bool _isDragging = false;
+  late AnimationController _animationController;
+  late Animation<double> _glowAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _glowAnimation = Tween<double>(begin: 1.0, end: 1.5).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeInOut),
+    )..addListener(() {
+        setState(() {}); // Redraw on animation change
+      });
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  void _handleDragStart(DragStartDetails details) {
+    if (widget.isLearning) return;
+    setState(() {
+      _isDragging = true;
+    });
+    _animationController.forward();
+  }
+
+  void _handleDragUpdate(DragUpdateDetails details) {
+    if (widget.isLearning || !_isDragging) return;
+    double newValue = widget.value - (details.delta.dy / (widget.size * 1.5));
+    widget.onChanged(newValue.clamp(0.0, 1.0));
+  }
+
+  void _handleDragEnd(DragEndDetails details) {
+    if (widget.isLearning) return;
+    setState(() {
+      _isDragging = false;
+    });
+    _animationController.reverse();
+  }
+
+  void _handleDragCancel() {
+    if (widget.isLearning) return;
+    setState(() {
+      _isDragging = false;
+    });
+     _animationController.reverse();
+  }
+
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanUpdate: (details) {
-        if (widget.isLearning) return;
-        double newValue = widget.value - (details.delta.dy / (widget.size * 1.5));
-        widget.onChanged(newValue.clamp(0.0, 1.0));
-      },
-      child: Container(
-        width: widget.size,
-        height: widget.size,
-        child: CustomPaint(
-          painter: _HolographicKnobPainter(
-            value: widget.value,
-            baseColor: widget.isLearning ? HolographicTheme.accentEnergy.withOpacity(0.7) : HolographicTheme.secondaryEnergy,
-            glowColor: widget.isLearning ? HolographicTheme.warningEnergy : HolographicTheme.glowColor,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: GestureDetector(
+        onPanStart: _handleDragStart,
+        onPanUpdate: _handleDragUpdate,
+        onPanEnd: _handleDragEnd,
+        onPanCancel: _handleDragCancel,
+        child: Container(
+          width: widget.size,
+          height: widget.size,
+          child: CustomPaint(
+            painter: _HolographicKnobPainter(
+              value: widget.value,
+              baseColor: widget.isLearning ? HolographicTheme.accentEnergy.withOpacity(0.7) : HolographicTheme.secondaryEnergy,
+              glowColor: widget.isLearning ? HolographicTheme.warningEnergy : HolographicTheme.glowColor,
+              isHovering: _isHovering,
+              isDragging: _isDragging,
+              glowAnimationValue: _glowAnimation.value,
+            ),
           ),
         ),
       ),
@@ -361,76 +423,117 @@ class _HolographicKnobPainter extends CustomPainter {
   final double value;
   final Color baseColor;
   final Color glowColor;
+  final bool isHovering;
+  final bool isDragging;
+  final double glowAnimationValue;
 
-  _HolographicKnobPainter({required this.value, required this.baseColor, required this.glowColor});
+  _HolographicKnobPainter({
+    required this.value,
+    required this.baseColor,
+    required this.glowColor,
+    required this.isHovering,
+    required this.isDragging,
+    required this.glowAnimationValue,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) / 2 * 0.80;
     final paint = Paint();
-    final double strokeWidth = 5;
+    final double baseStrokeWidth = 5;
 
+    double currentGlowIntensity = isDragging ? glowAnimationValue : (isHovering ? 1.2 : 1.0);
+    double currentStrokeWidth = baseStrokeWidth * (isDragging ? 1.1 : 1.0);
+
+    // Modulate base color for hover/drag
+    Color effectiveBaseColor = baseColor;
+    if (isDragging) {
+      effectiveBaseColor = HSLColor.fromColor(baseColor).withLightness((HSLColor.fromColor(baseColor).lightness * 1.2).clamp(0.0, 1.0)).toColor();
+    } else if (isHovering) {
+      effectiveBaseColor = HSLColor.fromColor(baseColor).withLightness((HSLColor.fromColor(baseColor).lightness * 1.1).clamp(0.0, 1.0)).toColor();
+    }
+
+    // Value-based color modulation for the arc
+    HSLColor hslValueColor = HSLColor.fromColor(effectiveBaseColor);
+    Color valueArcColor = hslValueColor
+        .withSaturation((hslValueColor.saturation * (0.7 + 0.3 * value)).clamp(0.0, 1.0))
+        .withLightness((hslValueColor.lightness * (0.8 + 0.2 * value)).clamp(0.0, 1.0))
+        .toColor();
+
+    // Background track (subtle)
     paint
-      ..color = baseColor.withOpacity(HolographicTheme.widgetTransparency * 0.8)
+      ..color = effectiveBaseColor.withOpacity(HolographicTheme.widgetTransparency * 0.7)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth * 0.8;
+      ..strokeWidth = currentStrokeWidth * 0.8;
     canvas.drawCircle(center, radius, paint);
 
+    // Blurred background track (glow)
     final Path trackPath = Path()..addOval(Rect.fromCircle(center: center, radius: radius));
     canvas.drawPath(
       trackPath,
       Paint()
-        ..color = baseColor.withOpacity(0.1)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2)
+        ..color = effectiveBaseColor.withOpacity(0.1 * currentGlowIntensity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, 2 * currentGlowIntensity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth * 1.2,
+        ..strokeWidth = currentStrokeWidth * 1.2,
     );
 
+    // Value Arc
     final double arcAngleRange = math.pi * 1.5;
     final double startAngle = -math.pi * 0.75 - (math.pi * 0.5);
-
     paint
-      ..color = baseColor
+      ..color = valueArcColor // Use modulated color
       ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = currentStrokeWidth
       ..strokeCap = StrokeCap.round;
     double sweepAngle = value * arcAngleRange;
     canvas.drawArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepAngle, false, paint);
 
+    // Value Arc Glow
     final Path valueArcPath = Path();
     valueArcPath.addArc(Rect.fromCircle(center: center, radius: radius), startAngle, sweepAngle);
     canvas.drawPath(
       valueArcPath,
       Paint()
-        ..color = glowColor.withOpacity(0.7)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, strokeWidth * 0.8)
+        ..color = glowColor.withOpacity(0.7 * currentGlowIntensity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, currentStrokeWidth * 0.8 * currentGlowIntensity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth,
+        ..strokeWidth = currentStrokeWidth,
     );
      canvas.drawPath(
       valueArcPath,
       Paint()
-        ..color = glowColor.withOpacity(0.4)
-        ..maskFilter = MaskFilter.blur(BlurStyle.normal, strokeWidth * 1.5)
+        ..color = glowColor.withOpacity(0.4 * currentGlowIntensity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, currentStrokeWidth * 1.5 * currentGlowIntensity)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = strokeWidth,
+        ..strokeWidth = currentStrokeWidth,
     );
 
+    // Indicator Dot
     final double indicatorAngle = startAngle + sweepAngle;
     final indicatorPosition = Offset(
       center.dx + radius * math.cos(indicatorAngle),
       center.dy + radius * math.sin(indicatorAngle),
     );
-    final double indicatorRadius = strokeWidth * 0.8;
+    final double indicatorRadius = currentStrokeWidth * 0.8 * (isDragging ? 1.15 : 1.0);
 
-    canvas.drawCircle(indicatorPosition, indicatorRadius * 1.5, Paint()..color = glowColor.withOpacity(0.8)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0));
-    canvas.drawCircle(indicatorPosition, indicatorRadius, Paint()..color = baseColor);
-    canvas.drawCircle(indicatorPosition, indicatorRadius * 0.5, Paint()..color = Colors.white.withOpacity(0.7));
+    // Indicator dot glow
+    canvas.drawCircle(indicatorPosition, indicatorRadius * 1.5, Paint()..color = glowColor.withOpacity(0.8 * currentGlowIntensity)..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.0 * currentGlowIntensity));
+    // Indicator dot base
+    canvas.drawCircle(indicatorPosition, indicatorRadius, Paint()..color = valueArcColor);
+    // Indicator dot highlight
+    canvas.drawCircle(indicatorPosition, indicatorRadius * 0.5, Paint()..color = Colors.white.withOpacity(0.7 * (isDragging ? 1.0 : (isHovering ? 0.85 : 0.7))));
   }
 
   @override
-  bool shouldRepaint(_HolographicKnobPainter oldDelegate) => oldDelegate.value != value || oldDelegate.baseColor != baseColor || oldDelegate.glowColor != glowColor;
+  bool shouldRepaint(_HolographicKnobPainter oldDelegate) =>
+      oldDelegate.value != value ||
+      oldDelegate.baseColor != baseColor ||
+      oldDelegate.glowColor != glowColor ||
+      oldDelegate.isHovering != isHovering ||
+      oldDelegate.isDragging != isDragging ||
+      oldDelegate.glowAnimationValue != glowAnimationValue;
 }
 
 
@@ -455,28 +558,63 @@ class _HolographicSlider extends StatefulWidget {
 }
 
 class __HolographicSliderState extends State<_HolographicSlider> {
+  bool _isHovering = false;
+  bool _isDragging = false;
+
+  void _handlePanStart(DragStartDetails details) {
+    if (widget.isLearning) return;
+    setState(() {
+      _isDragging = true;
+    });
+  }
+
+  void _handlePanUpdate(DragUpdateDetails details) {
+    if (widget.isLearning || !_isDragging) return;
+    double newValue;
+    if (widget.isVertical) {
+      newValue = widget.value - (details.delta.dy / widget.length);
+    } else {
+      newValue = widget.value + (details.delta.dx / widget.length);
+    }
+    widget.onChanged(newValue.clamp(0.0, 1.0));
+  }
+
+  void _handlePanEnd(DragEndDetails details) {
+    if (widget.isLearning) return;
+    setState(() {
+      _isDragging = false;
+    });
+  }
+
+  void _handlePanCancel() {
+     if (widget.isLearning) return;
+    setState(() {
+      _isDragging = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanUpdate: (details) {
-        if (widget.isLearning) return;
-        double newValue;
-        if (widget.isVertical) {
-          newValue = widget.value - (details.delta.dy / widget.length);
-        } else {
-          newValue = widget.value + (details.delta.dx / widget.length);
-        }
-        widget.onChanged(newValue.clamp(0.0, 1.0));
-      },
-      child: Container(
-        width: widget.isVertical ? 24 : widget.length,
-        height: widget.isVertical ? widget.length : 24,
-        child: CustomPaint(
-          painter: _HolographicSliderPainter(
-            value: widget.value,
-            baseColor: widget.isLearning ? HolographicTheme.accentEnergy.withOpacity(0.7) : HolographicTheme.secondaryEnergy,
-            glowColor: widget.isLearning ? HolographicTheme.warningEnergy : HolographicTheme.glowColor,
-            isVertical: widget.isVertical,
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovering = true),
+      onExit: (_) => setState(() => _isHovering = false),
+      child: GestureDetector(
+        onPanStart: _handlePanStart,
+        onPanUpdate: _handlePanUpdate,
+        onPanEnd: _handlePanEnd,
+        onPanCancel: _handlePanCancel,
+        child: Container(
+          width: widget.isVertical ? 24 : widget.length,
+          height: widget.isVertical ? widget.length : 24,
+          child: CustomPaint(
+            painter: _HolographicSliderPainter(
+              value: widget.value,
+              baseColor: widget.isLearning ? HolographicTheme.accentEnergy.withOpacity(0.7) : HolographicTheme.secondaryEnergy,
+              glowColor: widget.isLearning ? HolographicTheme.warningEnergy : HolographicTheme.glowColor,
+              isVertical: widget.isVertical,
+              isHovering: _isHovering,
+              isDragging: _isDragging,
+            ),
           ),
         ),
       ),
@@ -489,17 +627,42 @@ class _HolographicSliderPainter extends CustomPainter {
   final Color baseColor;
   final Color glowColor;
   final bool isVertical;
+  final bool isHovering;
+  final bool isDragging;
 
-  _HolographicSliderPainter({required this.value, required this.baseColor, required this.glowColor, this.isVertical = true});
+  _HolographicSliderPainter({
+    required this.value,
+    required this.baseColor,
+    required this.glowColor,
+    this.isVertical = true,
+    required this.isHovering,
+    required this.isDragging,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint();
-    final double trackThickness = 5.0;
-    final double thumbRadius = 10.0;
+    final double trackThickness = 5.0 * (isDragging ? 1.1 : 1.0);
+    final double baseThumbRadius = 10.0;
+    final double thumbRadius = baseThumbRadius * (isDragging ? 1.2 : (isHovering ? 1.1 : 1.0));
+
     final RRect trackRect;
     final Offset thumbCenter;
-    final Rect activeTrackRect;
+    Rect activeTrackRect;
+
+    Color effectiveBaseColor = baseColor;
+    if (isDragging) {
+      effectiveBaseColor = HSLColor.fromColor(baseColor).withLightness((HSLColor.fromColor(baseColor).lightness * 1.2).clamp(0.0, 1.0)).toColor();
+    } else if (isHovering) {
+      effectiveBaseColor = HSLColor.fromColor(baseColor).withLightness((HSLColor.fromColor(baseColor).lightness * 1.1).clamp(0.0, 1.0)).toColor();
+    }
+
+    // Value-based color modulation for active track and thumb
+    HSLColor hslValueColor = HSLColor.fromColor(effectiveBaseColor);
+    Color valueBasedColor = hslValueColor
+        .withSaturation((hslValueColor.saturation * (0.7 + 0.3 * value)).clamp(0.0, 1.0))
+        .withLightness((hslValueColor.lightness * (0.8 + 0.2 * value)).clamp(0.0, 1.0))
+        .toColor();
 
     if (isVertical) {
       trackRect = RRect.fromLTRBR(
@@ -527,28 +690,41 @@ class _HolographicSliderPainter extends CustomPainter {
       );
     }
 
+    // Inactive Track
     paint
-      ..color = baseColor.withOpacity(HolographicTheme.widgetTransparency * 0.7)
+      ..color = effectiveBaseColor.withOpacity(HolographicTheme.widgetTransparency * (isHovering || isDragging ? 0.9 : 0.7))
       ..style = PaintingStyle.fill;
     canvas.drawRRect(trackRect, paint);
 
+    // Active Track
     paint
-      ..color = baseColor;
+      ..color = valueBasedColor; // Use value-modulated color
     canvas.drawRect(activeTrackRect, paint);
 
-    final Paint glowPaint = Paint()
-      ..color = glowColor.withOpacity(0.6)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3.0);
-    canvas.drawRect(activeTrackRect, glowPaint);
+    // Active Track Glow
+    double glowIntensity = isDragging ? 0.8 : (isHovering ? 0.7 : 0.6);
+    final Paint activeTrackGlowPaint = Paint()
+      ..color = glowColor.withOpacity(glowIntensity)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, 3.0 * (isDragging ? 1.5 : 1.0));
+    canvas.drawRect(activeTrackRect, activeTrackGlowPaint);
 
-    canvas.drawCircle(thumbCenter, thumbRadius * 1.2, Paint()..color = glowColor.withOpacity(0.5)..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4.0));
-    paint..color = baseColor;
+    // Thumb
+    double thumbGlowRadius = isDragging ? 5.0 : (isHovering ? 4.0 : 3.0);
+    canvas.drawCircle(thumbCenter, thumbRadius * 1.2, Paint()..color = glowColor.withOpacity(0.5 * (isDragging ? 1.2 : 1.0))..maskFilter = MaskFilter.blur(BlurStyle.normal, thumbGlowRadius));
+    paint..color = valueBasedColor; // Use value-modulated color for thumb base
     canvas.drawCircle(thumbCenter, thumbRadius, paint);
-    paint..color = Colors.white.withOpacity(0.7);
+    paint..color = Colors.white.withOpacity(0.7 * (isDragging ? 0.9 : (isHovering ? 0.8 : 0.7)));
     canvas.drawCircle(thumbCenter, thumbRadius * 0.5, paint);
-    paint..color = baseColor.withOpacity(0.8)..style = PaintingStyle.stroke..strokeWidth = 1.0;
+    paint..color = valueBasedColor.withOpacity(0.8)..style = PaintingStyle.stroke..strokeWidth = 1.0;
     canvas.drawCircle(thumbCenter, thumbRadius, paint);
   }
+
   @override
-  bool shouldRepaint(_HolographicSliderPainter oldDelegate) => oldDelegate.value != value || oldDelegate.baseColor != baseColor || oldDelegate.glowColor != glowColor;
+  bool shouldRepaint(_HolographicSliderPainter oldDelegate) =>
+      oldDelegate.value != value ||
+      oldDelegate.baseColor != baseColor ||
+      oldDelegate.glowColor != glowColor ||
+      oldDelegate.isHovering != isHovering ||
+      oldDelegate.isDragging != isDragging ||
+      oldDelegate.isVertical != isVertical;
 }
