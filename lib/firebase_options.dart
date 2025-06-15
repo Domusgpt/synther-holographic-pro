@@ -21,15 +21,9 @@ class DefaultFirebaseOptions {
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for android - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return android; // Replaced UnsupportedError
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios; // Replaced UnsupportedError
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -41,10 +35,7 @@ class DefaultFirebaseOptions {
           'you can reconfigure this by running the FlutterFire CLI again.',
         );
       case TargetPlatform.linux:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for linux - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return linux; // Return Linux options
       default:
         throw UnsupportedError(
           'DefaultFirebaseOptions are not supported for this platform.',
@@ -59,5 +50,41 @@ class DefaultFirebaseOptions {
     projectId: 'synther-pro-holo',
     authDomain: 'synther-pro-holo.firebaseapp.com',
     storageBucket: 'synther-pro-holo.firebasestorage.app',
+  );
+
+  // TODO: Replace apiKey with actual value from Firebase console if necessary.
+  // This configuration is for the Android app with package name:
+  // com.domusgpt.synther_holographic_pro
+  static const FirebaseOptions android = FirebaseOptions(
+    apiKey: 'AIzaSyAaJ5wlzrBfSZ_brPeSgsGr1hFXroCnw4o', // Updated apiKey
+    appId: '1:872646180221:android:6c4d1ee3c5092d0417a014', // Updated appId
+    messagingSenderId: '872646180221', // From web
+    projectId: 'synther-pro-holo', // From web
+    authDomain: 'synther-pro-holo.firebaseapp.com', // From web
+    storageBucket: 'synther-pro-holo.firebasestorage.app',
+  );
+
+  // TODO: Replace with actual values from Firebase console.
+  // The apiKey and appId are placeholders.
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyCTWZsQTMVeaEsHXrg_pEF_CCzI7sYlZPw', // Placeholder from web
+    appId: '1:872646180221:ios:placeholder_ios_app_id_generated', // Placeholder
+    messagingSenderId: '872646180221', // From web
+    projectId: 'synther-pro-holo', // From web
+    authDomain: 'synther-pro-holo.firebaseapp.com', // From web
+    storageBucket: 'synther-pro-holo.firebasestorage.app',
+  );
+
+  // Placeholder Linux FirebaseOptions.
+  // For distinct analytics or if you need a specific Linux app configuration,
+  // register a Linux app in your Firebase console. This might provide a unique appId.
+  // The apiKey and other values are currently based on the web configuration.
+  static const FirebaseOptions linux = FirebaseOptions(
+    apiKey: 'AIzaSyCTWZsQTMVeaEsHXrg_pEF_CCzI7sYlZPw', // From web
+    appId: '1:872646180221:linux:placeholder_linux_app_id_generated', // Placeholder
+    messagingSenderId: '872646180221', // From web
+    projectId: 'synther-pro-holo', // From web
+    authDomain: 'synther-pro-holo.firebaseapp.com', // From web
+    storageBucket: 'synther-pro-holo.firebasestorage.app', // From web
   );
 }
