@@ -11,7 +11,14 @@ enum XYPadAssignment {
   reverbMix('Reverb Mix'),
   delayTime('Delay Time'),
   lfoRate('LFO Rate'),
-  customMidiCC('Custom MIDI CC');
+  customMidiCC('Custom MIDI CC'),
+  pitch('Pitch (X-Axis Quantized)'), // For X-axis pitch control
+  lfoDepth('LFO Depth'),
+  delayFeedback('Delay Feedback'),
+  distortionAmount('Distortion'),
+  panPosition('Pan Position'),
+  granularDensity('Grain Density'),
+  granularSpeed('Grain Speed');
   
   const XYPadAssignment(this.displayName);
   final String displayName;
@@ -40,16 +47,25 @@ enum ScaleType {
   final String displayName;
 }
 
-/// A holographic XY pad widget for multi-parameter control with visual feedback.
+/// A holographic XY pad widget for versatile multi-parameter control and musical input.
 ///
 /// Features:
-/// - Assignable X and Y axes to various synthesizer parameters or custom MIDI CCs.
-/// - Musical mapping with selectable root note and scale type.
-/// - Dynamic visual feedback including:
-///   - An energy trail of fading circles following touch movement.
-///   - A pulsing touch point indicator during drag.
-///   - A subtly reactive background grid that changes based on touch position.
-/// - UI for inputting custom MIDI CC numbers when 'Custom MIDI CC' assignment is selected.
+/// - **Assignable Axes:** X and Y axes can be independently assigned to various synthesizer
+///   parameters (e.g., filter cutoff, LFO rate, reverb mix) or custom MIDI CCs.
+///   The Y-axis typically controls a continuous parameter.
+/// - **X-Axis Quantized Pitch:** The X-axis can be configured for musically quantized pitch output.
+///   Users can select a root note ([ChromaticNote]) and a scale ([ScaleType]) (e.g., Major, Minor, Pentatonic).
+///   The `onPitchChanged` callback provides the calculated MIDI note (0-127).
+///   The visual display updates to show the current note name (e.g., "C#4").
+/// - **Dynamic Sizing:** The widget can expand on interaction and contract after a period of inactivity,
+///   managed via `onInteractionStart` and `onInteractionEnd` callbacks.
+/// - **Advanced Visual Feedback:**
+///   - **Energy Trail:** A trail of fading particles follows touch movements.
+///   - **Touch Point Animation:** The touch point indicator pulses during drag.
+///   - **Reactive Grid:** The background grid subtly warps or changes intensity near the touch point.
+/// - **MIDI CC Input:** When an axis is assigned to `XYPadAssignment.customMidiCC`, a TextField appears
+///   for users to input the desired MIDI CC number.
+/// - **Musical Mapping Controls:** Dropdowns allow selection of root note and scale type for pitch quantization.
 class HolographicXYPad extends StatefulWidget {
   final double x;
   final double y;
@@ -66,22 +82,32 @@ class HolographicXYPad extends StatefulWidget {
   final ValueChanged<ScaleType>? onScaleTypeChanged;
   final ValueChanged<int>? onCustomMidiCCXChanged;
   final ValueChanged<int>? onCustomMidiCCYChanged;
+  final ValueChanged<int>? onPitchChanged;
+  final VoidCallback? onInteractionStart;
+  final VoidCallback? onInteractionEnd;
   final Color energyColor;
   
   /// Creates a HolographicXYPad.
   ///
   /// Parameters:
-  /// - [x], [y]: Initial normalized position (0.0-1.0).
-  /// - [onPositionChanged]: Callback for position changes.
+  /// - [x], [y]: Initial normalized position (0.0-1.0) of the touch point.
+  /// - [onPositionChanged]: Callback providing the raw normalized `Offset(x, y)` on drag.
   /// - [xAssignment], [yAssignment]: Initial parameter assignments for X and Y axes.
-  /// - [rootNote], [scaleType]: For musical mapping features.
-  /// - [customMidiCCX], [customMidiCCY]: Initial MIDI CC numbers if 'Custom MIDI CC' is selected.
-  ///   These are displayed and editable via TextFields when the respective axis is set to custom MIDI CC.
+  ///   See [XYPadAssignment] for available options, including new effect assignments.
+  /// - [rootNote], [scaleType]: Used when X-axis is assigned to pitch, for musical quantization.
+  /// - [customMidiCCX], [customMidiCCY]: Initial MIDI CC numbers if 'Custom MIDI CC' is selected for an axis.
+  ///   Editable via TextFields that appear when `XYPadAssignment.customMidiCC` is active.
   /// - [onXAssignmentChanged], [onYAssignmentChanged]: Callbacks for axis assignment changes.
   /// - [onRootNoteChanged], [onScaleTypeChanged]: Callbacks for musical mapping changes.
-  /// - [onCustomMidiCCXChanged], [onCustomMidiCCYChanged]: Callbacks triggered when the user
-  ///   submits a new MIDI CC number through the respective TextField.
-  /// - [energyColor]: The primary color theme for the widget.
+  /// - [onCustomMidiCCXChanged], [onCustomMidiCCYChanged]: Callbacks triggered when a user submits
+  ///   a new MIDI CC number via the respective TextField.
+  /// - [onPitchChanged]: Callback triggered when the X-axis (if assigned to `XYPadAssignment.pitch`)
+  ///   calculates a new MIDI note due to position change. Provides `int midiNote`.
+  /// - [onInteractionStart]: Callback invoked when the user begins interacting with the pad (e.g., tap down, pan start).
+  ///   Used to trigger expansion if the pad is dynamically sized by its parent.
+  /// - [onInteractionEnd]: Callback invoked after a delay when the user stops interacting.
+  ///   Used to trigger contraction if the pad is dynamically sized.
+  /// - [energyColor]: The primary color theme for the widget's holographic effects.
   const HolographicXYPad({
     Key? key,
     required this.x,
@@ -99,6 +125,9 @@ class HolographicXYPad extends StatefulWidget {
     this.onScaleTypeChanged,
     this.onCustomMidiCCXChanged,
     this.onCustomMidiCCYChanged,
+    this.onPitchChanged,
+    this.onInteractionStart,
+    this.onInteractionEnd,
     this.energyColor = HolographicTheme.primaryEnergy,
   }) : super(key: key);
   
@@ -120,6 +149,24 @@ class _HolographicXYPadState extends State<HolographicXYPad>
   late TextEditingController _midiCCXController;
   late TextEditingController _midiCCYController;
 
+  Timer? _compactTimer; // Timer for contracting the widget
+  int _lastSentMidiNote = -1; // To avoid redundant pitch changed calls
+  String _currentNoteNameDisplay = ""; // For displaying the current note
+
+  static const Map<ScaleType, List<int>> scaleIntervals = {
+    ScaleType.chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+    ScaleType.major: [0, 2, 4, 5, 7, 9, 11],
+    ScaleType.minor: [0, 2, 3, 5, 7, 8, 10],
+    ScaleType.pentatonic: [0, 2, 4, 7, 9], // Assuming Major Pentatonic
+    ScaleType.blues: [0, 3, 5, 6, 7, 10],
+    ScaleType.dorian: [0, 2, 3, 5, 7, 9, 10],
+    ScaleType.mixolydian: [0, 2, 4, 5, 7, 9, 10],
+  };
+
+  static const List<String> noteNamesWithSharps = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+  static const List<String> noteNamesWithFlats = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+
   @override
   void initState() {
     super.initState();
@@ -133,6 +180,8 @@ class _HolographicXYPadState extends State<HolographicXYPad>
     );
     
     _touchPosition = Offset(widget.x, widget.y);
+    _updateCurrentNoteNameDisplay();
+
 
     _midiCCXController = TextEditingController(text: widget.customMidiCCX.toString());
     _midiCCYController = TextEditingController(text: widget.customMidiCCY.toString());
@@ -143,16 +192,29 @@ class _HolographicXYPadState extends State<HolographicXYPad>
     _touchController.dispose();
     _midiCCXController.dispose();
     _midiCCYController.dispose();
+    _compactTimer?.cancel(); // Cancel timer on dispose
     super.dispose();
   }
   
+  void _handleInteractionStart() {
+    _compactTimer?.cancel(); // Cancel any pending contraction
+    widget.onInteractionStart?.call();
+  }
+
+  void _handleInteractionEnd() {
+    _compactTimer?.cancel();
+    _compactTimer = Timer(const Duration(seconds: 3), () { // 3-second delay
+      widget.onInteractionEnd?.call();
+    });
+  }
+
   void _onPanStart(DragStartDetails details) {
+    _handleInteractionStart();
     setState(() {
       _isDragging = true;
       _energyTrail.clear();
       _touchController.repeat(reverse: true); // Start pulsing
     });
-    // _touchController.forward(); // No longer just forward
   }
   
   void _onPanUpdate(DragUpdateDetails details) {
@@ -174,8 +236,69 @@ class _HolographicXYPadState extends State<HolographicXYPad>
     });
     
     widget.onPositionChanged(Offset(x, y));
+
+    if (widget.xAssignment == XYPadAssignment.pitch) {
+      _handlePitchChange(x);
+    }
   }
   
+  void _handlePitchChange(double normalizedX) {
+    final newMidiNote = _calculateMidiNote(
+        normalizedX, widget.rootNote, widget.scaleType, 60); // Assuming C4 = 60
+    if (newMidiNote != _lastSentMidiNote) {
+      widget.onPitchChanged?.call(newMidiNote);
+      _lastSentMidiNote = newMidiNote;
+      _updateCurrentNoteNameDisplay(midiNote: newMidiNote);
+    }
+  }
+
+  String _midiNoteToName(int midiNote) {
+    if (midiNote < 0 || midiNote > 127) return "";
+    final octave = (midiNote ~/ 12) - 1; // MIDI C4 is 60, so octave 4. -1 to make C0 octave 0.
+    final noteIndex = midiNote % 12;
+
+    // Basic preference for sharps, could be made smarter based on key signature
+    return noteNamesWithSharps[noteIndex] + octave.toString();
+  }
+
+  void _updateCurrentNoteNameDisplay({int? midiNote}) {
+    if (widget.xAssignment == XYPadAssignment.pitch) {
+      final noteToDisplay = midiNote ?? _lastSentMidiNote;
+      if (noteToDisplay != -1) {
+        setState(() {
+          _currentNoteNameDisplay = _midiNoteToName(noteToDisplay);
+        });
+      } else {
+         // If no note sent yet, calculate initial note for display based on current X
+        final initialNote = _calculateMidiNote(_touchPosition.dx, widget.rootNote, widget.scaleType, 60);
+        setState(() {
+           _currentNoteNameDisplay = _midiNoteToName(initialNote);
+        });
+      }
+    } else {
+      setState(() {
+        _currentNoteNameDisplay = ""; // Clear if X-axis is not pitch
+      });
+    }
+  }
+
+  int _calculateMidiNote(double normalizedX, ChromaticNote rootNoteEnum, ScaleType scaleTypeEnum, int baseMidiOctaveC4) {
+    final List<int> intervals = scaleIntervals[scaleTypeEnum] ?? scaleIntervals[ScaleType.chromatic]!;
+    final int rootNoteOffset = rootNoteEnum.index; // C=0, C#=1, etc.
+
+    final int pitchRangeInNotes = 2 * intervals.length; // e.g., 2 octaves of the selected scale
+
+    int noteIndexInScaleRange = (normalizedX * pitchRangeInNotes).floor();
+    noteIndexInScaleRange = noteIndexInScaleRange.clamp(0, pitchRangeInNotes -1);
+
+    final int octaveOffset = noteIndexInScaleRange ~/ intervals.length;
+    final int noteInScale = intervals[noteIndexInScaleRange % intervals.length];
+
+    int midiNote = baseMidiOctaveC4 + rootNoteOffset + (octaveOffset * 12) + noteInScale;
+
+    return midiNote.clamp(0, 127);
+  }
+
   void _onPanEnd(DragEndDetails details) {
     setState(() {
       _isDragging = false;
@@ -184,7 +307,9 @@ class _HolographicXYPadState extends State<HolographicXYPad>
     _touchController.stop();
     _touchController.animateTo(0.0, duration: Duration(milliseconds: 150), curve: Curves.easeOut);
     
-    // Fade out energy trail
+    _handleInteractionEnd(); // Start timer to contract
+
+    // Fade out energy trail (this existing logic is fine)
     Future.delayed(const Duration(milliseconds: 500), () {
       if (mounted) {
         setState(() {
@@ -261,7 +386,8 @@ class _HolographicXYPadState extends State<HolographicXYPad>
                       onChanged: (value) {
                         if (value != null) {
                           widget.onXAssignmentChanged?.call(value);
-                          setState(() {}); // Rebuild to show/hide TextField
+                          _updateCurrentNoteNameDisplay(); // Update display if X-axis assignment changes
+                          setState(() {});
                         }
                       },
                     ),
@@ -448,9 +574,11 @@ class _HolographicXYPadState extends State<HolographicXYPad>
   
   Widget _buildXYPadArea() {
     return GestureDetector(
-      onPanStart: _onPanStart,
+      onTapDown: (_) => _handleInteractionStart(), // Expand on tap down too
+      onTapUp: (_) => _handleInteractionEnd(),     // Start contraction timer on tap up
+      onPanStart: _onPanStart, // Already calls _handleInteractionStart
       onPanUpdate: _onPanUpdate,
-      onPanEnd: _onPanEnd,
+      onPanEnd: _onPanEnd,     // Already calls _handleInteractionEnd
       child: Container(
         width: double.infinity,
         height: double.infinity,
@@ -557,14 +685,18 @@ class _HolographicXYPadState extends State<HolographicXYPad>
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'X: ${(_touchPosition.dx * 100).toInt()}%',
+                (widget.xAssignment == XYPadAssignment.pitch && _currentNoteNameDisplay.isNotEmpty)
+                  ? _currentNoteNameDisplay
+                  : 'X: ${(_touchPosition.dx * 100).toInt()}%',
                 style: HolographicTheme.createHolographicText(
                   energyColor: widget.energyColor,
                   fontSize: 12,
                 ),
               ),
               Text(
-                widget.rootNote.displayName,
+                 (widget.xAssignment == XYPadAssignment.pitch)
+                   ? "${widget.rootNote.displayName} ${widget.scaleType.displayName}"
+                   : widget.rootNote.displayName, // Fallback or different display if needed
                 style: HolographicTheme.createHolographicText(
                   energyColor: widget.energyColor.withOpacity(0.7),
                   fontSize: 10,

@@ -3,6 +3,8 @@ import 'package:glassmorphism/glassmorphism.dart'; // For HolographicDropdown st
 import 'package:synther_app/ui/holographic/holographic_widget.dart';
 import 'package:synther_app/features/shared_controls/control_knob_widget.dart';
 import 'package:synther_app/core/audio_engine.dart'; // Corrected import
+import 'dart:async'; // For Timer
+import 'package:synther_app/ui/holographic/holographic_theme.dart'; // For HolographicTheme colors
 // import 'package:synther_app/features/visualizer_bridge/morph_ui_visualizer_bridge.dart'; // If needed
 
 /// Enum for assignable synthesizer parameters.
@@ -118,36 +120,44 @@ class HolographicDropdown<T> extends StatelessWidget {
 ///   - If a CC is "captured", it's mapped to the currently selected [SynthParameterType]
 ///     via [MidiMappingService].
 ///   - The current MIDI mapping (e.g., "MIDI: CC 74") is displayed below the learn button.
+/// - **Dynamic Sizing:** Utilizes `onInteractionStart` and `onInteractionEnd` callbacks to signal
+///   its parent [HolographicWidget] to expand on interaction and contract after a delay.
+/// - **Dynamic Energy Color:** Changes its parent [HolographicWidget]'s energy color based on the
+///   selected [SynthParameterType] via the `onEnergyColorChange` callback. A predefined
+///   `_parameterEnergyColors` map defines these color associations.
 /// - Wrapped in a [HolographicWidget] to be draggable, resizable, and collapsible.
 class HolographicAssignableKnob extends StatefulWidget {
   final SynthParameterType initialParameter;
   final AudioEngine audioEngine;
-  // final MorphUIVisualizerBridge? visualizerBridge; // Optional, if visual feedback is tied
-  final Function(SynthParameterType type, double value)? onAssignmentChanged; // Callback for parameter type and its initial value
-  final Function(SynthParameterType type, double value)? onValueUpdated; // Callback for value changes
+  final Function(SynthParameterType type, double value)? onAssignmentChanged;
+  final Function(SynthParameterType type, double value)? onValueUpdated;
+  final VoidCallback? onInteractionStart;
+  final VoidCallback? onInteractionEnd;
+  final ValueChanged<Color>? onEnergyColorChange;
 
   const HolographicAssignableKnob({
     super.key,
     this.initialParameter = SynthParameterType.filterCutoff,
     required this.audioEngine,
-    // this.visualizerBridge,
     this.onAssignmentChanged,
     this.onValueUpdated,
+    this.onInteractionStart,
+    this.onInteractionEnd,
+    this.onEnergyColorChange,
   });
 
   @override
   State<HolographicAssignableKnob> createState() => _HolographicAssignableKnobState();
 }
 
-import 'package:synther_app/services/midi_mapping_service.dart'; // Added import
+// import 'package:synther_app/services/midi_mapping_service.dart'; // Already imported below
 
-import 'package:synther_app/services/midi_mapping_service.dart'; // Added import
-
-class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> with TickerProviderStateMixin { // Added TickerProviderStateMixin
+class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> with TickerProviderStateMixin {
   late SynthParameterType _selectedParameter;
   late double _currentValue;
   bool _isLearningMidi = false;
   MidiCcIdentifier? _currentMapping;
+  Timer? _compactTimer; // For dynamic sizing
 
   late AnimationController _valueFeedbackController;
   late Animation<double> _valueFeedbackAnimation;
@@ -158,16 +168,16 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
     _selectedParameter = widget.initialParameter;
     _currentValue = _getParameterValueFromAudioEngine(_selectedParameter);
     _loadCurrentMapping();
+    _notifyEnergyColorChange(); // Notify initial color
 
     _valueFeedbackController = AnimationController(
-      duration: const Duration(milliseconds: 150), // Short animation
+      duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-    _valueFeedbackAnimation = Tween<double>(begin: 1.0, end: 1.25).animate( // Scale up briefly
+    _valueFeedbackAnimation = Tween<double>(begin: 1.0, end: 1.25).animate(
       CurvedAnimation(parent: _valueFeedbackController, curve: Curves.easeOut),
     );
 
-    // Call onAssignmentChanged for initial setup if needed by parent
     WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.onAssignmentChanged?.call(_selectedParameter, _currentValue);
     });
@@ -176,7 +186,38 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
   @override
   void dispose() {
     _valueFeedbackController.dispose();
+    _compactTimer?.cancel();
     super.dispose();
+  }
+
+  static final Map<SynthParameterType, Color> _parameterEnergyColors = {
+    SynthParameterType.filterCutoff: HolographicTheme.primaryEnergy,
+    SynthParameterType.filterResonance: HolographicTheme.secondaryEnergy,
+    SynthParameterType.attackTime: HolographicTheme.accentEnergy,
+    SynthParameterType.decayTime: Colors.orangeAccent,
+    SynthParameterType.masterVolume: Colors.lightGreenAccent,
+    SynthParameterType.reverbMix: Colors.blueAccent,
+    SynthParameterType.delayFeedback: Colors.purpleAccent,
+    SynthParameterType.oscLfoRate: Colors.tealAccent,
+    SynthParameterType.oscPulseWidth: Colors.pinkAccent,
+    // Add all SynthParameterType values here
+  };
+
+  void _notifyEnergyColorChange() {
+    final color = _parameterEnergyColors[_selectedParameter] ?? HolographicTheme.primaryEnergy;
+    widget.onEnergyColorChange?.call(color);
+  }
+
+  void _handleInteractionStart() {
+    _compactTimer?.cancel();
+    widget.onInteractionStart?.call();
+  }
+
+  void _handleInteractionEnd() {
+    _compactTimer?.cancel();
+    _compactTimer = Timer(const Duration(seconds: 3), () {
+      widget.onInteractionEnd?.call();
+    });
   }
 
   void _triggerValueFeedback() {
@@ -282,8 +323,9 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
                     _selectedParameter = newValue;
                     _currentValue = _getParameterValueFromAudioEngine(newValue);
                     _updateAudioEngineParameter(_selectedParameter, _currentValue);
-                    _loadCurrentMapping(); // Reload mapping for the new parameter
-                    _triggerValueFeedback(); // Feedback for new parameter's value
+                    _loadCurrentMapping();
+                    _triggerValueFeedback();
+                    _notifyEnergyColorChange(); // Update color on parameter change
                   });
                   widget.onAssignmentChanged?.call(newValue, _currentValue);
                 }
@@ -292,24 +334,26 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
           ),
 
           Expanded(
-            child: Column( // Use Column to stack Knob and its value Text
+            child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Center(
+                GestureDetector( // Wrap ControlKnob to detect tap for interaction start
+                  onTapDown: (_) => _handleInteractionStart(),
+                  // ControlKnob itself doesn't have onDragStart/End, so onChanged is main trigger
                   child: ControlKnob(
-                    value: _currentValue,
-                    size: 110, // Slightly smaller to make space for text
-                    thumbColor: const Color(0xFF00FFFF),
-                    trackColor: Colors.white.withOpacity(0.2),
-                    onChanged: (double newValue) {
-                      setState(() {
-                        _currentValue = newValue;
-                      });
-                      _updateAudioEngineParameter(_selectedParameter, newValue);
-                      widget.onValueUpdated?.call(_selectedParameter, newValue);
-                      _triggerValueFeedback(); // Feedback for value change
-                    },
-                  ),
+                      value: _currentValue,
+                      size: 110,
+                      thumbColor: const Color(0xFF00FFFF),
+                      trackColor: Colors.white.withOpacity(0.2),
+                      onChanged: (double newValue) {
+                        _handleInteractionStart(); // Consider interaction started
+                        setState(() { _currentValue = newValue; });
+                        _updateAudioEngineParameter(_selectedParameter, newValue);
+                        widget.onValueUpdated?.call(_selectedParameter, newValue);
+                        _triggerValueFeedback();
+                        _handleInteractionEnd(); // Reset timer on each change
+                      },
+                    ),
                 ),
                 SizedBox(height: 8),
                 ScaleTransition(
@@ -449,19 +493,14 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> w
   void didUpdateWidget(HolographicAssignableKnob oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialParameter != oldWidget.initialParameter) {
-      // This handles external changes to the knob's assigned parameter
       setState(() {
         _selectedParameter = widget.initialParameter;
         _currentValue = _getParameterValueFromAudioEngine(_selectedParameter);
         _loadCurrentMapping();
-        _triggerValueFeedback(); // Value changed due to parameter reassignment
+        _triggerValueFeedback();
+        _notifyEnergyColorChange(); // Update color if initial parameter changed
       });
     }
-    // If we had an `initialValue` prop that could change, we'd check that too:
-    // if (widget.initialValue != oldWidget.initialValue && widget.initialValue != _currentValue) {
-    //   setState(() { _currentValue = widget.initialValue; });
-    //   _triggerValueFeedback();
-    // }
   }
 
 }

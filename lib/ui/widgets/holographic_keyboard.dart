@@ -12,8 +12,9 @@ class SplitKey {
   Size size;
   bool isPressed;
   double velocity;
-  double initialTouchY = 0.0; // For aftertouch calculation
-  double currentAftertouchValue = 0.0; // Normalized 0.0 - 1.0
+  double initialTouchY = 0.0;
+  double currentAftertouchValue = 0.0;
+  Offset? lastTapDownPosition; // For X-axis hit position visual
   
   SplitKey({
     required this.midiNote,
@@ -35,6 +36,11 @@ class SplitKey {
 /// - Polyphonic Aftertouch: Y-axis sliding on a pressed key generates aftertouch values for that specific note.
 ///   The [onPolyAftertouch] callback returns a record `({int note, double value})` where `value`
 ///   is the normalized aftertouch (0.0-1.0).
+/// - **Hit Position Feedback:** A brief visual effect (e.g., a flare or ripple, intended to be drawn
+///   by `_KeyHitEffectPainter`) emanates from the point of touch (X-Y on the key surface).
+///   This is managed by per-key `AnimationController`s (`_hitEffectControllers`) in the state.
+/// - **Duration (Hold) Feedback:** While a key is pressed, its glow intensity subtly pulses,
+///   controlled by per-key `AnimationController`s (`_holdPulseControllers`).
 /// - Visual feedback on keys for press state, velocity, and aftertouch (e.g., glow intensity, color shifts, indicator bar).
 /// - Includes pitch bend and modulation wheel controls.
 class HolographicKeyboard extends StatefulWidget {
@@ -81,6 +87,12 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
   
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
+
+  // Maps to manage controllers per key (using MIDI note as key)
+  final Map<int, AnimationController> _hitEffectControllers = {};
+  final Map<int, Animation<double>> _hitEffectAnimations = {};
+  final Map<int, AnimationController> _holdPulseControllers = {};
+  final Map<int, Animation<double>> _holdPulseAnimations = {};
   
   List<SplitKey> _keys = [];
   double _pitchBendValue = 0.0;
@@ -119,6 +131,8 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
   @override
   void dispose() {
     _glowController.dispose();
+    _hitEffectControllers.forEach((_, controller) => controller.dispose());
+    _holdPulseControllers.forEach((_, controller) => controller.dispose());
     super.dispose();
   }
   
@@ -163,28 +177,76 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
     }
   }
   
-  void _onKeyPressed(SplitKey key, double velocity, double initialY) {
+  void _onKeyPressed(SplitKey key, double velocity, Offset localTapPosition) {
     setState(() {
       key.isPressed = true;
       key.velocity = velocity;
-      key.initialTouchY = initialY; // Store initial Y for aftertouch base
-      key.currentAftertouchValue = 0.0; // Reset aftertouch on new press
+      key.initialTouchY = localTapPosition.dy;
+      key.currentAftertouchValue = 0.0;
+      key.lastTapDownPosition = localTapPosition; // Store for hit effect painter
       _pressedKeys.add(key.midiNote);
+
+      // Hit Effect Initialization
+      _hitEffectControllers[key.midiNote]?.dispose(); // Dispose previous controller for this key
+      final hitCtrl = AnimationController(duration: const Duration(milliseconds: 350), vsync: this);
+      _hitEffectControllers[key.midiNote] = hitCtrl;
+      _hitEffectAnimations[key.midiNote] = CurvedAnimation(parent: hitCtrl, curve: Curves.easeOutCubic)
+        ..addListener(() => setState(() {})) // Trigger rebuild on animation ticks
+        ..addStatusListener((status) { // Auto-dispose controller and clear lastTapDownPosition
+          if (status == AnimationStatus.completed || status == AnimationStatus.dismissed) {
+            if (mounted) {
+              // Only clear lastTapDownPosition if the key is no longer pressed,
+              // or if this specific animation instance is finishing.
+              // This handles cases where a key might be re-triggered quickly.
+              if (!key.isPressed || _hitEffectControllers[key.midiNote] == hitCtrl) {
+                 setState(() { key.lastTapDownPosition = null; });
+              }
+            }
+            if (_hitEffectControllers[key.midiNote] == hitCtrl) { // Ensure it's the same controller
+              hitCtrl.dispose();
+              _hitEffectControllers.remove(key.midiNote);
+              _hitEffectAnimations.remove(key.midiNote);
+            }
+          }
+        });
+      hitCtrl.forward(from: 0.0);
+
+      // Hold Pulse Effect Initialization
+      _holdPulseControllers[key.midiNote]?.dispose(); // Dispose previous controller
+      final holdCtrl = AnimationController(duration: const Duration(milliseconds: 1200), vsync: this);
+      _holdPulseControllers[key.midiNote] = holdCtrl;
+      _holdPulseAnimations[key.midiNote] = Tween<double>(begin: 0.85, end: 1.15).animate(
+        CurvedAnimation(parent: holdCtrl, curve: Curves.easeInOut)
+      )..addListener(() => setState(() {})); // Trigger rebuild
+      holdCtrl.repeat(reverse: true);
     });
     widget.onNoteOn?.call(key.midiNote, velocity);
   }
   
   void _onKeyReleased(SplitKey key) {
-    if (key.isPressed) { // Only if it was actually pressed
+    if (key.isPressed) {
       if (key.currentAftertouchValue != 0.0) {
-        // Optionally send aftertouch 0.0 on release
         widget.onPolyAftertouch?.call((note: key.midiNote, value: 0.0));
       }
+
+      _holdPulseControllers[key.midiNote]?.stop();
+      _holdPulseControllers[key.midiNote]?.dispose(); // Dispose it now as it's no longer needed
+      _holdPulseControllers.remove(key.midiNote);
+      _holdPulseAnimations.remove(key.midiNote);
+
+      // Hit effect controller is managed by its status listener for disposal.
+      // We need to ensure key.isPressed is false so the listener can clear lastTapDownPosition.
+      bool hitCtrlIsAnimating = _hitEffectControllers[key.midiNote]?.isAnimating ?? false;
+
       setState(() {
         key.isPressed = false;
         key.velocity = 0.0;
         key.currentAftertouchValue = 0.0;
         _pressedKeys.remove(key.midiNote);
+        // If hit animation is not running (already completed/dismissed) and position still exists, clear it.
+        if (!hitCtrlIsAnimating && key.lastTapDownPosition != null) {
+           key.lastTapDownPosition = null;
+        }
       });
       widget.onNoteOff?.call(key.midiNote);
     }
@@ -379,13 +441,14 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
         onTapDown: (details) {
           if (key.size.height == 0) return;
           final keyHeight = key.size.height;
-          final localDy = details.localPosition.dy.clamp(0.0, keyHeight);
+          final localPos = details.localPosition;
+          final localDy = localPos.dy.clamp(0.0, keyHeight);
           final normalizedY = localDy / keyHeight;
           final calculatedVelocity = (normalizedY * 0.8) + 0.2;
-          _onKeyPressed(key, calculatedVelocity.clamp(0.1, 1.0), localDy);
+          _onKeyPressed(key, calculatedVelocity.clamp(0.1, 1.0), localPos);
         },
         onTapUp: (_) => _onKeyReleased(key),
-        onTapCancel: () => _onKeyReleased(key),
+        onTapCancel: () => _onKeyReleased(key), // Also release on cancel
         onVerticalDragStart: (details) {
           if (key.isPressed) { // Start aftertouch drag on an already pressed key
             setState(() {
@@ -419,10 +482,18 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
             : null, // Disable horizontal pan if not in split mode to prioritize vertical drag
 
         child: AnimatedBuilder(
-          animation: _glowAnimation,
+          animation: Listenable.merge([
+            _glowAnimation,
+            _hitEffectAnimations[key.midiNote],
+            _holdPulseAnimations[key.midiNote]
+          ].whereType<Animation<double>>().toList()),
           builder: (context, child) {
-            final glowIntensity = key.isPressed 
-                ? (1.0 + key.currentAftertouchValue * 1.5).clamp(1.0, 2.5) // More glow with aftertouch
+            double currentGlowIntensity = _glowAnimation.value;
+            if (key.isPressed && _holdPulseAnimations[key.midiNote] != null) {
+              currentGlowIntensity = _holdPulseAnimations[key.midiNote]!.value;
+            }
+            final finalGlowIntensity = key.isPressed
+                ? (currentGlowIntensity + key.currentAftertouchValue * 1.0).clamp(0.5, 2.5)
                 : _glowAnimation.value;
             
             Color keyMainColor = key.isBlackKey
@@ -430,7 +501,6 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
                     : Colors.white.withOpacity(0.1);
 
             if(key.isPressed) {
-              // Make key color brighter with aftertouch
               keyMainColor = Color.lerp(keyMainColor, widget.energyColor, (key.currentAftertouchValue * 0.3).clamp(0.0, 0.3))!;
             }
 
@@ -449,12 +519,13 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
                 boxShadow: [
                   HolographicTheme.createEnergyGlow(
                     color: widget.energyColor,
-                    intensity: glowIntensity,
+                    intensity: finalGlowIntensity,
                     radius: key.isPressed ? (8.0 + key.currentAftertouchValue * 8.0).clamp(8.0, 16.0) : 6.0,
                   ),
                 ],
               ),
               child: Stack(
+                clipBehavior: Clip.none,
                 children: [
                   // Key label
                   Positioned(
@@ -484,7 +555,7 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
                         child: Container(
                           height: ((key.velocity * 1.5) + (key.currentAftertouchValue * 2.0)).clamp(1.0, 3.5),
                           decoration: BoxDecoration(
-                            color: Color.lerp(widget.energyColor, Colors.white, key.currentAftertouchValue * 0.5), // Shift color towards white with aftertouch
+                            color: Color.lerp(widget.energyColor, Colors.white, key.currentAftertouchValue * 0.5),
                             borderRadius: BorderRadius.circular(1.5),
                             boxShadow: [
                               HolographicTheme.createEnergyGlow(
@@ -497,6 +568,21 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
                       ),
                     ),
                   
+                  // Hit Position Effect Painter
+                  // Draw only if animation is running and position is available
+                  if (_hitEffectAnimations[key.midiNote] != null &&
+                      (_hitEffectControllers[key.midiNote]?.isAnimating ?? false) &&
+                      key.lastTapDownPosition != null)
+                    CustomPaint(
+                      size: key.size,
+                      painter: _KeyHitEffectPainter(
+                        animationValue: _hitEffectAnimations[key.midiNote]!.value,
+                        tapPosition: key.lastTapDownPosition!,
+                        energyColor: widget.energyColor,
+                        isBlackKey: key.isBlackKey,
+                      ),
+                    ),
+
                   // Drag handle for split mode
                   if (widget.splitMode)
                     Positioned(
@@ -669,5 +755,68 @@ class _HolographicKeyboardState extends State<HolographicKeyboard>
         ),
       ),
     );
+  }
+}
+
+// Custom painter for key hit effect
+class _KeyHitEffectPainter extends CustomPainter {
+  final double animationValue; // 0.0 (start) to 1.0 (end of effect)
+  final Offset tapPosition;    // Local X, Y on the key where tap occurred
+  final Color energyColor;
+  final bool isBlackKey;
+
+  _KeyHitEffectPainter({
+    required this.animationValue,
+    required this.tapPosition,
+    required this.energyColor,
+    this.isBlackKey = false,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    // Effect: A quick, bright flare that expands and fades.
+    // animationValue goes from 0.0 (start) to 1.0 (end).
+
+    // Opacity: Strongest at start, fades out.
+    // Using (1-t)^2 curve for faster fade initially, slower at the end.
+    final double opacity = math.pow(1.0 - animationValue, 2).toDouble();
+
+    // Radius: Expands quickly.
+    final double effectProgress = animationValue;
+    final double maxRadius = size.width * (isBlackKey ? 0.3 : 0.25);
+    final double currentRadius = maxRadius * effectProgress;
+
+    // Core bright flare
+    paint.color = Colors.white.withOpacity((opacity * 0.8).clamp(0.0, 1.0)); // Bright white core
+    canvas.drawCircle(tapPosition, currentRadius * 0.5, paint);
+
+    // Colored energy glow around the core
+    paint.color = energyColor.withOpacity((opacity * 0.6).clamp(0.0, 1.0));
+    canvas.drawCircle(tapPosition, currentRadius, paint);
+
+    // Optional: subtle shockwave lines emanating outwards
+    if (animationValue < 0.5) { // Only for the first half of the animation
+      final shockwavePaint = Paint()
+        ..color = energyColor.withOpacity((opacity * 0.4).clamp(0.0, 1.0))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = (1.5 * (1.0 - (animationValue / 0.5))).clamp(0.5, 1.5); // Thicker at start
+
+      for (int i = 0; i < 2; i++) { // Draw 2 shockwave lines
+        double shockRadius = currentRadius + (i * 4.0) * (animationValue / 0.5);
+         if (shockRadius < size.width * 0.7) {
+             canvas.drawCircle(tapPosition, shockRadius, shockwavePaint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _KeyHitEffectPainter oldDelegate) {
+    return oldDelegate.animationValue != animationValue ||
+           oldDelegate.tapPosition != tapPosition ||
+           oldDelegate.energyColor != energyColor ||
+           oldDelegate.isBlackKey != isBlackKey;
   }
 }

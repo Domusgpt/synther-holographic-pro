@@ -165,7 +165,7 @@ class _SyntherUnifiedInterfaceState extends State<SyntherUnifiedInterface> {
 }
 
 // Unified Parameter Panel - Combines Morph UI with Holographic aesthetics
-class MorphParameterPanel extends StatelessWidget {
+class MorphParameterPanel extends StatefulWidget {
   final AudioEngine audioEngine;
   final MorphUIVisualizerBridge visualizerBridge;
   
@@ -174,84 +174,118 @@ class MorphParameterPanel extends StatelessWidget {
     required this.audioEngine,
     required this.visualizerBridge,
   }) : super(key: key);
+
+  @override
+  _MorphParameterPanelState createState() => _MorphParameterPanelState();
+}
+
+class _MorphParameterPanelState extends State<MorphParameterPanel> {
+  final GlobalKey<_HolographicWidgetState> _xyPadHolographicWidgetKey = GlobalKey<_HolographicWidgetState>();
+  final GlobalKey<_HolographicWidgetState> _knob1HolographicWidgetKey = GlobalKey<_HolographicWidgetState>();
+  final GlobalKey<_HolographicWidgetState> _knob2HolographicWidgetKey = GlobalKey<_HolographicWidgetState>();
+
+  static const Size _compactXYPadSize = Size(220, 90);
+  static const Size _defaultExpandedXYPadSize = Size(320, 280);
   
+  static const Size _compactKnobSize = Size(150, 130);
+  static const Size _defaultExpandedKnobSize = Size(180, 240);
+
+  Color _knob1EnergyColor = HolographicTheme.primaryEnergy;
+  Color _knob2EnergyColor = HolographicTheme.secondaryEnergy;
+
   @override
   Widget build(BuildContext context) {
-    // The MorphParameterPanel is typically given a space by its parent Positioned widget.
-    // We'll use a Stack to allow HolographicWidgets to float.
-    // A Container with a fixed height might be needed if the Stack is not constrained by its parent.
-    // For now, assuming the parent Positioned provides sufficient constraints.
-    return SizedBox( // Explicitly give MorphParameterPanel a height, useful for Stack
-      height: 300, // Example height, adjust as needed
+    return SizedBox(
+      height: 350, // Adjusted height to better accommodate potentially overlapping widgets
       child: Stack(
+        clipBehavior: Clip.none, // Allow widgets to be dragged partially out if needed
         children: [
           HolographicWidget(
+            key: _knob1HolographicWidgetKey,
             title: synthParameterTypeToString(SynthParameterType.filterCutoff),
-            initialPosition: const Offset(0, 0), // Relative to Stack
-            initialSize: const Size(180, 220),   // Smaller size for individual knob
-            isDraggable: true,
-            isResizable: true,
-            isCollapsible: true,
-            child: Padding( // Add padding inside HolographicWidget if needed
-              padding: const EdgeInsets.all(8.0),
-              child: HolographicAssignableKnob(
-                  audioEngine: audioEngine,
-                  initialParameter: SynthParameterType.filterCutoff,
-                  onAssignmentChanged: (type, value) {
-                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
-                  },
-                  onValueUpdated: (type, value) {
-                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
-                  },
-                ),
-            ),
-          ),
-
-          HolographicWidget(
-            title: synthParameterTypeToString(SynthParameterType.filterResonance),
-            initialPosition: const Offset(200, 0), // Positioned to the right
-            initialSize: const Size(180, 220),    // Smaller size
-            isDraggable: true,
-            isResizable: true,
-            isCollapsible: true,
+            energyColor: _knob1EnergyColor,
+            initialPosition: const Offset(10, 10),
+            initialSize: _compactKnobSize,
+            defaultExpandedSize: _defaultExpandedKnobSize, // Pass default expanded size
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: HolographicAssignableKnob(
-                  audioEngine: audioEngine,
-                  initialParameter: SynthParameterType.filterResonance,
+                  audioEngine: widget.audioEngine,
+                  initialParameter: SynthParameterType.filterCutoff,
                   onAssignmentChanged: (type, value) {
-                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
+                    _updateAudioParameter(type, value, widget.audioEngine, widget.visualizerBridge);
                   },
                   onValueUpdated: (type, value) {
-                    _updateAudioParameter(type, value, audioEngine, visualizerBridge);
+                    _updateAudioParameter(type, value, widget.audioEngine, widget.visualizerBridge);
+                  },
+                  onInteractionStart: () => _knob1HolographicWidgetKey.currentState?.expandToDefault(),
+                  onInteractionEnd: () => _knob1HolographicWidgetKey.currentState?.contractTo(_compactKnobSize),
+                  onEnergyColorChange: (newColor) {
+                    if (_knob1EnergyColor != newColor) setState(() => _knob1EnergyColor = newColor);
                   },
                 ),
             ),
           ),
 
           HolographicWidget(
-            title: "XY Pad",
-            initialPosition: const Offset(400, 0), // Positioned further to the right
-            initialSize: const Size(300, 220),     // Larger for XY pad
-            isDraggable: true,
-            isResizable: true,
-            isCollapsible: true,
+            key: _knob2HolographicWidgetKey,
+            title: synthParameterTypeToString(SynthParameterType.filterResonance),
+            energyColor: _knob2EnergyColor,
+            initialPosition: const Offset(170, 10), // Adjusted position
+            initialSize: _compactKnobSize,
+            defaultExpandedSize: _defaultExpandedKnobSize, // Pass default expanded size
+            child: Padding(
+              padding: const EdgeInsets.all(8.0),
+              child: HolographicAssignableKnob(
+                  audioEngine: widget.audioEngine,
+                  initialParameter: SynthParameterType.filterResonance,
+                  onAssignmentChanged: (type, value) {
+                    _updateAudioParameter(type, value, widget.audioEngine, widget.visualizerBridge);
+                  },
+                  onValueUpdated: (type, value) {
+                    _updateAudioParameter(type, value, widget.audioEngine, widget.visualizerBridge);
+                  },
+                  onInteractionStart: () => _knob2HolographicWidgetKey.currentState?.expandToDefault(),
+                  onInteractionEnd: () => _knob2HolographicWidgetKey.currentState?.contractTo(_compactKnobSize),
+                  onEnergyColorChange: (newColor) {
+                    if (_knob2EnergyColor != newColor) setState(() => _knob2EnergyColor = newColor);
+                  },
+                ),
+            ),
+          ),
+
+          HolographicWidget(
+            key: _xyPadHolographicWidgetKey,
+            title: "XY Pad / Pitch",
+            initialPosition: const Offset(330, 10), // Adjusted position
+            initialSize: _compactXYPadSize,
+            defaultExpandedSize: _defaultExpandedXYPadSize, // Pass default expanded size
             child: Padding(
               padding: const EdgeInsets.all(8.0),
               child: HolographicXYPad(
-                  xLabel: 'Attack',
-                  yLabel: 'Decay',
-                  xValue: audioEngine.attackTime,
-                  yValue: audioEngine.decayTime,
-                  onChanged: (x, y) {
-                    audioEngine.setAttackTime(x * 5);
-                    audioEngine.setDecayTime(y * 5);
-                    visualizerBridge.animateParameters({
-                      'attack': x,
-                      'decay': y,
-                    });
+                  x: 0.5,
+                  y: 0.5,
+                  onPositionChanged: (offset) {
+                    // Y-axis handling needs clarification based on XYPad's yAssignment.
+                    // For now, if yAssignment is filterResonance (example):
+                    // This assumes XYPad doesn't handle its own Y-axis audio changes.
+                    // A more robust solution would involve XYPad handling its assigned Y-axis param internally
+                    // or using a state provider to communicate the Y-axis assignment.
+                    // if (widget.yAssignment == XYPadAssignment.filterResonance) { // This check belongs inside XYPad or via provider
+                    //   widget.audioEngine.setFilterResonance(offset.dy);
+                    //   widget.visualizerBridge.animateParameter('resonance', offset.dy);
+                    // }
                   },
-                  enableMorphEffects: true, // This prop might need to be part of HolographicXYPad
+                  onPitchChanged: (note) {
+                    debugPrint("MorphParameterPanel: Pitch Changed to MIDI Note $note");
+                    // widget.audioEngine.playDebugPitch(note); // Example
+                  },
+                  onInteractionStart: () => _xyPadHolographicWidgetKey.currentState?.expandToDefault(),
+                  onInteractionEnd: () => _xyPadHolographicWidgetKey.currentState?.contractTo(_compactXYPadSize),
+                  xAssignment: XYPadAssignment.pitch,
+                  yAssignment: XYPadAssignment.filterResonance, // Example default
+                  rootNote: ChromaticNote.c,
+                  scaleType: ScaleType.chromatic,
                 ),
             ),
           ),
@@ -260,6 +294,7 @@ class MorphParameterPanel extends StatelessWidget {
     );
   }
 
+  // This method is now part of _MorphParameterPanelState
   void _updateAudioParameter(
       SynthParameterType type,
       double value,
@@ -296,13 +331,37 @@ class MorphParameterPanel extends StatelessWidget {
         paramName = 'attack';
         break;
       case SynthParameterType.decayTime:
-        engine.setDecayTime(value * 5); // Example: Max 5s
+        engine.setDecayTime(value * 5);
         paramName = 'decay';
         break;
+      case SynthParameterType.masterVolume:
+         engine.setMasterVolume(value);
+         paramName = 'volume';
+         break;
     }
     if (paramName != 'unknown') {
       bridge.animateParameter(paramName, value);
     }
+  }
+}
+
+// Example of a simple state provider for XYPad assignments if needed for dynamic Y-axis handling
+// This is conceptual and would need to be properly implemented and provided.
+class HolographicXYPadStateProvider with ChangeNotifier {
+  XYPadAssignment _xAssignment = XYPadAssignment.pitch;
+  XYPadAssignment _yAssignment = XYPadAssignment.filterResonance;
+
+  XYPadAssignment get xAssignment => _xAssignment;
+  XYPadAssignment get yAssignment => _yAssignment;
+
+  void setXAssignment(XYPadAssignment assignment) {
+    _xAssignment = assignment;
+    notifyListeners();
+  }
+
+  void setYAssignment(XYPadAssignment assignment) {
+    _yAssignment = assignment;
+    notifyListeners();
   }
 }
 

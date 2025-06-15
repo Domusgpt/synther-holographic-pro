@@ -1,8 +1,24 @@
 import 'package:flutter/material.dart';
 import 'holographic_theme.dart';
 
-/// Base holographic widget that provides drag, resize, and collapse functionality
-/// All UI elements inherit from this to get the holographic vaporwave appearance
+/// A versatile holographic UI widget shell that provides common windowing behaviors.
+///
+/// Features:
+/// - **Draggable:** Can be moved around on the screen.
+/// - **Resizable:** User can resize the widget from its bottom-right corner.
+/// - **Collapsible:** Can be minimized to a small icon and expanded back.
+/// - **Dynamic Sizing:** Supports programmatic expansion to a default expanded size
+///   and contraction to a specified compact size via `expandToDefault()` and `contractTo()` methods.
+///   This is managed using an [AnimatedContainer] for smooth size transitions for width/height changes.
+///   The full collapse to an icon uses a separate scale animation (`_collapseAnimation`) on top of this.
+/// - **Customizable Appearance:** Takes an `energyColor` for theming and a `title`.
+/// - **State Callbacks:** Provides callbacks for collapse, expand, position, and size changes.
+///
+/// Parameters:
+/// - [initialSize]: The initial size of the widget when it first appears or when not compact/collapsed.
+///   This can represent a "compact" size if `defaultExpandedSize` is also provided.
+/// - [defaultExpandedSize]: The target size when `expandToDefault()` is called. If null, defaults to `initialSize`.
+///   This allows a widget to have a different compact `initialSize` and a larger "default expanded" size.
 class HolographicWidget extends StatefulWidget {
   final Widget child;
   final String title;
@@ -19,6 +35,8 @@ class HolographicWidget extends StatefulWidget {
   final ValueChanged<Offset>? onPositionChanged;
   final ValueChanged<Size>? onSizeChanged;
   final bool startCollapsed;
+  final Size initialSize;
+  final Size? defaultExpandedSize; // New optional parameter
   
   const HolographicWidget({
     Key? key,
@@ -37,6 +55,8 @@ class HolographicWidget extends StatefulWidget {
     this.onPositionChanged,
     this.onSizeChanged,
     this.startCollapsed = false,
+    this.initialSize = const Size(300, 200),
+    this.defaultExpandedSize,
   }) : super(key: key);
   
   @override
@@ -52,7 +72,9 @@ class _HolographicWidgetState extends State<HolographicWidget>
   late Animation<double> _collapseAnimation;
   
   Offset _position = const Offset(100, 100);
-  Size _size = const Size(300, 200);
+  // Size _size = const Size(300, 200); // Will be initialized from _defaultExpandedSize or widget.initialSize
+  late Size _size; // Current animated size
+  late Size _defaultExpandedSize; // Default expanded size, from initialSize
   bool _isCollapsed = false;
   bool _isDragging = false;
   bool _isResizing = false;
@@ -62,6 +84,8 @@ class _HolographicWidgetState extends State<HolographicWidget>
   void initState() {
     super.initState();
     
+    _defaultExpandedSize = widget.defaultExpandedSize ?? widget.initialSize; // Use provided or default to initialSize
+    _size = widget.startCollapsed ? const Size(24,24) : (widget.initialSize == _defaultExpandedSize ? _defaultExpandedSize : widget.initialSize) ; // Start with initialSize, which might be compact
     _isCollapsed = widget.startCollapsed;
     
     // Glow animation for energy effects
@@ -108,8 +132,62 @@ class _HolographicWidgetState extends State<HolographicWidget>
       _collapseController.forward();
       widget.onExpand?.call();
     }
+    setState(() { // Ensure UI rebuilds with correct size if toggling from icon state
+        _size = _isCollapsed ? const Size(24,24) : _defaultExpandedSize;
+    });
   }
   
+  // Public methods for dynamic sizing
+  /// Expands the widget to its `_defaultExpandedSize`.
+  /// If the widget is fully collapsed (iconified), it first performs the expand animation
+  /// (which includes setting `_isCollapsed = false` and setting `_size` to `_defaultExpandedSize`).
+  /// The size change itself is animated by the [AnimatedContainer] in the build method.
+  /// The `_collapseController` (scale animation) is also driven to full to ensure opacity.
+  void expandToDefault() {
+    bool needsToUncollapse = _isCollapsed;
+
+    if (needsToUncollapse) {
+      _toggleCollapse(); // This will set _isCollapsed = false and _size = _defaultExpandedSize
+    } else {
+      // If already expanded or in a compact state, just ensure size is defaultExpandedSize
+      if (_size != _defaultExpandedSize) {
+        setState(() {
+          _size = _defaultExpandedSize;
+        });
+      }
+    }
+
+    // Ensure opacity/scale animation (controlled by _collapseController) is in the fully expanded state.
+    if (_collapseController.status != AnimationStatus.completed && !_isCollapsed) {
+      _collapseController.forward();
+    }
+  }
+
+  /// Contracts the widget to a specified [newSize].
+  /// This is for a "compact" view, not a full collapse to an icon.
+  /// The size change is animated by the [AnimatedContainer].
+  /// Does nothing if the widget is already fully collapsed to an icon.
+  void contractTo(Size newSize) {
+    if (_isCollapsed) return; // Don't contract if already fully collapsed to icon state
+
+    Size clampedNewSize = Size(
+      newSize.width.clamp(widget.minWidth, widget.maxWidth),
+      newSize.height.clamp(widget.minHeight, widget.maxHeight)
+    );
+
+    if (_size != clampedNewSize) {
+      setState(() {
+        _size = clampedNewSize;
+      });
+    }
+
+    // Ensure opacity/scale animation is in expanded state if it wasn't (e.g. if it was mid-collapse).
+    // This ensures the widget is visually opaque and fully scaled, even if its dimensions are now "compact".
+     if (_collapseController.status != AnimationStatus.completed && !_isCollapsed) {
+      _collapseController.forward();
+    }
+  }
+
   void _onPanUpdate(DragUpdateDetails details) {
     if (!widget.isDraggable) return;
     
@@ -209,7 +287,9 @@ class _HolographicWidgetState extends State<HolographicWidget>
   }
   
   Widget _buildExpandedWidget(double glowIntensity) {
-    return Container(
+    return AnimatedContainer(
+      duration: HolographicTheme.generalAnimationDuration, // Use a theme duration
+      curve: Curves.fastOutSlowIn,
       width: _size.width,
       height: _size.height,
       decoration: HolographicTheme.createHolographicBorder(
