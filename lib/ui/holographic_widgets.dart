@@ -39,32 +39,28 @@ class _HolographicHexGridState extends State<HolographicHexGrid>
   
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return GlassmorphicContainer(
       width: 350,
       height: 350,
+      borderRadius: 175,
+      blur: 20,
+      linearGradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          const Color(0xFF00FFFF).withOpacity(0.1),
+          const Color(0xFFFF00FF).withOpacity(0.1),
+          Colors.white.withOpacity(0.05),
+        ],
+      ),
+      borderGradient: LinearGradient(
+        colors: [
+          const Color(0xFF00FFFF).withOpacity(0.4),
+          const Color(0xFFFF00FF).withOpacity(0.4),
+        ],
+      ),
       child: Stack(
         children: [
-          // Glow effect background
-          Positioned.fill(
-            child: AnimatedBuilder(
-              animation: _glowController,
-              builder: (context, child) {
-                return Container(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF00FFFF).withOpacity(0.3 * _glowController.value),
-                        blurRadius: 50,
-                        spreadRadius: 20,
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-          
           // Hex grid
           CustomPaint(
             painter: HolographicHexPainter(

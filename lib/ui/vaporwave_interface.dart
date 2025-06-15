@@ -132,7 +132,7 @@ class _VaporwaveInterfaceState extends State<VaporwaveInterface>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.transparent,
       body: Consumer<AudioEngine>(
         builder: (context, audioEngine, child) {
           return GestureDetector(
@@ -145,20 +145,6 @@ class _VaporwaveInterfaceState extends State<VaporwaveInterface>
             },
             child: Stack(
               children: [
-                // 4D Visualizer Background Layer
-                Positioned.fill(
-                  child: Transform.scale(
-                    scale: 1.0 + (_breathingController.value * 0.05),
-                    child: HypercubeVisualizer(audioEngine: audioEngine),
-                  ),
-                ),
-                
-                // Parallax Grid Layer
-                _buildParallaxGrid(),
-                
-                // Scanline Effect
-                _buildScanlines(),
-                
                 // Main UI Container with Depth
                 _buildMainInterface(audioEngine),
                 
@@ -180,38 +166,6 @@ class _VaporwaveInterfaceState extends State<VaporwaveInterface>
         },
       ),
     );
-  }
-  
-  Widget _buildParallaxGrid() {
-    return AnimatedBuilder(
-      animation: Listenable.merge([_breathingController, _rotationController]),
-      builder: (context, child) {
-        return CustomPaint(
-          painter: ParallaxGridPainter(
-            breathing: _breathingController.value,
-            rotation: _rotationController.value,
-            globalDepth: _globalDepth,
-          ),
-          size: Size.infinite,
-        );
-      },
-    );
-  }
-  
-  Widget _buildScanlines() {
-    return AnimatedBuilder(
-      animation: _scanlineController,
-      builder: (context, child) {
-        return IgnorePointer(
-          child: CustomPaint(
-            painter: ScanlinePainter(progress: _scanlineController.value),
-            size: Size.infinite,
-          ),
-        );
-      },
-    );
-  }
-  
   Widget _buildMainInterface(AudioEngine audioEngine) {
     return Center(
       child: Container(

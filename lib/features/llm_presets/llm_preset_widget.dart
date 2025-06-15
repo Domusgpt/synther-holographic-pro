@@ -3,40 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:cloud_functions/cloud_functions.dart'; // Firebase Cloud Functions
 import 'dart:convert'; // For jsonDecode
 
-import '../../core/synth_parameters.dart'; // For SynthParametersModel
+import '../../core/audio_engine.dart'; // For AudioEngine
 import '../../ui/holographic/holographic_theme.dart';
-
-// Placeholder SynthParameterId mapping
-class SynthParameterId {
-  static const int filterCutoff = 10;
-  static const int filterResonance = 11;
-  static const int attackTime = 20;
-  static const int decayTime = 21;
-  static const int sustainLevel = 22;
-  static const int releaseTime = 23;
-  static const int reverbMix = 30;
-  static const int delayTime = 31;
-  // Add more to match what your LLM will return and your engine supports
-}
-
-const Map<String, int> llmParamToEngineId = {
-  'filterCutoff': SynthParameterId.filterCutoff,
-  'filterResonance': SynthParameterId.filterResonance,
-  'attackTime': SynthParameterId.attackTime,
-  'decayTime': SynthParameterId.decayTime,
-  'sustainLevel': SynthParameterId.sustainLevel,
-  'releaseTime': SynthParameterId.releaseTime,
-  'reverbMix': SynthParameterId.reverbMix,
-  'delayTime': SynthParameterId.delayTime,
-};
-
-// Placeholder AudioEngineInterface
-class AudioEngineInterface {
-  static void setParameter(int parameterId, double value) {
-    print('AudioEngineInterface: SetParam ID $parameterId to $value');
-    // This would typically call SynthEngine.instance.setParameter(...)
-  }
-}
 
 
 class LlmPresetWidget extends StatefulWidget {
@@ -100,31 +68,55 @@ class _LlmPresetWidgetState extends State<LlmPresetWidget> {
       final Map<String, dynamic>? parameters = result.data as Map<String, dynamic>?;
       
       if (parameters != null && parameters.isNotEmpty) {
-        final synthParams = Provider.of<SynthParametersModel>(context, listen: false);
-        // Option 1: Use a method on SynthParametersModel if it can take arbitrary JSON
-        // synthParams.loadFromJson(parameters);
-        // print("[LlmPresetWidget] Parameters applied via model.loadFromJson");
+        final audioEngine = Provider.of<AudioEngine>(context, listen: false);
 
-        // Option 2: Manually iterate and set parameters (more direct control)
-        parameters.forEach((key, value) {
-          final int? engineId = llmParamToEngineId[key];
-          if (engineId != null && value is num) {
-            AudioEngineInterface.setParameter(engineId, value.toDouble());
-             print("[LlmPresetWidget] Setting param: $key (ID: $engineId) to ${value.toDouble()}");
+        // Define mapping from LLM keys to AudioEngine.loadPreset keys
+        const Map<String, String> llmToEngineKeyMap = {
+          'filterCutoff': 'cutoff',       // Example: LLM returns 'filterCutoff', AudioEngine expects 'cutoff'
+          'filterResonance': 'resonance',
+          'attackTime': 'attack',
+          'decayTime': 'decay',
+          'sustainLevel': 'sustain',     // Assuming AudioEngine supports 'sustain'
+          'releaseTime': 'release',     // Assuming AudioEngine supports 'release'
+          'reverbMix': 'reverb',
+          'delayTime': 'delay',         // Assuming AudioEngine supports 'delay'
+          'masterVolume': 'volume',       // Example for master volume
+          // Add all other necessary mappings here
+          // 'oscillatorType': 'oscType',
+          // 'lfoRate': 'lfoRate',
+        };
+
+        Map<String, dynamic> enginePreset = {};
+        parameters.forEach((llmKey, value) {
+          if (llmToEngineKeyMap.containsKey(llmKey)) {
+            final engineKey = llmToEngineKeyMap[llmKey]!;
+            if (value is num) {
+              enginePreset[engineKey] = value.toDouble();
+              print("[LlmPresetWidget] Mapping LLM param: $llmKey to Engine param: $engineKey with value: ${value.toDouble()}");
+            } else {
+              print("[LlmPresetWidget] Warning: Invalid value type for param: $llmKey, value: $value. Expected number.");
+            }
           } else {
-            print("[LlmPresetWidget] Warning: Unknown or invalid param: $key, value: $value");
+            print("[LlmPresetWidget] Warning: Unmapped LLM param: $llmKey, value: $value. Not included in preset.");
           }
         });
         
-        setState(() {
-          _statusMessage = 'Preset applied successfully!';
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-            content: Text(_statusMessage),
-            backgroundColor: HolographicTheme.successEnergy.withOpacity(0.8),
-          ),
-        );
+        if (enginePreset.isNotEmpty) {
+          await audioEngine.loadPreset(enginePreset);
+          setState(() {
+            _statusMessage = 'Preset applied successfully!';
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_statusMessage),
+              backgroundColor: HolographicTheme.successEnergy.withOpacity(0.8),
+            ),
+          );
+        } else {
+          setState(() {
+            _statusMessage = 'No valid parameters found to apply after mapping.';
+          });
+        }
 
       } else {
         setState(() {
