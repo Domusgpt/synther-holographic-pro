@@ -28,11 +28,19 @@ import 'features/premium/premium_manager.dart';
 // HyperAV Visualizer Integration
 import 'visualizer/hypercube_visualizer.dart';
 
+// Services
+import 'services/midi_mapping_service.dart';
+
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize professional systems
   await _initializeProfessionalSystems();
+
+  // Initialize MIDI Mapping Service and load mappings
+  await MidiMappingService.instance.loadMappings();
+  // The service constructor also attempts a sync load, this ensures async completion.
   
   runApp(SyntherUnifiedApp());
 }
@@ -107,7 +115,11 @@ class _SyntherUnifiedInterfaceState extends State<SyntherUnifiedInterface> {
                 
                 // Glassmorphic UI Overlay
                 Positioned.fill(
-                  child: VaporwaveInterface(),
+                  child: VaporwaveInterface(
+                    onPolyAftertouch: (data) {
+                      context.read<AudioEngine>().polyAftertouch(data.note, data.value);
+                    },
+                  ),
                 ),
                 
                 // Professional Parameter Controls

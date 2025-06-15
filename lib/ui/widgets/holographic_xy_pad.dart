@@ -40,7 +40,16 @@ enum ScaleType {
   final String displayName;
 }
 
-/// Holographic XY pad with parameter assignment dropdowns and musical mapping
+/// A holographic XY pad widget for multi-parameter control with visual feedback.
+///
+/// Features:
+/// - Assignable X and Y axes to various synthesizer parameters or custom MIDI CCs.
+/// - Musical mapping with selectable root note and scale type.
+/// - Dynamic visual feedback including:
+///   - An energy trail of fading circles following touch movement.
+///   - A pulsing touch point indicator during drag.
+///   - A subtly reactive background grid that changes based on touch position.
+/// - UI for inputting custom MIDI CC numbers when 'Custom MIDI CC' assignment is selected.
 class HolographicXYPad extends StatefulWidget {
   final double x;
   final double y;
@@ -59,6 +68,20 @@ class HolographicXYPad extends StatefulWidget {
   final ValueChanged<int>? onCustomMidiCCYChanged;
   final Color energyColor;
   
+  /// Creates a HolographicXYPad.
+  ///
+  /// Parameters:
+  /// - [x], [y]: Initial normalized position (0.0-1.0).
+  /// - [onPositionChanged]: Callback for position changes.
+  /// - [xAssignment], [yAssignment]: Initial parameter assignments for X and Y axes.
+  /// - [rootNote], [scaleType]: For musical mapping features.
+  /// - [customMidiCCX], [customMidiCCY]: Initial MIDI CC numbers if 'Custom MIDI CC' is selected.
+  ///   These are displayed and editable via TextFields when the respective axis is set to custom MIDI CC.
+  /// - [onXAssignmentChanged], [onYAssignmentChanged]: Callbacks for axis assignment changes.
+  /// - [onRootNoteChanged], [onScaleTypeChanged]: Callbacks for musical mapping changes.
+  /// - [onCustomMidiCCXChanged], [onCustomMidiCCYChanged]: Callbacks triggered when the user
+  ///   submits a new MIDI CC number through the respective TextField.
+  /// - [energyColor]: The primary color theme for the widget.
   const HolographicXYPad({
     Key? key,
     required this.x,
@@ -93,24 +116,33 @@ class _HolographicXYPadState extends State<HolographicXYPad>
   Offset _touchPosition = Offset.zero;
   List<Offset> _energyTrail = [];
   
+  // Controllers for MIDI CC TextFields
+  late TextEditingController _midiCCXController;
+  late TextEditingController _midiCCYController;
+
   @override
   void initState() {
     super.initState();
     
     _touchController = AnimationController(
-      duration: const Duration(milliseconds: 300),
+      duration: const Duration(milliseconds: 500), // Duration for one pulse cycle
       vsync: this,
     );
-    _touchAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _touchController, curve: Curves.elasticOut),
+    _touchAnimation = Tween<double>(begin: 1.0, end: 1.5).animate( // Scale from 1.0 to 1.5
+      CurvedAnimation(parent: _touchController, curve: Curves.easeInOut),
     );
     
     _touchPosition = Offset(widget.x, widget.y);
+
+    _midiCCXController = TextEditingController(text: widget.customMidiCCX.toString());
+    _midiCCYController = TextEditingController(text: widget.customMidiCCY.toString());
   }
   
   @override
   void dispose() {
     _touchController.dispose();
+    _midiCCXController.dispose();
+    _midiCCYController.dispose();
     super.dispose();
   }
   
@@ -118,8 +150,9 @@ class _HolographicXYPadState extends State<HolographicXYPad>
     setState(() {
       _isDragging = true;
       _energyTrail.clear();
+      _touchController.repeat(reverse: true); // Start pulsing
     });
-    _touchController.forward();
+    // _touchController.forward(); // No longer just forward
   }
   
   void _onPanUpdate(DragUpdateDetails details) {
@@ -147,7 +180,9 @@ class _HolographicXYPadState extends State<HolographicXYPad>
     setState(() {
       _isDragging = false;
     });
-    _touchController.reverse();
+    // Stop pulsing and settle to normal size
+    _touchController.stop();
+    _touchController.animateTo(0.0, duration: Duration(milliseconds: 150), curve: Curves.easeOut);
     
     // Fade out energy trail
     Future.delayed(const Duration(milliseconds: 500), () {
@@ -226,9 +261,12 @@ class _HolographicXYPadState extends State<HolographicXYPad>
                       onChanged: (value) {
                         if (value != null) {
                           widget.onXAssignmentChanged?.call(value);
+                          setState(() {}); // Rebuild to show/hide TextField
                         }
                       },
                     ),
+                    if (widget.xAssignment == XYPadAssignment.customMidiCC)
+                      _buildMidiCCTextField(_midiCCXController, widget.onCustomMidiCCXChanged),
                   ],
                 ),
               ),
@@ -264,9 +302,12 @@ class _HolographicXYPadState extends State<HolographicXYPad>
                       onChanged: (value) {
                         if (value != null) {
                           widget.onYAssignmentChanged?.call(value);
+                           setState(() {}); // Rebuild to show/hide TextField
                         }
                       },
                     ),
+                     if (widget.yAssignment == XYPadAssignment.customMidiCC)
+                      _buildMidiCCTextField(_midiCCYController, widget.onCustomMidiCCYChanged),
                   ],
                 ),
               ),
@@ -359,6 +400,51 @@ class _HolographicXYPadState extends State<HolographicXYPad>
       ),
     );
   }
+
+  Widget _buildMidiCCTextField(TextEditingController controller, ValueChanged<int>? onChanged) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: SizedBox(
+        height: 30, // Small height for the text field
+        child: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          style: HolographicTheme.createHolographicText(
+            energyColor: widget.energyColor,
+            fontSize: 11,
+          ),
+          decoration: InputDecoration(
+            hintText: 'CC #',
+            hintStyle: HolographicTheme.createHolographicText(
+              energyColor: widget.energyColor.withOpacity(0.5),
+              fontSize: 11,
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: BorderSide(color: widget.energyColor.withOpacity(0.7), width: 0.5),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: BorderSide(color: widget.energyColor.withOpacity(0.7), width: 0.5),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(4),
+              borderSide: BorderSide(color: widget.energyColor, width: 1),
+            ),
+            filled: true,
+            fillColor: widget.energyColor.withOpacity(HolographicTheme.widgetTransparency * 0.3),
+          ),
+          onSubmitted: (value) {
+            final cc = int.tryParse(value);
+            if (cc != null) {
+              onChanged?.call(cc);
+            }
+          },
+        ),
+      ),
+    );
+  }
   
   Widget _buildXYPadArea() {
     return GestureDetector(
@@ -383,7 +469,10 @@ class _HolographicXYPadState extends State<HolographicXYPad>
             CustomPaint(
               painter: _XYPadGridPainter(
                 energyColor: widget.energyColor,
-                opacity: 0.2,
+                opacity: 0.2, // Base opacity
+                touchX: _touchPosition.dx, // Pass normalized touch X
+                touchY: _touchPosition.dy, // Pass normalized touch Y
+                isDragging: _isDragging,   // Pass dragging state
               ),
               size: Size.infinite,
             ),
@@ -398,33 +487,32 @@ class _HolographicXYPadState extends State<HolographicXYPad>
             ),
             
             // Touch point
-            AnimatedBuilder(
-              animation: _touchAnimation,
-              builder: (context, child) {
-                return Positioned(
-                  left: _touchPosition.dx * 300 - 12,
-                  top: _touchPosition.dy * 200 - 12,
-                  child: Container(
-                    width: 24,
-                    height: 24,
-                    decoration: BoxDecoration(
-                      color: widget.energyColor.withOpacity(0.3),
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: widget.energyColor,
-                        width: 2.0,
-                      ),
-                      boxShadow: [
-                        HolographicTheme.createEnergyGlow(
-                          color: widget.energyColor,
-                          intensity: _isDragging ? 2.0 : 1.0,
-                          radius: _isDragging ? 16.0 : 8.0,
-                        ),
-                      ],
+            Positioned(
+              // Calculate position based on parent's size after layout
+              left: _touchPosition.dx * (context.size?.width ?? 0) - 12,
+              top: _touchPosition.dy * (context.size?.height ?? 0) - 12,
+              child: ScaleTransition(
+                scale: _touchAnimation,
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: widget.energyColor.withOpacity(0.4), // Slightly more opaque
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: widget.energyColor,
+                      width: 2.0,
                     ),
+                    boxShadow: [
+                      HolographicTheme.createEnergyGlow(
+                        color: widget.energyColor,
+                        intensity: 1.5, // Consistent intensity, pulse comes from scale
+                        radius: 12.0,  // Consistent radius
+                      ),
+                    ],
                   ),
-                );
-              },
+                ),
+              ),
             ),
             
             // Axis labels
@@ -513,35 +601,78 @@ class _HolographicXYPadState extends State<HolographicXYPad>
 class _XYPadGridPainter extends CustomPainter {
   final Color energyColor;
   final double opacity;
-  
+  final double? touchX; // Normalized touch X (0-1)
+  final double? touchY; // Normalized touch Y (0-1)
+  final bool isDragging;
+
   _XYPadGridPainter({
     required this.energyColor,
     required this.opacity,
+    this.touchX,
+    this.touchY,
+    required this.isDragging,
   });
-  
+
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
+    final basePaint = Paint()
       ..color = energyColor.withOpacity(opacity)
       ..strokeWidth = 0.5
       ..style = PaintingStyle.stroke;
-    
-    // Draw subtle grid lines
-    final gridCount = 8;
+
+    final int gridCount = 8;
+    final double maxInfluenceRadius = size.width * 0.3; // How far the touch effect reaches
+
     for (int i = 1; i < gridCount; i++) {
-      final x = size.width * i / gridCount;
-      final y = size.height * i / gridCount;
-      
+      final double lineX = size.width * i / gridCount;
+      final double lineY = size.height * i / gridCount;
+
       // Vertical lines
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-      
+      double currentOpacity = opacity;
+      double currentStrokeWidth = 0.5;
+
+      if (isDragging && touchX != null) {
+        final double actualTouchX = touchX! * size.width;
+        final double distanceToLine = (lineX - actualTouchX).abs();
+        if (distanceToLine < maxInfluenceRadius) {
+          final double influence = 1.0 - (distanceToLine / maxInfluenceRadius);
+          currentOpacity = (opacity + influence * 0.3).clamp(opacity, 0.5);
+          currentStrokeWidth = (0.5 + influence * 0.7).clamp(0.5, 1.2);
+        }
+      }
+      final vLinePaint = Paint()
+        ..color = energyColor.withOpacity(currentOpacity)
+        ..strokeWidth = currentStrokeWidth
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(lineX, 0), Offset(lineX, size.height), vLinePaint);
+
       // Horizontal lines
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+      currentOpacity = opacity;
+      currentStrokeWidth = 0.5;
+      if (isDragging && touchY != null) {
+        final double actualTouchY = touchY! * size.height;
+        final double distanceToLine = (lineY - actualTouchY).abs();
+        if (distanceToLine < maxInfluenceRadius) {
+          final double influence = 1.0 - (distanceToLine / maxInfluenceRadius);
+          currentOpacity = (opacity + influence * 0.3).clamp(opacity, 0.5);
+          currentStrokeWidth = (0.5 + influence * 0.7).clamp(0.5, 1.2);
+        }
+      }
+      final hLinePaint = Paint()
+        ..color = energyColor.withOpacity(currentOpacity)
+        ..strokeWidth = currentStrokeWidth
+        ..style = PaintingStyle.stroke;
+      canvas.drawLine(Offset(0, lineY), Offset(size.width, lineY), hLinePaint);
     }
   }
-  
+
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _XYPadGridPainter oldDelegate) {
+    // Repaint if touch position or dragging state changes
+    return oldDelegate.touchX != touchX ||
+           oldDelegate.touchY != touchY ||
+           oldDelegate.isDragging != isDragging;
+  }
 }
 
 /// Custom painter for energy trail effect
@@ -557,24 +688,21 @@ class _EnergyTrailPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     if (trail.isEmpty) return;
-    
-    for (int i = 0; i < trail.length - 1; i++) {
-      final opacity = (i + 1) / trail.length * 0.5;
-      final paint = Paint()
-        ..color = energyColor.withOpacity(opacity)
-        ..strokeWidth = 2.0
-        ..style = PaintingStyle.stroke;
+
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    for (int i = 0; i < trail.length; i++) {
+      final double progress = i / (trail.length - 1); // 0.0 at start, 1.0 at end of trail
+      final double opacity = (0.8 - (progress * 0.7)).clamp(0.1, 0.8); // Fades towards the end
+      final double radius = (3.0 - (progress * 2.0)).clamp(1.0, 3.0); // Smaller towards the end
+
+      paint.color = energyColor.withOpacity(opacity);
       
-      final start = Offset(
+      final point = Offset(
         trail[i].dx * size.width,
         trail[i].dy * size.height,
       );
-      final end = Offset(
-        trail[i + 1].dx * size.width,
-        trail[i + 1].dy * size.height,
-      );
-      
-      canvas.drawLine(start, end, paint);
+      canvas.drawCircle(point, radius, paint);
     }
   }
   

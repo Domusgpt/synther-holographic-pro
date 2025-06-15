@@ -3,6 +3,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:synther_app/services/midi_mapping_service.dart'; // For MidiMappingService and MidiCcMessage
+import 'package:synther_app/ui/widgets/holographic_assignable_knob.dart'; // For SynthParameterType
 
 class AudioEngine extends ChangeNotifier {
   static const MethodChannel _channel = MethodChannel('synther/audio');
@@ -247,6 +249,100 @@ class AudioEngine extends ChangeNotifier {
   Future<bool> initializeInstance() async {
     await init();
     return initializedValue;
+  }
+
+  /// Processes a polyphonic aftertouch message for a specific MIDI note.
+  ///
+  /// [midiNote]: The MIDI note number (0-127).
+  /// [aftertouchValue]: The normalized aftertouch value (0.0 - 1.0).
+  /// This method currently prints the received values and attempts to invoke a
+  /// 'polyAftertouch' method on the native method channel.
+  Future<void> polyAftertouch(int midiNote, double aftertouchValue) async {
+    // Placeholder for actual native call
+    debugPrint('AudioEngine: PolyAftertouch Note $midiNote, Value $aftertouchValue');
+    try {
+      await _channel.invokeMethod('polyAftertouch', {
+        'note': midiNote,
+        'value': aftertouchValue.clamp(0.0, 1.0), // Ensure value is 0.0-1.0
+      });
+    } catch (e) {
+      print('AudioEngine: Failed to send polyAftertouch: $e');
+    }
+    // No notifyListeners() here as this doesn't usually change a global param directly,
+    // but rather affects a specific voice/note in the synth engine.
+  }
+
+  /// Processes an incoming MIDI CC message and updates mapped parameters.
+  ///
+  /// It uses the [MidiMappingService] to find if the incoming [MidiCcMessage]
+  /// (based on its CC number and channel) is mapped to any [SynthParameterType].
+  /// If a mapping exists, it normalizes the MIDI CC value (0-127) to a
+  /// double (0.0-1.0) and then calls the appropriate parameter setter method
+  /// in the AudioEngine, applying further specific scaling if needed (e.g., for cutoff).
+  Future<void> processIncomingMidiCc(MidiCcMessage message) async {
+    final identifier = MidiCcIdentifier(ccNumber: message.ccNumber, channel: message.channel);
+    // Also check for "any channel" mapping
+    final anyChannelIdentifier = MidiCcIdentifier(ccNumber: message.ccNumber, channel: -1);
+
+    SynthParameterType? paramType = MidiMappingService.instance.getParameterForCc(identifier);
+    if (paramType == null && identifier.channel != -1) {
+      paramType = MidiMappingService.instance.getParameterForCc(anyChannelIdentifier);
+    }
+
+    if (paramType != null) {
+      // Normalize MIDI value (0-127) to a double (0.0-1.0)
+      // Some parameters might need specific scaling beyond 0-1, handled by individual setters.
+      double normalizedValue = message.value / 127.0;
+
+      debugPrint("AudioEngine: Processing MIDI CC ${message.ccNumber} for $paramType, value: ${message.value}, normalized: $normalizedValue");
+
+      // Map SynthParameterType to the corresponding setter method
+      // This requires knowledge of how each parameter should scale from the normalized MIDI value.
+      switch (paramType) {
+        case SynthParameterType.filterCutoff:
+          // Example: setCutoff expects 20.0-20000.0.
+          // If UI knobs (and thus MIDI learn values) are normalized 0-1, then this is fine.
+          // The actual scaling (e.g. value * 20000) is handled in setCutoff if it expects a 0-1 value,
+          // or here if setCutoff expects the absolute value. Assuming setters take absolute values for now.
+          await setCutoff(normalizedValue * 20000); // Max 20000Hz
+          break;
+        case SynthParameterType.filterResonance:
+          await setResonance(normalizedValue); // Assumes 0-1 range
+          break;
+        case SynthParameterType.attackTime:
+          await setAttackTime(normalizedValue * 5.0); // Max 5s
+          break;
+        case SynthParameterType.decayTime:
+          await setDecayTime(normalizedValue * 5.0); // Max 5s
+          break;
+        case SynthParameterType.reverbMix:
+          await setReverbMix(normalizedValue); // Assumes 0-1 range
+          break;
+        case SynthParameterType.masterVolume: // Assuming SynthParameterType has masterVolume
+           await setMasterVolume(normalizedValue); // Assumes 0-1 range
+           break;
+        // --- Cases for parameters that might not be directly in AudioEngine yet ---
+        case SynthParameterType.oscLfoRate:
+          // TODO: Implement setOscLfoRate or similar in AudioEngine
+          // For now, just log it.
+          debugPrint("AudioEngine: MIDI mapping for $paramType not yet fully implemented for direct setting.");
+          // Example: await setOscLfoRate(normalizedValue * 20.0); // Max 20Hz
+          break;
+        case SynthParameterType.oscPulseWidth:
+          // TODO: Implement setOscPulseWidth or similar in AudioEngine
+          debugPrint("AudioEngine: MIDI mapping for $paramType not yet fully implemented for direct setting.");
+          // Example: await setOscPulseWidth(normalizedValue);
+          break;
+        case SynthParameterType.delayFeedback:
+          // TODO: Implement setDelayFeedback or similar in AudioEngine
+          debugPrint("AudioEngine: MIDI mapping for $paramType not yet fully implemented for direct setting.");
+          // Example: await setDelayFeedback(normalizedValue);
+          break;
+        default:
+          debugPrint("AudioEngine: No specific MIDI action defined for $paramType");
+      }
+      // Note: notifyListeners() is called by the individual setX methods.
+    }
   }
   
   @override

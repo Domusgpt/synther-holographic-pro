@@ -15,6 +15,7 @@ enum SynthParameterType {
   delayFeedback,
   attackTime,
   decayTime,
+  masterVolume, // Added masterVolume
   // Add more parameters as needed
 }
 
@@ -37,6 +38,8 @@ String synthParameterTypeToString(SynthParameterType param) {
       return 'Attack';
     case SynthParameterType.decayTime:
       return 'Decay';
+    case SynthParameterType.masterVolume:
+      return 'Master Volume';
     default:
       // Attempt to format from enum name
       String name = param.toString().split('.').last;
@@ -102,7 +105,20 @@ class HolographicDropdown<T> extends StatelessWidget {
   }
 }
 
-
+/// A holographic knob that can be assigned to control various [SynthParameterType]s.
+///
+/// This widget features:
+/// - A dropdown ([HolographicDropdown]) to select the synthesizer parameter.
+/// - A [ControlKnob] to adjust the value of the selected parameter.
+/// - Visual feedback for value changes (a brief scaling animation of the value text).
+/// - A MIDI Learn button:
+///   - Toggles a "learn mode" for the knob.
+///   - When active, UI indicates "Learning..." and the button icon changes.
+///   - A dialog prompts the user to simulate MIDI CC input by typing a CC number.
+///   - If a CC is "captured", it's mapped to the currently selected [SynthParameterType]
+///     via [MidiMappingService].
+///   - The current MIDI mapping (e.g., "MIDI: CC 74") is displayed below the learn button.
+/// - Wrapped in a [HolographicWidget] to be draggable, resizable, and collapsible.
 class HolographicAssignableKnob extends StatefulWidget {
   final SynthParameterType initialParameter;
   final AudioEngine audioEngine;
@@ -123,19 +139,53 @@ class HolographicAssignableKnob extends StatefulWidget {
   State<HolographicAssignableKnob> createState() => _HolographicAssignableKnobState();
 }
 
-class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> {
+import 'package:synther_app/services/midi_mapping_service.dart'; // Added import
+
+import 'package:synther_app/services/midi_mapping_service.dart'; // Added import
+
+class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> with TickerProviderStateMixin { // Added TickerProviderStateMixin
   late SynthParameterType _selectedParameter;
   late double _currentValue;
+  bool _isLearningMidi = false;
+  MidiCcIdentifier? _currentMapping;
+
+  late AnimationController _valueFeedbackController;
+  late Animation<double> _valueFeedbackAnimation;
 
   @override
   void initState() {
     super.initState();
     _selectedParameter = widget.initialParameter;
     _currentValue = _getParameterValueFromAudioEngine(_selectedParameter);
+    _loadCurrentMapping();
+
+    _valueFeedbackController = AnimationController(
+      duration: const Duration(milliseconds: 150), // Short animation
+      vsync: this,
+    );
+    _valueFeedbackAnimation = Tween<double>(begin: 1.0, end: 1.25).animate( // Scale up briefly
+      CurvedAnimation(parent: _valueFeedbackController, curve: Curves.easeOut),
+    );
 
     // Call onAssignmentChanged for initial setup if needed by parent
     WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.onAssignmentChanged?.call(_selectedParameter, _currentValue);
+    });
+  }
+
+  @override
+  void dispose() {
+    _valueFeedbackController.dispose();
+    super.dispose();
+  }
+
+  void _triggerValueFeedback() {
+    _valueFeedbackController.forward().then((_) => _valueFeedbackController.reverse());
+  }
+
+  void _loadCurrentMapping() {
+    setState(() {
+      _currentMapping = MidiMappingService.instance.getCcForParameter(_selectedParameter);
     });
   }
 
@@ -163,6 +213,8 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> {
         return widget.audioEngine.attackTime / 5; // Assuming max 5s
       case SynthParameterType.decayTime:
         return widget.audioEngine.decayTime / 5; // Assuming max 5s
+      case SynthParameterType.masterVolume:
+        return widget.audioEngine.masterVolume; // Assuming 0-1 range
       default:
         return 0.5;
     }
@@ -196,6 +248,9 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> {
       case SynthParameterType.decayTime:
         widget.audioEngine.setDecayTime(value * 5);
         break;
+      case SynthParameterType.masterVolume:
+        widget.audioEngine.setMasterVolume(value);
+        break;
     }
     // widget.visualizerBridge?.animateParameter(synthParameterTypeToString(param).toLowerCase(), value);
   }
@@ -226,7 +281,9 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> {
                   setState(() {
                     _selectedParameter = newValue;
                     _currentValue = _getParameterValueFromAudioEngine(newValue);
-                    _updateAudioEngineParameter(_selectedParameter, _currentValue); // Update engine with new param's current value
+                    _updateAudioEngineParameter(_selectedParameter, _currentValue);
+                    _loadCurrentMapping(); // Reload mapping for the new parameter
+                    _triggerValueFeedback(); // Feedback for new parameter's value
                   });
                   widget.onAssignmentChanged?.call(newValue, _currentValue);
                 }
@@ -235,42 +292,176 @@ class _HolographicAssignableKnobState extends State<HolographicAssignableKnob> {
           ),
 
           Expanded(
-            child: Center( // Center the knob
-              child: ControlKnob(
-                value: _currentValue,
-                size: 120, // Adjusted size for better fit
-                thumbColor: const Color(0xFF00FFFF), // Cyan accent
-                trackColor: Colors.white.withOpacity(0.2),
-                onChanged: (double newValue) {
-                  setState(() {
-                    _currentValue = newValue;
-                  });
-                  _updateAudioEngineParameter(_selectedParameter, newValue);
-                  widget.onValueUpdated?.call(_selectedParameter, newValue);
-                },
-              ),
+            child: Column( // Use Column to stack Knob and its value Text
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Center(
+                  child: ControlKnob(
+                    value: _currentValue,
+                    size: 110, // Slightly smaller to make space for text
+                    thumbColor: const Color(0xFF00FFFF),
+                    trackColor: Colors.white.withOpacity(0.2),
+                    onChanged: (double newValue) {
+                      setState(() {
+                        _currentValue = newValue;
+                      });
+                      _updateAudioEngineParameter(_selectedParameter, newValue);
+                      widget.onValueUpdated?.call(_selectedParameter, newValue);
+                      _triggerValueFeedback(); // Feedback for value change
+                    },
+                  ),
+                ),
+                SizedBox(height: 8),
+                ScaleTransition(
+                  scale: _valueFeedbackAnimation,
+                  child: Text(
+                    (_currentValue * 100).toStringAsFixed(1) + '%', // Example: display as percentage
+                    style: TextStyle(
+                      color: const Color(0xFF00FFFF).withOpacity(0.8),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
 
-          // Placeholder for MIDI Learn button
+          // MIDI Learn button and status
           Padding(
-            padding: const EdgeInsets.only(top: 8.0),
-            child: IconButton(
-              icon: Icon(Icons.settings_remote_outlined, color: Color(0xFF00FFFF).withOpacity(0.7)),
-              tooltip: 'MIDI Learn (Not Implemented)',
-              onPressed: () {
-                // TODO: Implement MIDI Learn functionality
-                // 1. Enter "learning" state for this knob.
-                // 2. Listen for the next MIDI CC input globally.
-                // 3. Associate the captured MIDI CC with _selectedParameter.
-                // 4. Store this mapping.
-                // 5. Provide visual feedback.
-                print('MIDI Learn button pressed for $_selectedParameter (Not Implemented)');
-              },
+            padding: const EdgeInsets.only(top: 4.0, bottom: 4.0),
+            child: Column(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _isLearningMidi ? Icons.mic_on : Icons.settings_remote_outlined, // Example: change icon
+                    color: _isLearningMidi ? Colors.redAccent : Color(0xFF00FFFF).withOpacity(0.7),
+                  ),
+                  tooltip: _isLearningMidi ? 'MIDI Learn Active... (Tap to Cancel)' : (_currentMapping != null ? 'Change MIDI Map ($_currentMapping)' : 'Start MIDI Learn'),
+                  onPressed: _toggleMidiLearn,
+                ),
+                if (_currentMapping != null && !_isLearningMidi)
+                  Text(
+                    'MIDI: ${_currentMapping.toString()}',
+                    style: TextStyle(color: Color(0xFF00FFFF).withOpacity(0.6), fontSize: 9),
+                  ),
+                if (_isLearningMidi)
+                  Text(
+                    'Learning...',
+                    style: TextStyle(color: Colors.redAccent, fontSize: 10),
+                  )
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  void _toggleMidiLearn() async {
+    if (_isLearningMidi) {
+      setState(() {
+        _isLearningMidi = false;
+      });
+      return;
+    }
+
+    // Start learning
+    setState(() {
+      _isLearningMidi = true;
+      _currentMapping = null; // Clear current mapping while learning new one
+    });
+
+    // Simulate MIDI capture with a dialog
+    final int? capturedCc = await _showMidiCcInputDialog(context);
+
+    if (capturedCc != null) {
+      // User entered a CC number
+      final newIdentifier = MidiCcIdentifier(ccNumber: capturedCc, channel: -1); // Default to any channel for now
+      await MidiMappingService.instance.assignMapping(_selectedParameter, newIdentifier);
+      debugPrint("Assigned CC $capturedCc to $_selectedParameter");
+      setState(() {
+        _currentMapping = newIdentifier;
+        _isLearningMidi = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$_selectedParameter mapped to CC $capturedCc!'), backgroundColor: Colors.green)
+      );
+    } else {
+      // User cancelled dialog or entered invalid input
+      debugPrint("MIDI Learn cancelled or invalid input.");
+      _loadCurrentMapping(); // Restore previous mapping if any
+      setState(() {
+        _isLearningMidi = false;
+      });
+    }
+  }
+
+  Future<int?> _showMidiCcInputDialog(BuildContext context) async {
+    TextEditingController controller = TextEditingController();
+    return showDialog<int>(
+      context: context,
+      barrierDismissible: false, // User must enter a value or cancel
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: Colors.grey[900],
+          title: Text('Simulate MIDI CC Input', style: TextStyle(color: Colors.white)),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            style: TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'Enter MIDI CC Number (0-127)',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.cyanAccent)),
+              enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.grey[600]!)),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel', style: TextStyle(color: Colors.amberAccent)),
+              onPressed: () {
+                Navigator.of(context).pop(null);
+              },
+            ),
+            TextButton(
+              child: Text('OK', style: TextStyle(color: Colors.cyanAccent)),
+              onPressed: () {
+                final int? ccValue = int.tryParse(controller.text);
+                if (ccValue != null && ccValue >= 0 && ccValue <= 127) {
+                  Navigator.of(context).pop(ccValue);
+                } else {
+                  // Optionally show an error to the user in the dialog
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Invalid CC. Must be 0-127.'), backgroundColor: Colors.red)
+                  );
+                }
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
+  void didUpdateWidget(HolographicAssignableKnob oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialParameter != oldWidget.initialParameter) {
+      // This handles external changes to the knob's assigned parameter
+      setState(() {
+        _selectedParameter = widget.initialParameter;
+        _currentValue = _getParameterValueFromAudioEngine(_selectedParameter);
+        _loadCurrentMapping();
+        _triggerValueFeedback(); // Value changed due to parameter reassignment
+      });
+    }
+    // If we had an `initialValue` prop that could change, we'd check that too:
+    // if (widget.initialValue != oldWidget.initialValue && widget.initialValue != _currentValue) {
+    //   setState(() { _currentValue = widget.initialValue; });
+    //   _triggerValueFeedback();
+    // }
+  }
+
 }

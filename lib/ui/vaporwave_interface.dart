@@ -11,9 +11,14 @@ import 'holographic_widgets.dart';
 
 /// Revolutionary Vaporwave Holographic Interface
 /// 
+// Import for HolographicKeyboard and its callback type
+import 'package:synther_app/ui/widgets/holographic_keyboard.dart';
+
 /// Features intense parallax effects, skeuomorphic depth, and neon aesthetics
 class VaporwaveInterface extends StatefulWidget {
-  const VaporwaveInterface({super.key});
+  final Function(({int note, double value}) record)? onPolyAftertouch; // Changed to use record type
+
+  const VaporwaveInterface({super.key, this.onPolyAftertouch});
   
   @override
   State<VaporwaveInterface> createState() => _VaporwaveInterfaceState();
@@ -190,6 +195,19 @@ class _VaporwaveInterfaceState extends State<VaporwaveInterface>
               child: Transform.translate(
                 offset: Offset(0, _globalDepth * 30),
                 child: VaporwaveMorphPad(audioEngine: audioEngine),
+              ),
+            ),
+
+            // Add HolographicKeyboard for prototyping aftertouch
+            Positioned(
+              bottom: 150, // Adjust position as needed
+              left: 20,
+              right: 20,
+              height: 180, // Adjust size as needed
+              child: HolographicKeyboard(
+                onNoteOn: (note, velocity) => audioEngine.noteOn(note, velocity),
+                onNoteOff: (note) => audioEngine.noteOff(note),
+                onPolyAftertouch: widget.onPolyAftertouch, // Pass the callback
               ),
             ),
           ],
