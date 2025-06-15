@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:provider/provider.dart';
 import 'dart:math' as math; // For black key positioning
 import '../../core/synth_parameters.dart'; // Assuming this provides SynthParametersModel
@@ -327,6 +328,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
               if (value != null) {
                 setState(() { _selectedRootNoteMidiOffset = value; });
                 _updateNotesInScale();
+                HapticFeedback.selectionClick();
               }
             },
           ),
@@ -364,6 +366,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
               if (value != null) {
                 setState(() { _selectedScale = value; });
                 _updateNotesInScale();
+                HapticFeedback.selectionClick();
               }
             },
           ),
@@ -473,6 +476,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
                 setState(() {
                   _keyWidthFactor = (_initialKeyWidthFactorForPinch * details.scale).clamp(0.3, 3.0); // Wider clamp
                 });
+                HapticFeedback.lightImpact();
               }
             }
             // Use three (or more) finger horizontal pan for octave scroll
@@ -492,12 +496,14 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
                   if (_currentOctave < widget.maxOctave) {
                     _releaseAllNotes();
                     setState(() { _currentOctave++; });
+                    HapticFeedback.selectionClick();
                   }
                   _octaveScrollAccumulator = 0; // Reset accumulator
                 } else if (_octaveScrollAccumulator < -changeThreshold) {
                   if (_currentOctave > widget.minOctave) {
                     _releaseAllNotes();
                     setState(() { _currentOctave--; });
+                    HapticFeedback.selectionClick();
                   }
                   _octaveScrollAccumulator = 0; // Reset accumulator
                 }
