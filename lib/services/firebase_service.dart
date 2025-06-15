@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io'; // Added for File operations
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
@@ -368,10 +369,29 @@ class FirebaseService {
     }
   }
   
-  /// Read file as bytes (placeholder - implement based on your file handling)
+  /// Read file as bytes
   Future<List<int>> _readFileAsBytes(String filePath) async {
-    // Implement file reading logic based on your platform
-    throw UnimplementedError('File reading not implemented');
+    if (kIsWeb) {
+      // Direct file system access by path is not standard/secure for web clients.
+      // File data should typically be obtained via input elements (e.g., FileUploadInputElement)
+      // or drag-and-drop, which provide byte data directly.
+      print('Warning: _readFileAsBytes called on web. This requires a different approach for file handling.');
+      throw UnsupportedError(
+          'Direct file path reading is not supported on web. Use FilePicker or similar to get bytes.');
+    } else {
+      // For mobile/desktop, use dart:io
+      try {
+        final file = File(filePath); // Requires dart:io import
+        if (await file.exists()) {
+          return await file.readAsBytes();
+        } else {
+          throw Exception('File not found at path: $filePath');
+        }
+      } catch (e) {
+        print('Error reading file: $e');
+        rethrow; // Or handle more gracefully
+      }
+    }
   }
 }
 
