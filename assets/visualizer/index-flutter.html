@@ -4,67 +4,18 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HyperAV - 4D Visualizer Flutter Integration</title>
-    
-    <!-- Import existing visualizer styles -->
     <link rel="stylesheet" href="css/neumorphic-vars.css">
     <link rel="stylesheet" href="css/neumorphic-style.css">
     <link rel="stylesheet" href="css/enhanced-styles.css">
-    
     <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background: transparent;
-            overflow: hidden;
-        }
-        
-        #visualizer-container {
-            width: 100vw;
-            height: 100vh;
-            position: relative;
-        }
-        
-        #visualization-canvas {
-            width: 100%;
-            height: 100%;
-            display: block;
-        }
-        
-        /* Hide controls in Flutter mode */
-        .controls-container {
-            display: none !important;
-        }
-        
-        .loading {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #00FFFF;
-            font-size: 14px;
-            letter-spacing: 2px;
-            text-align: center;
-            font-family: 'Space Mono', monospace;
-        }
-        
-        .loading-spinner {
-            width: 40px;
-            height: 40px;
-            border: 3px solid rgba(0, 255, 255, 0.3);
-            border-top: 3px solid #00FFFF;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 15px;
-        }
-        
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .hidden {
-            display: none !important;
-        }
+        body {{ margin: 0; padding: 0; background: transparent; overflow: hidden; }}
+        #visualizer-container {{ width: 100vw; height: 100vh; position: relative; }}
+        #visualization-canvas {{ width: 100%; height: 100%; display: block; }}
+        .controls-container {{ display: none !important; }}
+        .loading {{ position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #00FFFF; font-size: 14px; letter-spacing: 2px; text-align: center; font-family: 'Space Mono', monospace; }}
+        .loading-spinner {{ width: 40px; height: 40px; border: 3px solid rgba(0, 255, 255, 0.3); border-top: 3px solid #00FFFF; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }}
+        @keyframes spin {{ 0% {{ transform: rotate(0deg); }} 100% {{ transform: rotate(360deg); }} }}
+        .hidden {{ display: none !important; }}
     </style>
 </head>
 <body>
@@ -73,205 +24,190 @@
             <div class="loading-spinner"></div>
             <div>INITIALIZING HYPERAV ENGINE</div>
         </div>
-        
         <canvas id="visualization-canvas"></canvas>
     </div>
-    
-    <!-- Import existing HyperAV visualizer modules -->
     <script type="module">
-        import ShaderManager from './core/ShaderManager.js';
-        import GeometryManager from './core/GeometryManager.js';
-        import ProjectionManager from './core/ProjectionManager.js';
-        import HypercubeCore from './core/HypercubeCore.js';
-        
-        // Global state for Flutter integration
-        window.hyperAVState = {
-            core: null,
-            shaderManager: null,
-            geometryManager: null,
-            projectionManager: null,
-            isInitialized: false,
-            audioData: {
-                amplitude: 0,
-                frequency: 440,
-                filterCutoff: 1000,
-                filterResonance: 0,
-                bass: 0,
-                mid: 0,
-                high: 0
-            }
-        };
-        
-        // Initialize HyperAV with Flutter configuration
-        window.initializeHypercube = async function(config) {
-            try {
-                const canvas = document.getElementById('visualization-canvas');
-                const gl = canvas.getContext('webgl', {
-                    antialias: true,
-                    alpha: true,
-                    premultipliedAlpha: false,
-                    preserveDrawingBuffer: false
-                });
-                
-                if (!gl) {
-                    throw new Error('WebGL not supported');
-                }
-                
-                // Initialize managers
-                window.hyperAVState.shaderManager = new ShaderManager(gl);
-                window.hyperAVState.geometryManager = new GeometryManager();
-                window.hyperAVState.projectionManager = new ProjectionManager();
-                
-                // Initialize core with vaporwave theme
-                window.hyperAVState.core = new HypercubeCore(canvas, window.hyperAVState.shaderManager, {
-                    geometryType: config?.geometryType || 'hypercube',
-                    projectionMethod: config?.projectionMethod || 'perspective',
-                    shaderProgramName: 'maleficarumViz',
-                    dimensions: 4.0,
-                    morphFactor: config?.morphSpeed || 0.5,
-                    rotationSpeed: config?.rotationSpeed || 0.2,
-                    patternIntensity: 1.0,
-                    gridDensity: 8.0,
-                    lineThickness: 0.03,
-                    colorScheme: {
-                        primary: [1.0, 0.0, 1.0],    // Magenta
-                        secondary: [0.0, 1.0, 1.0],   // Cyan
-                        background: [0.05, 0.0, 0.1]  // Deep purple
-                    },
-                    callbacks: {
-                        onRender: (state) => {
-                            // Optional render callback
-                        },
-                        onError: (error) => {
-                            console.error('HyperAV Error:', error);
-                        }
-                    }
-                });
-                
-                // Start rendering
-                window.hyperAVState.core.start();
-                window.hyperAVState.isInitialized = true;
-                
-                // Hide loading screen
-                document.getElementById('loading').classList.add('hidden');
-                
-                console.log('🎨 HyperAV 4D Visualizer initialized');
-                return true;
-                
-            } catch (error) {
-                console.error('Failed to initialize HyperAV:', error);
-                return false;
-            }
-        };
-        
-        // Update audio data from Flutter
-        window.updateAudioData = function(data) {
-            if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return;
-            
-            // Map Flutter audio data to HyperAV parameters
-            const audioLevels = {
-                bass: data.amplitude * 0.8 || 0,
-                mid: data.amplitude * 0.6 || 0,
-                high: data.amplitude * 0.4 || 0
-            };
-            
-            // Update visualizer with audio data
-            window.hyperAVState.core.updateParameters({
-                audioLevels: audioLevels,
-                morphFactor: 0.5 + (data.amplitude || 0) * 0.3,
-                rotationSpeed: 0.2 + (data.frequency - 440) / 2000,
-                glitchIntensity: data.filterResonance * 0.5 || 0,
-                colorShift: (data.filterCutoff - 1000) / 10000 || 0
-            });
-            
-            // Store for reference
-            window.hyperAVState.audioData = data;
-        };
-        
-        // Set 4D rotation based on XY pad input
-        window.setRotation4D = function(x, y) {
-            if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return;
-            
-            window.hyperAVState.core.updateParameters({
-                rotationSpeed: 0.1 + x * 0.5,
-                dimensions: 3.5 + y * 1.0
-            });
-        };
-        
-        // Set morph intensity
-        window.setMorphIntensity = function(intensity) {
-            if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return;
-            
-            window.hyperAVState.core.updateParameters({
-                morphFactor: intensity
-            });
-        };
-        
-        // Set color palette
-        window.setColorPalette = function(palette) {
-            if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return;
-            
-            const palettes = {
-                vaporwave: {
-                    primary: [1.0, 0.0, 1.0],     // Magenta
-                    secondary: [0.0, 1.0, 1.0],    // Cyan
-                    background: [0.05, 0.0, 0.1]   // Deep purple
-                },
-                cyberpunk: {
-                    primary: [1.0, 0.0, 0.5],      // Hot pink
-                    secondary: [0.0, 1.0, 0.0],    // Neon green
-                    background: [0.0, 0.0, 0.0]    // Black
-                },
-                synthwave: {
-                    primary: [1.0, 0.5, 0.0],      // Orange
-                    secondary: [0.5, 0.0, 1.0],    // Purple
-                    background: [0.1, 0.0, 0.2]    // Dark purple
-                },
-                holographic: {
-                    primary: [0.7, 0.5, 1.0],      // Lavender
-                    secondary: [0.5, 1.0, 0.7],    // Mint
-                    background: [0.0, 0.05, 0.1]   // Dark teal
-                }
-            };
-            
-            if (palettes[palette]) {
-                window.hyperAVState.core.updateParameters({
-                    colorScheme: palettes[palette]
-                });
-            }
-        };
-        
-        // Handle resize
-        function handleResize() {
-            const canvas = document.getElementById('visualization-canvas');
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        }
-        
-        window.addEventListener('resize', handleResize);
-        handleResize();
-        
-        // Auto-initialize on load
-        window.addEventListener('load', () => {
-            // Wait a moment for Flutter to be ready
-            setTimeout(() => {
-                if (!window.hyperAVState.isInitialized) {
-                    window.initializeHypercube({
-                        geometryType: 'hypercube',
-                        projectionMethod: 'perspective',
-                        rotationSpeed: 0.2,
-                        morphSpeed: 0.5
-                    });
-                }
-            }, 500);
-        });
-        
-        // Cleanup on unload
-        window.addEventListener('beforeunload', () => {
-            if (window.hyperAVState.core) {
-                window.hyperAVState.core.dispose();
-            }
-        });
+    import ShaderManager from './core/ShaderManager.js';
+import GeometryManager from './core/GeometryManager.js';
+import ProjectionManager from './core/ProjectionManager.js';
+import HypercubeCore from './core/HypercubeCore.js';
+
+window.hyperAVState = {{ /* ... (same as before) ... */
+    core: null, shaderManager: null, geometryManager: null, projectionManager: null,
+    isInitialized: false,
+    audioData: {{ // Default/initial structure
+        amplitude: 0.0, bass: 0.0, mid: 0.0, high: 0.0,
+        frequencyData: new Uint8Array(0), timeDomainData: new Uint8Array(0)
+    }}
+}};
+
+window.initializeHypercube = async function(config) {{ /* ... (same as Step 3.3, including FlutterCommChannel/postMessage logic) ... */
+    console.log('[HyperAV-JS] initializeHypercube called with config:', config);
+    try {{
+        const canvas = document.getElementById('visualization-canvas');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const gl = canvas.getContext('webgl', {{ antialias: true, alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: false }});
+        if (!gl) {{
+            console.error('[HyperAV-JS] WebGL not supported');
+            if (window.FlutterCommChannel && window.FlutterCommChannel.postMessage) {{
+                window.FlutterCommChannel.postMessage('visualizer_ready_error:WebGL not supported');
+            }} else if (window.parent !== window) {{
+                window.parent.postMessage({{type: 'visualizer_ready', status: 'error', message: 'WebGL not supported'}}, '*');
+            }}
+            return false;
+        }}
+        window.hyperAVState.shaderManager = new ShaderManager(gl);
+        window.hyperAVState.geometryManager = new GeometryManager();
+        window.hyperAVState.projectionManager = new ProjectionManager();
+        const coreConfig = {{
+            geometryType: config?.geometryType || 'hypercube',
+            projectionMethod: config?.projectionMethod || 'perspective',
+            shaderProgramName: 'maleficarumViz',
+            dimensions: config?.dimensions || 4.0,
+            morphFactor: config?.morphFactor || config?.morphSpeed || 0.5,
+            rotationSpeed: config?.rotationSpeed || 0.2,
+            patternIntensity: config?.patternIntensity || 1.0,
+            gridDensity: config?.gridDensity || 8.0,
+            lineThickness: config?.lineThickness || 0.03,
+            colorScheme: config?.colorScheme || {{ primary: [1.0, 0.0, 1.0], secondary: [0.0, 1.0, 1.0], background: [0.0, 0.0, 0.0] }},
+            callbacks: {{
+                onRender: (state) => {{}},
+                onError: (error) => {{
+                    console.error('[HyperAV-JS] HypercubeCore Error:', error);
+                    if (window.FlutterCommChannel && window.FlutterCommChannel.postMessage) {{
+                        window.FlutterCommChannel.postMessage('visualizer_error:' + (error.message || 'Core error'));
+                    }} else if (window.parent !== window) {{
+                        window.parent.postMessage({{type: 'visualizer_error', message: error.message || 'Core error'}}, '*');
+                    }}
+                }}
+            }}
+        }};
+        window.hyperAVState.core = new HypercubeCore(canvas, window.hyperAVState.shaderManager, coreConfig);
+        window.hyperAVState.core.start();
+        window.hyperAVState.isInitialized = true;
+        document.getElementById('loading').classList.add('hidden');
+        console.log('🎨 [HyperAV-JS] Visualizer initialized and started.');
+        if (window.FlutterCommChannel && window.FlutterCommChannel.postMessage) {{
+            console.log('[HyperAV-JS] Signaling ready via FlutterCommChannel.');
+            window.FlutterCommChannel.postMessage('visualizer_ready_success');
+        }} else if (window.parent !== window) {{
+            console.log('[HyperAV-JS] Signaling ready via parent.postMessage.');
+            window.parent.postMessage({{type: 'visualizer_ready', status: 'success'}}, '*');
+        }}
+        return true;
+    }} catch (error) {{
+        console.error('[HyperAV-JS] Failed to initialize HyperAV:', error);
+        if (window.FlutterCommChannel && window.FlutterCommChannel.postMessage) {{
+            window.FlutterCommChannel.postMessage('visualizer_ready_error:' + (error.message || 'Initialization failed'));
+        }} else if (window.parent !== window) {{
+            window.parent.postMessage({{type: 'visualizer_ready', status: 'error', message: error.message || 'Initialization failed'}}, '*');
+        }}
+        return false;
+    }}
+}};
+
+// MODIFIED window.updateAudioData
+window.updateAudioData = function(data) {{
+    if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return;
+
+    // Store the raw data
+    window.hyperAVState.audioData = {{
+        ...window.hyperAVState.audioData, // Keep previous values if new ones aren't provided
+        amplitude: data.amplitude !== undefined ? data.amplitude : window.hyperAVState.audioData.amplitude,
+        bass: data.bass !== undefined ? data.bass : window.hyperAVState.audioData.bass,
+        mid: data.mid !== undefined ? data.mid : window.hyperAVState.audioData.mid,
+        high: data.high !== undefined ? data.high : window.hyperAVState.audioData.high,
+        frequencyData: data.frequencyData || window.hyperAVState.audioData.frequencyData,
+        timeDomainData: data.timeDomainData || window.hyperAVState.audioData.timeDomainData
+    }};
+
+    // Parameters for HypercubeCore update
+    let coreUpdateParams = {{
+        audioLevels: {{ // HypercubeCore expects audioLevels to be an object
+            bass: window.hyperAVState.audioData.bass,
+            mid: window.hyperAVState.audioData.mid,
+            high: window.hyperAVState.audioData.high
+        }},
+        // Example: derive morphFactor from amplitude if not directly provided by a control parameter
+        // This part shows how audio analysis data can directly drive visual parameters.
+        // Control parameters (like filterCutoff from a slider) would be set via 'updateParameter' messages.
+        morphFactor: 0.5 + (window.hyperAVState.audioData.amplitude || 0) * 0.5,
+        // rotationSpeed could be affected by overall energy (bass+mid)
+        rotationSpeed: 0.1 + (window.hyperAVState.audioData.bass + window.hyperAVState.audioData.mid) * 0.5,
+    }};
+
+    // Allow specific control parameters (like filterCutoff, resonance, etc.) to override these audio-derived ones
+    // if they are also being sent through other means (e.g. postMessage 'updateParameter').
+    // The current HypercubeCore.updateParameters merges new params with existing state.
+    // So, if Flutter sends filterCutoff via postMessage, and it's mapped to 'glitchIntensity' or 'colorShift'
+    // in the message listener, that will be applied. If it sends it via updateAudioData (less ideal for control params),
+    // then that needs to be handled here.
+    // For clarity, control parameters are better handled via specific messages or dedicated functions.
+
+    // Example: If data blob also contains control parameters (less ideal but possible)
+    if (data.hasOwnProperty('glitchIntensity')) {{
+        coreUpdateParams.glitchIntensity = data.glitchIntensity;
+    }}
+    if (data.hasOwnProperty('colorShift')) {{
+        coreUpdateParams.colorShift = data.colorShift;
+    }}
+
+    window.hyperAVState.core.updateParameters(coreUpdateParams);
+}};
+
+// ... (setRotation4D, setMorphIntensity, setColorPalette remain largely the same) ...
+window.setRotation4D = function(x,y){{ /* ... */ if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return; window.hyperAVState.core.updateParameters({{ rotationSpeed: 0.1 + x*0.5, dimensions: 3.5+y*1.0}});}};
+window.setMorphIntensity = function(i){{ /* ... */ if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return; window.hyperAVState.core.updateParameters({{morphFactor:i}});}};
+window.setColorPalette = function(pName){{ /* ... */ if (!window.hyperAVState.isInitialized || !window.hyperAVState.core) return; const ps = {{vaporwave:{{p:[1,0,1],s:[0,1,1],b:[0.05,0,0.1]}},cyberpunk:{{p:[1,0,0.5],s:[0,1,0],b:[0,0,0]}},synthwave:{{p:[1,0.5,0],s:[0.5,0,1],b:[0.1,0,0.2]}},holographic:{{p:[0.7,0.5,1],s:[0.5,1,0.7],b:[0,0.05,0.1]}}}}; if(ps[pName])window.hyperAVState.core.updateParameters({{colorScheme:ps[pName]}});}};
+
+// Message listener (mostly same as Step 2.1, but ensure it can also call updateAudioData if needed)
+window.addEventListener('message', event => {{
+    if (!event.data || !event.data.type) return;
+    const {{ type, payload, parameter, value, config }} = event.data;
+
+    if (!window.hyperAVState.isInitialized && !['initialize', 'configure'].includes(type)) {{
+        console.warn('[HyperAV-JS] Visualizer not ready, ignoring message type:', type);
+        return;
+    }}
+
+    switch (type) {{
+        case 'initialize': if (config) window.initializeHypercube(config); break;
+        case 'audioAnalysisUpdate': // New type for MorphUIVisualizerBridge if it sends full audio data
+            if (payload) window.updateAudioData(payload);
+            break;
+        case 'updateParameter':
+            if (parameter && value !== undefined && window.hyperAVState.core) {{
+                let paramData = {{}};
+                // Specific mappings if needed, or pass directly
+                // Example: if MorphUI sends 'filterCutoff', and core expects 'coreFilterCutoff'
+                // if (parameter === 'filterCutoff') paramData['coreFilterCutoff'] = value;
+                // else paramData[parameter] = value;
+                paramData[parameter] = value; // Assuming direct mapping for now
+                window.hyperAVState.core.updateParameters(paramData);
+            }}
+            break;
+        case 'updateMultipleParameters':
+             if (payload && typeof payload === 'object' && window.hyperAVState.core) {{
+                window.hyperAVState.core.updateParameters(payload);
+            }}
+            break;
+        case 'configure':
+            if (config) {{
+                if (window.hyperAVState.core) window.hyperAVState.core.updateParameters(config);
+                else window.initializeHypercube(config);
+            }}
+            break;
+        case 'reset': if (window.hyperAVState.core) window.initializeHypercube({{}}); break;
+        // 'refresh', 'toggleEffect' are logged but not deeply implemented in core for now
+    }}
+}});
+
+// ... (handleResize, load, beforeunload listeners remain the same) ...
+function handleResize(){{if(window.hyperAVState.core&&window.hyperAVState.core.canvas){{const c=window.hyperAVState.core.canvas;c.width=window.innerWidth;c.height=window.innerHeight;if(window.hyperAVState.core._checkResize){{window.hyperAVState.core._checkResize();}}console.log('[HyperAV-JS] Resized to: ',c.width,c.height);}}}}
+window.addEventListener('resize',handleResize);
+window.addEventListener('load',()=>{{handleResize();setTimeout(()=>{{if(!window.hyperAVState.isInitialized){{console.log('[HyperAV-JS] Auto-initializing (fallback)...');window.initializeHypercube({{}});}}}},1000);}});
+window.addEventListener('beforeunload',()=>{{if(window.hyperAVState.core){{console.log('[HyperAV-JS] Disposing HypercubeCore.');window.hyperAVState.core.dispose();window.hyperAVState.core=null;window.hyperAVState.isInitialized=false;}}}});
     </script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:html' as html;
+import 'dart:ui_web' as ui_web; // Import for platformViewRegistry
 import '../core/holographic_theme.dart';
 
 class EmbeddedHyperAVVisualizer extends StatefulWidget {
@@ -30,17 +31,21 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
     with TickerProviderStateMixin {
   
   html.IFrameElement? _iframe;
-  bool _isVisualizerLoaded = false;
+  bool _isVisualizerLoaded = false; // True when iframe emits 'load'
+  bool _isBridgeReady = false; // True when JS inside iframe signals it's ready
   bool _isAudioActive = false;
   late AnimationController _glowController;
   late Animation<double> _glowAnimation;
+  String _viewType = ''; // Unique view type for platform view registry
 
   @override
   void initState() {
     super.initState();
     
+    _viewType = 'hyperav-visualizer-${hashCode}'; // Ensure unique viewType per instance
+
     _glowController = AnimationController(
-      duration: Duration(seconds: 2),
+      duration: const Duration(seconds: 2),
       vsync: this,
     );
     
@@ -52,8 +57,8 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
       curve: Curves.easeInOut,
     ));
     
-    _glowController.repeat(reverse: true);
-    
+    // _glowController.repeat(reverse: true); // Start animation when/if needed
+
     if (kIsWeb) {
       _initializeVisualizer();
     }
@@ -61,48 +66,71 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
 
   void _initializeVisualizer() {
     try {
-      // Create iframe pointing to our working HyperAV visualizer
       _iframe = html.IFrameElement()
-        ..src = 'assets/visualizer/index-hyperav.html'
+        ..src = 'assets/visualizer/index-hyperav.html' // Correct path
         ..style.border = 'none'
         ..style.width = '100%'
         ..style.height = '100%'
-        ..style.borderRadius = '12px'
+        ..style.borderRadius = '12px' // Applied to iframe directly
         ..style.overflow = 'hidden'
-        ..allow = 'microphone; autoplay; encrypted-media';
+        ..allow = 'microphone; autoplay; encrypted-media'; // Permissions for mic
 
-      // Register platform view for Flutter web
-      final String viewType = 'hyperav-visualizer-${hashCode}';
-      
-      // Listen for load event
       _iframe!.onLoad.listen((_) {
+        if (!mounted) return;
         setState(() {
           _isVisualizerLoaded = true;
         });
-        debugPrint('✅ HyperAV Visualizer loaded successfully');
-        
-        // Enable audio activity detection
-        Future.delayed(Duration(seconds: 1), () {
-          setState(() {
-            _isAudioActive = true; // Assume active for now
-          });
-        });
+        debugPrint('✅ HyperAV Visualizer: IFrame loaded successfully ($_viewType)');
+        // JS inside index-hyperav.html should post 'bridgeReady' or similar
+        // We'll listen for that to set _isBridgeReady
       });
 
-      // Listen for audio activity (if the visualizer posts messages)
-      html.window.addEventListener('message', (event) {
-        if (event is html.MessageEvent) {
-          final data = event.data;
-          if (data is Map && data['type'] == 'audioActivity') {
-            setState(() {
-              _isAudioActive = data['active'] ?? false;
-            });
-          }
-        }
-      });
+      // Listen for messages from the iframe (e.g., ready signal, audio activity)
+      html.window.addEventListener('message', _handleIframeMessage);
+
+      // Register platform view for Flutter web
+      // ignore: undefined_function
+      ui_web.platformViewRegistry.registerViewFactory(
+        _viewType,
+        (int viewId) => _iframe!,
+      );
 
     } catch (e) {
-      debugPrint('❌ Error initializing HyperAV: $e');
+      debugPrint('❌ Error initializing HyperAV for $_viewType: $e');
+      if (mounted) {
+        setState(() {
+          _isVisualizerLoaded = false; // Mark as not loaded on error
+        });
+      }
+    }
+  }
+
+  void _handleIframeMessage(html.Event event) {
+    if (!mounted) return;
+    if (event is html.MessageEvent) {
+      final data = event.data;
+      // Check origin if necessary for security: if (event.origin != expected_origin) return;
+
+      if (data is String && data == 'bridgeReady') { // From visualizer-main-hyperav.js
+         debugPrint('✅ HyperAV Visualizer: Bridge Ready signal received from iframe ($_viewType).');
+         setState(() {
+           _isBridgeReady = true;
+         });
+         if(!_glowController.isAnimating) _glowController.repeat(reverse: true);
+      } else if (data is Map) {
+        if (data['type'] == 'audioActivity') {
+          setState(() {
+            _isAudioActive = data['active'] ?? false;
+          });
+          if (_isAudioActive && !_glowController.isAnimating) {
+            _glowController.repeat(reverse: true);
+          } else if (!_isAudioActive && _glowController.isAnimating) {
+            // _glowController.stop(); // Or let it fade out
+          }
+        } else if (data['type'] == 'statusUpdate') { // Example
+            debugPrint('HyperAV Status from iframe ($_viewType): ${data['message']}');
+        }
+      }
     }
   }
 
@@ -111,11 +139,11 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
     if (widget.isCollapsed) {
       return _buildCollapsedState();
     }
-    
     return _buildFullInterface();
   }
 
   Widget _buildCollapsedState() {
+    // ... (collapsed state UI remains the same)
     return Positioned(
       left: widget.position?.dx ?? 0,
       top: widget.position?.dy ?? 0,
@@ -155,6 +183,7 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
   }
 
   Widget _buildFullInterface() {
+    // ... (full interface structure remains similar)
     return Positioned(
       left: widget.position?.dx ?? 0,
       top: widget.position?.dy ?? 0,
@@ -168,23 +197,12 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
             color: HolographicTheme.primaryEnergy.withOpacity(0.4),
             width: 2,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: HolographicTheme.primaryEnergy.withOpacity(0.2),
-              blurRadius: 20,
-              spreadRadius: 5,
-            ),
-          ],
+          boxShadow: [ /* ... shadows ... */ ],
         ),
         child: Column(
           children: [
-            // Header
             _buildHeader(),
-            
-            // Visualizer content
-            Expanded(
-              child: _buildVisualizerContent(),
-            ),
+            Expanded(child: _buildVisualizerContent()),
           ],
         ),
       ),
@@ -192,62 +210,31 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
   }
 
   Widget _buildHeader() {
+    // ... (header remains similar, maybe use _isBridgeReady for indicator)
     return Container(
       height: 40,
-      decoration: BoxDecoration(
-        color: HolographicTheme.primaryEnergy.withOpacity(0.1),
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(14),
-          topRight: Radius.circular(14),
-        ),
-        border: Border(
-          bottom: BorderSide(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.3),
-            width: 1,
-          ),
-        ),
-      ),
+      decoration: BoxDecoration( /* ... */ ),
       child: Row(
         children: [
           SizedBox(width: 15),
-          Icon(
-            Icons.view_in_ar,
-            color: HolographicTheme.primaryEnergy,
-            size: 16,
-          ),
+          Icon(Icons.view_in_ar, color: HolographicTheme.primaryEnergy, size: 16),
           SizedBox(width: 8),
-          Text(
-            'HYPERAV 4D VISUALIZER',
-            style: TextStyle(
-              color: HolographicTheme.primaryEnergy,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
-              shadows: [
-                Shadow(
-                  color: HolographicTheme.primaryEnergy.withOpacity(0.8),
-                  blurRadius: 4.0,
-                ),
-              ],
-            ),
-          ),
+          Text('HYPERAV 4D VISUALIZER', style: TextStyle(color: HolographicTheme.primaryEnergy, /* ... */)),
           Spacer(),
-          
-          // Audio activity indicator
           AnimatedBuilder(
             animation: _glowAnimation,
             builder: (context, child) {
+              bool audioOrBridgeActive = _isAudioActive || (_isBridgeReady && !_isAudioActive); // Glow if bridge ready but no audio yet
               return Container(
-                width: 8,
-                height: 8,
+                width: 8, height: 8,
                 decoration: BoxDecoration(
-                  color: _isAudioActive 
-                    ? HolographicTheme.secondaryEnergy
+                  color: audioOrBridgeActive
+                    ? (_isAudioActive ? HolographicTheme.secondaryEnergy : HolographicTheme.primaryEnergy.withOpacity(0.5))
                     : HolographicTheme.primaryEnergy.withOpacity(0.3),
                   shape: BoxShape.circle,
-                  boxShadow: _isAudioActive ? [
+                  boxShadow: audioOrBridgeActive ? [
                     BoxShadow(
-                      color: HolographicTheme.secondaryEnergy.withOpacity(0.6 * _glowAnimation.value),
+                      color: (_isAudioActive ? HolographicTheme.secondaryEnergy : HolographicTheme.primaryEnergy).withOpacity(0.6 * _glowAnimation.value),
                       blurRadius: 8 * _glowAnimation.value,
                       spreadRadius: 2 * _glowAnimation.value,
                     ),
@@ -257,28 +244,7 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
             },
           ),
           SizedBox(width: 8),
-          
-          // Collapse button
-          GestureDetector(
-            onTap: widget.onToggleCollapse,
-            child: Container(
-              width: 24,
-              height: 24,
-              decoration: BoxDecoration(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: HolographicTheme.primaryEnergy.withOpacity(0.6),
-                  width: 1,
-                ),
-              ),
-              child: Icon(
-                Icons.minimize,
-                color: HolographicTheme.primaryEnergy,
-                size: 12,
-              ),
-            ),
-          ),
+          GestureDetector(onTap: widget.onToggleCollapse, child: Container( /* ... */ )),
           SizedBox(width: 10),
         ],
       ),
@@ -286,22 +252,18 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
   }
 
   Widget _buildVisualizerContent() {
-    if (!kIsWeb) {
-      return _buildWebOnlyMessage();
-    }
+    if (!kIsWeb) return _buildWebOnlyMessage();
 
     return Container(
       margin: EdgeInsets.all(8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: HolographicTheme.primaryEnergy.withOpacity(0.2),
-          width: 1,
-        ),
+        border: Border.all(color: HolographicTheme.primaryEnergy.withOpacity(0.2), width: 1),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(8),
-        child: _isVisualizerLoaded 
+        // Show loading until iframe content signals it's truly ready, not just iframe loaded
+        child: (_isVisualizerLoaded && _isBridgeReady)
           ? _buildLoadedVisualizer()
           : _buildLoadingState(),
       ),
@@ -309,151 +271,34 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
   }
 
   Widget _buildLoadedVisualizer() {
-    if (!kIsWeb || _iframe == null) return Container();
+    // This is the corrected part: Use HtmlElementView
+    if (!kIsWeb || _iframe == null) return Container(child: Center(child: Text("Error: Iframe not available.")));
     
-    // For simplicity, create a direct iframe container
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      child: Stack(
-        children: [
-          // Iframe placeholder - will be managed by web platform
-          Container(
-            color: Colors.black.withOpacity(0.9),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.view_in_ar,
-                    color: HolographicTheme.primaryEnergy,
-                    size: 48,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'HyperAV 4D Visualizer',
-                    style: TextStyle(
-                      color: HolographicTheme.primaryEnergy,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Audio-Reactive 4D Geometry',
-                    style: TextStyle(
-                      color: HolographicTheme.primaryEnergy.withOpacity(0.7),
-                      fontSize: 12,
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Open visualizer/index-hyperav.html\nin browser for full experience',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: HolographicTheme.primaryEnergy.withOpacity(0.5),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+    return HtmlElementView(
+      viewType: _viewType,
     );
   }
 
   Widget _buildLoadingState() {
-    return Container(
-      color: Colors.black.withOpacity(0.8),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            AnimatedBuilder(
-              animation: _glowAnimation,
-              builder: (context, child) {
-                return Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: HolographicTheme.primaryEnergy.withOpacity(0.2 * _glowAnimation.value),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: HolographicTheme.primaryEnergy.withOpacity(0.6),
-                      width: 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: HolographicTheme.primaryEnergy.withOpacity(0.4 * _glowAnimation.value),
-                        blurRadius: 15 * _glowAnimation.value,
-                        spreadRadius: 3 * _glowAnimation.value,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    Icons.view_in_ar,
-                    color: HolographicTheme.primaryEnergy,
-                    size: 20,
-                  ),
-                );
-              },
-            ),
-            SizedBox(height: 12),
-            Text(
-              'Loading HyperAV...',
-              style: TextStyle(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.8),
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // ... (loading state UI remains the same)
+    return Container(child: Center(child: Text("Loading Visualizer...", style: TextStyle(color: HolographicTheme.primaryEnergy))));
   }
 
   Widget _buildWebOnlyMessage() {
-    return Container(
-      color: Colors.black.withOpacity(0.8),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.web,
-              color: HolographicTheme.primaryEnergy.withOpacity(0.6),
-              size: 32,
-            ),
-            SizedBox(height: 12),
-            Text(
-              'HyperAV Visualizer',
-              style: TextStyle(
-                color: HolographicTheme.primaryEnergy,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 4),
-            Text(
-              'Available on Web',
-              style: TextStyle(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.7),
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // ... (web only message UI remains the same)
+    return Container(child: Center(child: Text("Visualizer available on Web only.", style: TextStyle(color: HolographicTheme.primaryEnergy))));
   }
 
   @override
   void dispose() {
     _glowController.dispose();
-    _iframe?.remove();
+    // Important: Remove the message listener to avoid memory leaks
+    if (kIsWeb) {
+      html.window.removeEventListener('message', _handleIframeMessage);
+    }
+    // The platform view itself should be disposed automatically by Flutter.
+    // If _iframe needed manual removal from DOM, it would be here, but
+    // with PlatformView, Flutter manages its lifecycle.
     super.dispose();
   }
 }

@@ -36,7 +36,7 @@ class _VisualizerBridgeWidgetState extends State<VisualizerBridgeWidget> {
       ..style.width = '100%'
       ..style.height = '100%'
       ..style.background = 'transparent'
-      ..src = 'assets/assets/visualizer/index-hyperav.html'
+      ..src = 'assets/visualizer/index-hyperav.html'
       ..onLoad.listen((_) {
         setState(() {
           _isLoaded = true;
