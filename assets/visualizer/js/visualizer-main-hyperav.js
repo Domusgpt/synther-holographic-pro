@@ -901,10 +901,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
     
-    // Send ready signal to Flutter
-    if (window.parent !== window) {
-        window.parent.postMessage('bridgeReady', '*');
-    }
-    
     initialize();
 });
+
+// Function to control visualizer controls visibility
+window.setVisualizerControlsVisibility = function(show) {
+    const controlsContainer = document.getElementById('controlsContainer'); // Assuming this ID exists
+    if (controlsContainer) {
+        if (show) {
+            controlsContainer.style.display = 'block'; // Or 'flex', 'grid' etc. depending on original
+            console.log('Visualizer controls shown.');
+        } else {
+            controlsContainer.style.display = 'none';
+            console.log('Visualizer controls hidden.');
+        }
+    } else {
+        console.warn('Controls container #controlsContainer not found.');
+    }
+};

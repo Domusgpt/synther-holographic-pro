@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:provider/provider.dart';
 
 import '../../core/synth_parameters.dart'; // Assuming this defines XYPadAssignment and SynthParametersModel
@@ -82,6 +83,7 @@ class _XYPadWidgetState extends State<XYPadWidget> {
   // Interaction states for visual feedback
   bool _isHoveringPad = false;
   bool _isDraggingPad = false;
+  int _lastXAxisMidiNote = -1; // For X-axis pitch snap haptics
 
   // State variables for scale and key selection for X-axis
   MusicalScale _selectedScaleX = MusicalScale.Chromatic;
@@ -141,6 +143,7 @@ class _XYPadWidgetState extends State<XYPadWidget> {
       if (_quantizedPitchMapX.isNotEmpty) {
         int initialPitchIndex = (_xValue * (_quantizedPitchMapX.length - 1)).round().clamp(0, _quantizedPitchMapX.length - 1);
         int initialOutputPitchMidiNote = _quantizedPitchMapX[initialPitchIndex];
+        _lastXAxisMidiNote = initialOutputPitchMidiNote; // Initialize last pitch
 
         const int xyPadPitchParamId = 9999; // Placeholder ID for XY Pad Pitch
         AudioEngineInterface.setParameter(xyPadPitchParamId, initialOutputPitchMidiNote.toDouble());
@@ -210,6 +213,11 @@ class _XYPadWidgetState extends State<XYPadWidget> {
         // Map normalized _xValue (0.0-1.0) to an index in _quantizedPitchMapX
         int pitchIndex = (_xValue * (_quantizedPitchMapX.length - 1)).round().clamp(0, _quantizedPitchMapX.length - 1);
         outputPitchMidiNote = _quantizedPitchMapX[pitchIndex];
+      }
+
+      if (outputPitchMidiNote != _lastXAxisMidiNote) {
+        HapticFeedback.selectionClick();
+        _lastXAxisMidiNote = outputPitchMidiNote;
       }
 
       const int xyPadPitchParamId = 9999; // Placeholder ID, ensure this is defined in your actual ID list
@@ -385,11 +393,18 @@ class _XYPadWidgetState extends State<XYPadWidget> {
             child: GestureDetector(
               onPanStart: (details) {
                 setState(() => _isDraggingPad = true);
+                HapticFeedback.lightImpact();
                 _updateValues(details.localPosition, padAreaSize, model);
               },
               onPanUpdate: (details) => _updateValues(details.localPosition, padAreaSize, model),
-              onPanEnd: (details) => setState(() => _isDraggingPad = false),
-              onPanCancel: () => setState(() => _isDraggingPad = false),
+              onPanEnd: (details) {
+                setState(() => _isDraggingPad = false);
+                HapticFeedback.lightImpact();
+              },
+              onPanCancel: () {
+                setState(() => _isDraggingPad = false);
+                HapticFeedback.lightImpact();
+              },
               child: Container(
                 width: double.infinity, // Take up available space from LayoutBuilder
                 height: double.infinity,
@@ -515,6 +530,7 @@ Widget _buildMusicControls(SynthParametersModel model) {
                       setState(() { _selectedRootNoteMidiOffsetX = value; });
                       _updateNotesInScaleX();
                       model.setXYPadRootNoteX(value); // Update central model
+                      HapticFeedback.selectionClick();
                     }
                   },
                 ),
@@ -551,6 +567,7 @@ Widget _buildMusicControls(SynthParametersModel model) {
                       setState(() { _selectedScaleX = value; });
                       _updateNotesInScaleX();
                       model.setXYPadScaleX(value); // Update central model
+                      HapticFeedback.selectionClick();
                     }
                   },
                 ),

@@ -4,6 +4,11 @@ import 'package:provider/provider.dart';
 
 // Import actual feature widgets
 import 'features/xy_pad/xy_pad_widget.dart';
+// Import MusicalScale and XYPadAssignment if they are moved to a shared location
+// For now, PanelStateService uses indices, but SynthParametersModel might need direct enum access.
+// For _PanelConfig.toSerializableConfig, we need SynthParametersModel and its enums.
+import 'core/synth_parameters.dart';
+
 import 'features/keyboard/keyboard_widget.dart';
 import 'features/controls/control_panel_widget.dart';
 import 'features/llm_presets/llm_preset_widget.dart';
@@ -20,12 +25,13 @@ import 'ui/holographic/holographic_theme.dart';
 import 'dart:ffi'; // For Pointer.fromFunction
 import 'package:ffi/ffi.dart'; // For calloc if needed for string passing (not directly here)
 import 'core/ffi/native_audio_ffi.dart'; // For NativeAudioLib and callback typedef
+import 'core/services/panel_state_service.dart'; // Import the new service
 
 // Define a class to hold panel configuration and state
 class _PanelConfig {
   final String id;
   final String title;
-  final Widget childWidget;
+  final String childWidgetTypeKey; // Key to recreate the widget
   double normX;
   double normY;
   double normWidth;
@@ -38,7 +44,7 @@ class _PanelConfig {
   _PanelConfig({
     required this.id,
     required this.title,
-    required this.childWidget,
+    required this.childWidgetTypeKey,
     // Normalized initial values
     required this.normX,
     required this.normY,
@@ -47,9 +53,60 @@ class _PanelConfig {
     this.isCollapsed = false,
     this.isVisibleInWorkspace = true,
   }) : key = GlobalKey(debugLabel: id);
+
+  // Convert to a serializable format
+  SerializablePanelConfig toSerializableConfig(BuildContext context) {
+    int? rootNoteX, scaleXIndex, yAxisAssignIndex;
+
+    if (childWidgetTypeKey == 'xyPad_1') { // Match the key used in _initializePanels
+      // Access SynthParametersModel safely via Provider
+      try {
+        final model = Provider.of<SynthParametersModel>(context, listen: false);
+        rootNoteX = model.xyPadSelectedRootNoteX; // Using new getter
+        scaleXIndex = model.xyPadSelectedScaleX.index; // Using new getter
+        yAxisAssignIndex = model.yAxisAssignment.index;
+      } catch (e) {
+        print("Error accessing SynthParametersModel in toSerializableConfig for $id: $e");
+        // Fallback or default values if model is not available, though it should be.
+      }
+    }
+
+    return SerializablePanelConfig(
+      id: id,
+      title: title,
+      childWidgetTypeKey: childWidgetTypeKey,
+      normX: normX,
+      normY: normY,
+      normWidth: normWidth,
+      normHeight: normHeight,
+      isCollapsed: isCollapsed,
+      isVisibleInWorkspace: isVisibleInWorkspace,
+      xyPadRootNoteX: rootNoteX,
+      xyPadScaleXIndex: scaleXIndex,
+      yAxisAssignmentIndex: yAxisAssignIndex,
+    );
+  }
+
+  // Create from a serializable format
+  factory _PanelConfig.fromSerializableConfig(
+    SerializablePanelConfig sPanel,
+    // No longer need widgetBuilder here, as childWidget is not stored directly
+  ) {
+    return _PanelConfig(
+      id: sPanel.id,
+      title: sPanel.title,
+      childWidgetTypeKey: sPanel.childWidgetTypeKey,
+      normX: sPanel.normX,
+      normY: sPanel.normY,
+      normWidth: sPanel.normWidth,
+      normHeight: sPanel.normHeight,
+      isCollapsed: sPanel.isCollapsed,
+      isVisibleInWorkspace: sPanel.isVisibleInWorkspace,
+    );
+  }
 }
 
-// Static members for FFI callback interaction (Workaround for FFI limitations)
+// Static members for FFI callback interaction
 import 'dart:async'; // For StreamSubscription
 import 'core/services/ui_midi_event_service.dart'; // Import the new service
 
@@ -73,13 +130,17 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   final List<_PanelConfig> _panels = []; // Instance list
   late NativeAudioLib _nativeAudioLib; // FFI instance
   StreamSubscription<UiMidiEvent>? _uiMidiEventSubscription;
-  bool _isVaultAreaVisible = true; // Instance variable, replaces _staticIsVaultAreaVisible
+  bool _isVaultAreaVisible = true; // Instance variable
+
+  final PanelStateService _panelStateService = PanelStateService();
 
   @override
   void initState() {
     super.initState();
-    _initializePanels();
     _nativeAudioLib = NativeAudioLib(); // Initialize FFI
+
+    // Try to load panel layout first
+    _loadPanelLayoutAndInitialize();
 
     // Subscribe to UI MIDI events from the service
     _uiMidiEventSubscription = UiMidiEventService().events.listen(_handleUiControlEventFromStream);
@@ -100,6 +161,117 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
     // TODO: Add an FFI function to unregister the callback if SynthEngine supports it.
     // Consider calling UiMidiEventService().dispose() if this is the main/root widget of the app.
     super.dispose();
+  }
+
+  // Combined load and initialize logic
+  Future<void> _loadPanelLayoutAndInitialize() async {
+    bool loadedSuccessfully = await _loadPanelLayout();
+    if (!loadedSuccessfully || _panels.isEmpty) {
+      print("No saved layout or panels empty after load attempt, initializing defaults.");
+      _initializePanels(); // This will also call _savePanelLayout for the defaults
+    }
+    // Ensure UI reflects loaded or initialized panels.
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  Future<void> _savePanelLayout() async {
+    // TODO: This method is not yet called in all desired UI interaction points
+    // (e.g., panel resize, full set of drag-related saves, collapse) due to previous
+    // tooling issues with diff application. Currently, it's called from MIDI changes (if they alter panel state),
+    // vault interactions, and when initializing default panels.
+    // It needs to be added to:
+    // - onPanEnd of header drag in _buildDraggablePanel
+    // - onPanEnd of resize drag in _buildDraggablePanel
+    // - onPressed of collapse button in _buildDraggablePanel
+    // - Potentially after XYPadWidget musical settings are changed if those changes
+    //   don't go through SynthParametersModel immediately causing a rebuild/save here.
+
+    if (!mounted || _panels.isEmpty) {
+      print("SavePanelLayout: Not mounted or panels empty, skipping save.");
+      return;
+    }
+    // Debounce or delay slightly to ensure state is settled.
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    try {
+      List<SerializablePanelConfig> sPanels =
+          _panels.map((p) => p.toSerializableConfig(context)).toList();
+      await _panelStateService.savePanelStates(sPanels);
+      print("Panel layout saved with ${_panels.length} panels.");
+    } catch (e) {
+      print("Error during _savePanelLayout: $e");
+      // Optionally, show a user-facing error or log to a more persistent store.
+    }
+  }
+
+  Future<bool> _loadPanelLayout() async {
+    List<SerializablePanelConfig>? sPanels =
+        await _panelStateService.loadPanelStates();
+    if (sPanels != null && sPanels.isNotEmpty) {
+      // Important: Check if context is available before using Provider.of
+      if (!mounted) {
+        print("LoadPanelLayout: Not mounted, skipping panel reconstruction and model update.");
+        return false; // Cannot proceed without context
+      }
+      final model = Provider.of<SynthParametersModel>(context, listen: false);
+
+      _panels.clear();
+      for (var sPanel in sPanels) {
+        _panels.add(_PanelConfig.fromSerializableConfig(sPanel));
+
+        if (sPanel.childWidgetTypeKey == 'xyPad_1') {
+          if (sPanel.xyPadRootNoteX != null) {
+            model.setXYPadRootNoteX(sPanel.xyPadRootNoteX!);
+          }
+          if (sPanel.xyPadScaleXIndex != null &&
+              sPanel.xyPadScaleXIndex! >= 0 &&
+              sPanel.xyPadScaleXIndex! < MusicalScale.values.length) {
+            model.setXYPadScaleX(MusicalScale.values[sPanel.xyPadScaleXIndex!]);
+          } else if (sPanel.xyPadScaleXIndex != null) {
+             print("Warning: Invalid xyPadScaleXIndex ${sPanel.xyPadScaleXIndex} from saved state for panel ${sPanel.id}.");
+          }
+
+          if (sPanel.yAxisAssignmentIndex != null &&
+              sPanel.yAxisAssignmentIndex! >= 0 &&
+              sPanel.yAxisAssignmentIndex! < XYPadAssignment.values.length) {
+            model.setYAxisAssignment(XYPadAssignment.values[sPanel.yAxisAssignmentIndex!]);
+          } else if (sPanel.yAxisAssignmentIndex != null) {
+            print("Warning: Invalid yAxisAssignmentIndex ${sPanel.yAxisAssignmentIndex} from saved state for panel ${sPanel.id}.");
+          }
+        }
+      }
+      // No need to call setState here as _loadPanelLayoutAndInitialize will do it.
+      print("Panel layout loaded from preferences with ${_panels.length} panels.");
+      return true;
+    }
+    print("No saved panel layout found or list was empty.");
+    return false;
+  }
+
+  Widget _getWidgetForTypeKey(String typeKey) {
+    switch (typeKey) {
+      case 'xyPad_1':
+        return const XYPadWidget();
+      case 'controlPanel_1':
+        return const ControlPanelWidget();
+      case 'keyboard_1':
+        return const VirtualKeyboardWidget();
+      case 'llmPresetGen_1':
+        return const LlmPresetWidget();
+      case 'automation_1':
+        return const AutomationControlsWidget();
+      case 'presets_1':
+        return const PresetManagerWidget();
+      case 'midiSettings_1':
+        return const MidiSettingsWidget();
+      case 'placeholder_1':
+        return const Center(child: Text("Effects Rack Content", style: TextStyle(color: Colors.white70)));
+      default:
+        print("Warning: Unknown widget type key '$typeKey' encountered.");
+        return const Center(child: Text("Unknown Widget Type"));
+    }
   }
 
   void _handleUiControlEventFromStream(UiMidiEvent event) {
@@ -161,24 +333,20 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   }
 
   void _initializePanels() {
+    // Default panel layout if nothing is loaded from shared_preferences
+    print("Initializing default panel layout.");
     _panels.clear();
-    // Initialize with normalized positions and sizes directly.
-    // These represent fractions of screen width/height.
-    _panels.add(_PanelConfig(id: 'xyPad_1', title: 'XY CONTROL PAD', childWidget: const XYPadWidget(), normX: 0.05, normY: 0.15, normWidth: 0.22, normHeight: 0.30));
-    _panels.add(_PanelConfig(id: 'controlPanel_1', title: 'SYNTH CONTROLS', childWidget: const ControlPanelWidget(), normX: 0.30, normY: 0.15, normWidth: 0.22, normHeight: 0.45));
-    _panels.add(_PanelConfig(id: 'keyboard_1', title: 'VIRTUAL KEYBOARD', childWidget: const VirtualKeyboardWidget(), normX: 0.05, normY: 0.65, normWidth: 0.50, normHeight: 0.20));
-    _panels.add(_PanelConfig(id: 'llmPresetGen_1', title: 'AI PRESET GENERATOR', childWidget: const LlmPresetWidget(), normX: 0.05, normY: 0.05, normWidth: 0.30, normHeight: 0.30));
-    _panels.add(_PanelConfig(id: 'automation_1', title: 'AUTOMATION', childWidget: const AutomationControlsWidget(), normX: 0.58, normY: 0.65, normWidth: 0.22, normHeight: 0.20));
-    _panels.add(_PanelConfig(id: 'presets_1', title: 'PRESET MANAGER', childWidget: const PresetManagerWidget(), normX: 0.38, normY: 0.05, normWidth: 0.22, normHeight: 0.35));
-    _panels.add(_PanelConfig(
-        id: 'midiSettings_1', title: 'MIDI SETTINGS', childWidget: const MidiSettingsWidget(),
-        normX: 0.63, normY: 0.05, normWidth: 0.22, normHeight: 0.30,
-        isVisibleInWorkspace: false));
-    _panels.add(_PanelConfig(
-        id: 'placeholder_1', title: 'EFFECTS RACK (Vaulted)',
-        childWidget: const Center(child: Text("Effects Rack Content", style: TextStyle(color: Colors.white70))),
-        normX: 0.63, normY: 0.40, normWidth: 0.22, normHeight: 0.25,
-        isVisibleInWorkspace: false));
+    _panels.add(_PanelConfig(id: 'xyPad_1', title: 'XY CONTROL PAD', childWidgetTypeKey: 'xyPad_1', normX: 0.05, normY: 0.15, normWidth: 0.22, normHeight: 0.30));
+    _panels.add(_PanelConfig(id: 'controlPanel_1', title: 'SYNTH CONTROLS', childWidgetTypeKey: 'controlPanel_1', normX: 0.30, normY: 0.15, normWidth: 0.22, normHeight: 0.45));
+    _panels.add(_PanelConfig(id: 'keyboard_1', title: 'VIRTUAL KEYBOARD', childWidgetTypeKey: 'keyboard_1', normX: 0.05, normY: 0.65, normWidth: 0.50, normHeight: 0.20));
+    _panels.add(_PanelConfig(id: 'llmPresetGen_1', title: 'AI PRESET GENERATOR', childWidgetTypeKey: 'llmPresetGen_1', normX: 0.05, normY: 0.05, normWidth: 0.30, normHeight: 0.30));
+    _panels.add(_PanelConfig(id: 'automation_1', title: 'AUTOMATION', childWidgetTypeKey: 'automation_1', normX: 0.58, normY: 0.65, normWidth: 0.22, normHeight: 0.20));
+    _panels.add(_PanelConfig(id: 'presets_1', title: 'PRESET MANAGER', childWidgetTypeKey: 'presets_1', normX: 0.38, normY: 0.05, normWidth: 0.22, normHeight: 0.35));
+    _panels.add(_PanelConfig(id: 'midiSettings_1', title: 'MIDI SETTINGS', childWidgetTypeKey: 'midiSettings_1', normX: 0.63, normY: 0.05, normWidth: 0.22, normHeight: 0.30, isVisibleInWorkspace: false));
+    _panels.add(_PanelConfig(id: 'placeholder_1', title: 'EFFECTS RACK (Vaulted)', childWidgetTypeKey: 'placeholder_1', normX: 0.63, normY: 0.40, normWidth: 0.22, normHeight: 0.25, isVisibleInWorkspace: false));
+
+    // Don't save here by default, let loading mechanism handle initial save if needed
+    if(mounted) setState(() {});
   }
 
 
@@ -412,7 +580,7 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
                     // collapse button or internal scrollability) is not currently explicitly invoked
                     // or managed by this draggable panel framework. The child is responsible for its own
                     // content layout within the space provided by this panel.
-                    child: panelConfig.childWidget,
+                    child: _getWidgetForTypeKey(panelConfig.childWidgetTypeKey),
                   ),
                 ),
               ),

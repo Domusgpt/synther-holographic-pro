@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For HapticFeedback
 import 'dart:math' as math;
 
 import '../../core/ffi/native_audio_ffi.dart'; // FFI
@@ -365,6 +366,7 @@ class __HolographicKnobState extends State<_HolographicKnob> with SingleTickerPr
       _isDragging = true;
     });
     _animationController.forward();
+    HapticFeedback.lightImpact();
   }
 
   void _handleDragUpdate(DragUpdateDetails details) {
@@ -379,6 +381,7 @@ class __HolographicKnobState extends State<_HolographicKnob> with SingleTickerPr
       _isDragging = false;
     });
     _animationController.reverse();
+    HapticFeedback.lightImpact();
   }
 
   void _handleDragCancel() {
@@ -387,6 +390,7 @@ class __HolographicKnobState extends State<_HolographicKnob> with SingleTickerPr
       _isDragging = false;
     });
      _animationController.reverse();
+    HapticFeedback.lightImpact();
   }
 
 
@@ -566,6 +570,7 @@ class __HolographicSliderState extends State<_HolographicSlider> {
     setState(() {
       _isDragging = true;
     });
+    HapticFeedback.lightImpact();
   }
 
   void _handlePanUpdate(DragUpdateDetails details) {
@@ -584,6 +589,7 @@ class __HolographicSliderState extends State<_HolographicSlider> {
     setState(() {
       _isDragging = false;
     });
+    HapticFeedback.lightImpact();
   }
 
   void _handlePanCancel() {
@@ -591,6 +597,7 @@ class __HolographicSliderState extends State<_HolographicSlider> {
     setState(() {
       _isDragging = false;
     });
+    HapticFeedback.lightImpact();
   }
 
   @override
