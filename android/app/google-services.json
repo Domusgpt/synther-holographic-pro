@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "872646180221",
+    "project_id": "synther-pro-holo",
+    "storage_bucket": "synther-pro-holo.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:872646180221:android:6c4d1ee3c5092d0417a014",
+        "android_client_info": {
+          "package_name": "com.domusgpt.synther_holographic_pro"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAaJ5wlzrBfSZ_brPeSgsGr1hFXroCnw4o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
