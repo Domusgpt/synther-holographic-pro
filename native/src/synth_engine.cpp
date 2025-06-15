@@ -25,7 +25,9 @@ SynthEngine::SynthEngine()
       masterVolume(0.75f, 20.0f, 44100), // Initial val, default smooth time, default SR (SR updated in initialize)
       midiLearnActive(false), parameterIdToLearn(-1),
       isRecordingAutomation(false), isPlayingAutomation(false),
-      automationParameterChangeCallback(nullptr)
+      automationParameterChangeCallback(nullptr),
+      uiControlMidiCallback_{nullptr},      // Initialize new callback
+      currentUiTargetPanelId_{0}       // Initialize new panel ID target
       // automationRecordStartTime, automationPlaybackStartTime are default constructed
       // recordedAutomation, automationPlaybackIndices are default constructed
 {
@@ -346,10 +348,43 @@ bool SynthEngine::processMidiEvent(unsigned char status, unsigned char data1, un
     }
     
     try {
-        // Basic MIDI message parsing
-        unsigned char messageType = status & 0xF0; // Top 4 bits = message type
-        // unsigned char channel = status & 0x0F;  // Channel currently not used for routing
-        
+        unsigned char messageType = status & 0xF0;
+        unsigned char channel = status & 0x0F; // MIDI channel 0-15
+
+        // UI Control MIDI on Channel 16 (0-indexed channel 15)
+        if (channel == 15 && messageType == 0xB0) { // CC messages on Channel 16
+            int ccNumber = data1;
+            int ccValue = data2;
+
+            // Referencing documentation/MIDI_UI_MAPPING_DESIGN.md
+            if (ccNumber == 32) { // UI_TARGET_PANEL_ID_LSB
+                currentUiTargetPanelId_.store(ccValue % 128); // Ensure it's within 0-127
+                std::cout << "SynthEngine: UI Target Panel ID set to " << currentUiTargetPanelId_.load() << std::endl;
+                return true;
+            } else if (ccNumber == 0) { // UI_TARGET_PANEL_ID_MSB (if/when implemented for >128 panels)
+                // Potentially combine with LSB for a larger ID range. For now, ignored.
+                std::cout << "SynthEngine: UI Target Panel ID MSB (CC0) received, currently not used for extended range." << std::endl;
+                return true;
+            } else if (ccNumber == 109) { // UI_CYCLE_NEXT_PANEL_TARGET
+                currentUiTargetPanelId_.store((currentUiTargetPanelId_.load() + 1) % 128);
+                std::cout << "SynthEngine: UI Target Panel ID cycled to " << currentUiTargetPanelId_.load() << std::endl;
+                return true;
+            } else if ((ccNumber >= 102 && ccNumber <= 108) || ccNumber == 110) {
+                 // UI_VISIBILITY, UI_COLLAPSED_STATE, Position, Size, Theme, Toggle Vault
+                if (uiControlMidiCallback_) {
+                    uiControlMidiCallback_(currentUiTargetPanelId_.load(), ccNumber, ccValue);
+                    // std::cout << "SynthEngine: Forwarded UI CC " << ccNumber << " val " << ccValue << " for panel " << currentUiTargetPanelId_.load() << std::endl;
+                    return true;
+                } else {
+                    std::cout << "SynthEngine: UI Control MIDI CC " << ccNumber << " received on Ch16 but no UI callback registered." << std::endl;
+                    return true;
+                }
+            }
+            // std::cout << "SynthEngine: Unhandled CC " << ccNumber << " on UI Channel 16." << std::endl;
+            return true; // Consume other CCs on channel 16 to prevent them from affecting sound
+        }
+
+        // Normal MIDI processing for sound parameters (channels 0-14, or any non-UI message on Ch15)
         switch (messageType) {
             case 0x90: // Note On
                 return (data2 > 0) ? noteOn(data1, data2) : noteOff(data1);
@@ -890,6 +925,10 @@ bool SynthEngine::hasAutomationData() const {
 
 void SynthEngine::setParameterChangeCallback(std::function<void(int, float)> callback) {
     automationParameterChangeCallback = callback;
+}
+
+void SynthEngine::setUiControlMidiCallback(std::function<void(int, int, int)> callback) {
+    uiControlMidiCallback_ = callback;
 }
 
 // --- Preset Management Methods ---
