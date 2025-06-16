@@ -53,7 +53,8 @@ typedef SendPolyAftertouchC = Void Function(Int32 noteNumber, Int32 pressure);
 
 // Pitch Bend & Mod Wheel FFI functions
 typedef SendPitchBendC = Void Function(Int32 value);
-typedef SendModWheelC = Void Function(Int32 value);
+typedef SendModWheelC = Void Function(Int32 value); // Specific to CC1 (Mod Wheel)
+typedef SendControlChangeC = Void Function(Int32 controller, Int32 value); // Generic CC
 
 
 // --- Typedefs for Dart functions ---
@@ -88,7 +89,8 @@ typedef SetXYPadAxisParameterDart = void Function(int parameterId);
 typedef SendPolyAftertouchDart = void Function(int noteNumber, int pressure);
 
 typedef SendPitchBendDart = void Function(int value);
-typedef SendModWheelDart = void Function(int value);
+typedef SendModWheelDart = void Function(int value); // Specific to CC1 (Mod Wheel)
+typedef SendControlChangeDart = void Function(int controller, int value); // Generic CC
 
 
 class NativeAudioLib {
@@ -143,8 +145,25 @@ class NativeAudioLib {
   late SendPolyAftertouchDart sendPolyAftertouch;
 
   // Pitch Bend & Mod Wheel
+
+  /// Sends a MIDI Pitch Bend message.
+  ///
+  /// The [bendValue] is a 14-bit integer (0-16383), where 8192 represents
+  /// no pitch change (center). 0 is maximum bend down, and 16383 is maximum
+  /// bend up.
   late SendPitchBendDart sendPitchBend;
-  late SendModWheelDart sendModWheel;
+
+  /// Sends a MIDI Mod Wheel message (Control Change #1).
+  /// This is a specific instance of a Control Change message.
+  ///
+  /// The [value] is a 7-bit integer (0-127).
+  late SendModWheelDart sendModWheel; // Specific to CC1
+
+  /// Sends a generic MIDI Control Change (CC) message.
+  ///
+  /// The [controller] number (0-127) identifies the CC parameter.
+  /// The [value] (0-127) is the value for that controller.
+  late SendControlChangeDart sendControlChange; // Generic CC
 
 
   NativeAudioLib._internal() {
@@ -276,6 +295,9 @@ class NativeAudioLib {
 
     // Pitch Bend & Mod Wheel
     sendPitchBend = _dylib.lookupFunction<SendPitchBendC, SendPitchBendDart>('send_pitch_bend_ffi');
-    sendModWheel = _dylib.lookupFunction<SendModWheelC, SendModWheelDart>('send_mod_wheel_ffi');
+    sendModWheel = _dylib.lookupFunction<SendModWheelC, SendModWheelDart>('send_mod_wheel_ffi'); // Existing, specific to CC1
+    // Lookup for the new generic sendControlChange function
+    // Assuming the native function is named 'send_control_change_ffi'
+    sendControlChange = _dylib.lookupFunction<SendControlChangeC, SendControlChangeDart>('send_control_change_ffi');
   }
 }

@@ -68,6 +68,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
   final Set<int> _notesInCurrentScale = {};
 
   final Set<int> _pressedKeys = {};
+  final Map<int, int> _activePointersToMidiNotes = {}; // Map pointerId to midiNote
   final NativeAudioLib _nativeAudioLib = NativeAudioLib(); // Instance of FFI bridge
 
   double _initialKeyWidthFactorForPinch = 1.0;
@@ -98,11 +99,12 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
         _notesInCurrentScale.add((_selectedRootNoteMidiOffset + interval) % 12);
       }
     }
-    _releaseAllNotes();
+    _releaseAllNotes(); // This will also clear _activePointersToMidiNotes
     if(mounted) setState(() {});
   }
 
-  void _onNoteOn(int keyMidiOffset) {
+  // Modified to accept pointerId and initial pressure
+  void _onNoteOn(int keyMidiOffset, int pointerId, double pressure) {
     int noteChromaticOffsetInKey = keyMidiOffset % 12;
     if (_selectedScale != MusicalScale.Chromatic && !_notesInCurrentScale.contains(noteChromaticOffsetInKey)) {
       return;
@@ -116,24 +118,13 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
       int currentVelocity = (_velocity * 127).round();
       model.noteOn(midiNote, currentVelocity);
 
-      // Placeholder for Polyphonic Aftertouch: Send a fixed aftertouch value shortly after note-on for testing.
-      // In a real scenario, this would come from continuous pressure data from Listener.onPointerMove or similar.
-      // TODO: Remove this placeholder and implement actual aftertouch gesture detection.
-      Future.delayed(const Duration(milliseconds: 150), () { // Delay slightly more
-        if (_pressedKeys.contains(midiNote)) { // Check if key is still pressed
-          int placeholderPressure = 80; // Example pressure value 0-127
-          print("Keyboard: Sending Polyphonic Aftertouch for note $midiNote with pressure $placeholderPressure (placeholder call)");
-          _nativeAudioLib.sendPolyAftertouch(midiNote, placeholderPressure);
+      // Store active pointer
+      _activePointersToMidiNotes[pointerId] = midiNote;
 
-          // Example of varying pressure for testing:
-          // Future.delayed(const Duration(milliseconds: 300), () {
-          //   if (_pressedKeys.contains(midiNote)) {
-          //     _nativeAudioLib.sendPolyAftertouch(midiNote, 120);
-          //      print("Keyboard: Poly AT $midiNote updated to 120");
-          //   }
-          // });
-        }
-      });
+      // Send initial Poly AT
+      int scaledPressure = (pressure.clamp(0.0, 1.0) * 127).round();
+      _nativeAudioLib.sendPolyAftertouch(midiNote, scaledPressure);
+      // print("PolyAT Initial: Note $midiNote, Pressure: $scaledPressure, Pointer: $pointerId");
 
       setState(() {
         _pressedKeys.add(midiNote);
@@ -141,30 +132,39 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     }
   }
 
-  void _onNoteOff(int keyMidiOffset) {
-    final midiNote = (_currentOctave * notesInOctave) + keyMidiOffset;
-    if (midiNote > 127) return;
+  // Modified to accept pointerId
+  void _onNoteOff(int keyMidiOffset, int pointerId) {
+    // Retrieve the midiNote using the pointerId first, then fall back to keyMidiOffset if not found (though it should be found)
+    final int midiNote = _activePointersToMidiNotes[pointerId] ?? (_currentOctave * notesInOctave) + keyMidiOffset;
+
+    if (midiNote > 127 && _activePointersToMidiNotes[pointerId] == null) {
+      // If midiNote was calculated from keyMidiOffset and is invalid, and not found in map, return.
+      return;
+    }
 
     if (_pressedKeys.contains(midiNote)) {
       final model = context.read<SynthParametersModel>();
       model.noteOff(midiNote);
-      // Also send poly aftertouch of 0 when note is released
-      // print("Keyboard: Sending Polyphonic Aftertouch for note $midiNote with pressure 0 (note-off)");
-      // _nativeAudioLib.sendPolyAftertouch(midiNote, 0); // Pressure 0 on note off
+      // Send poly aftertouch of 0 when note is released
+      _nativeAudioLib.sendPolyAftertouch(midiNote, 0);
+      // print("PolyAT Zero: Note $midiNote, Pointer: $pointerId");
       setState(() {
         _pressedKeys.remove(midiNote);
       });
     }
+    // Always remove the pointer from the active map
+    _activePointersToMidiNotes.remove(pointerId);
   }
 
   void _releaseAllNotes() {
     final model = context.read<SynthParametersModel>();
     for (int note in _pressedKeys) {
       model.noteOff(note);
-      // _nativeAudioLib.sendPolyAftertouch(note, 0); // Pressure 0 on note off
+      _nativeAudioLib.sendPolyAftertouch(note, 0); // Pressure 0 on note off
     }
     setState(() {
       _pressedKeys.clear();
+      _activePointersToMidiNotes.clear(); // Clear active pointers as well
     });
   }
 
@@ -542,12 +542,25 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
           );
     
     return Listener(
-      onPointerDown: (_) {
+      onPointerDown: (PointerDownEvent event) {
         if (_selectedScale != MusicalScale.Chromatic && !isNoteInScale) return;
-        _onNoteOn(keyMidiOffset);
+        // Pass pointerId and initial pressure
+        _onNoteOn(keyMidiOffset, event.pointer, event.pressure);
       },
-      onPointerUp: (_) => _onNoteOff(keyMidiOffset),
-      onPointerCancel: (_) => _onNoteOff(keyMidiOffset),
+      onPointerMove: (PointerMoveEvent event) {
+        final int? midiNote = _activePointersToMidiNotes[event.pointer];
+        if (midiNote != null && _pressedKeys.contains(midiNote)) {
+          // Ensure pressure is within 0.0 to 1.0, then scale to 0-127
+          // Some devices might report outside 0-1, e.g. event.pressureMin, event.pressureMax
+          // Clamping to 0-1 first is a safe default.
+          double pressure = event.pressure.clamp(0.0, 1.0);
+          int scaledPressure = (pressure * 127).round();
+          _nativeAudioLib.sendPolyAftertouch(midiNote, scaledPressure);
+          // print("PolyAT Move: Note $midiNote, Pressure: $scaledPressure, Pointer: ${event.pointer}");
+        }
+      },
+      onPointerUp: (PointerUpEvent event) => _onNoteOff(keyMidiOffset, event.pointer),
+      onPointerCancel: (PointerCancelEvent event) => _onNoteOff(keyMidiOffset, event.pointer),
       child: Container(
         width: width,
         height: height,
