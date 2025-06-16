@@ -169,6 +169,7 @@ class _SyntherKnobState extends State<SyntherKnob>
                 builder: (context, child) {
                   return CustomPaint(
                     size: Size(widget.size, widget.size),
+                    clipBehavior: Clip.antiAlias, // Added to prevent drawing outside bounds
                     painter: _KnobPainter(
                       value: _normalizedValue,
                       angle: _angle,

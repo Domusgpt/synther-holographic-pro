@@ -45,6 +45,12 @@ int InitializeSynthEngine(int sampleRate, int bufferSize, float initialVolume) {
     }
 }
 
+FFI_BRIDGE_EXPORT void free_preset_json_ffi(char* json_string) {
+    if (json_string) {
+        delete[] json_string;
+    }
+}
+
 void ShutdownSynthEngine() {
     try {
         SynthEngine& engine = SynthEngine::getInstance();

@@ -356,7 +356,7 @@ public: // Temporarily public for easier struct definition visibility, or move s
     struct SynthPreset {
         std::string name;
         std::unordered_map<int, float> parameters; // parameterId -> value
-        std::unordered_map<int, int> midiC পরিবর্তনMappings; // ccNumber -> parameterId
+        std::unordered_map<int, int> midiCcMappings; // ccNumber -> parameterId
         AutomationData automationTracks;
         // Add fields for wavetable names, granular sample ID, etc.
         // std::vector<std::string> oscWavetableNames;
@@ -373,10 +373,10 @@ public: // Temporarily public for easier struct definition visibility, or move s
             if (!parameters.empty()) s.pop_back(); // Remove last comma
             s += "},";
             s += "\"midiMappings\":{";
-            for (auto const& [key, val] : midiC পরিবর্তনMappings) {
+            for (auto const& [key, val] : midiCcMappings) {
                  s += "\"" + std::to_string(key) + "\":" + std::to_string(val) + ",";
             }
-            if (!midiC পরিবর্তনMappings.empty()) s.pop_back();
+            if (!midiCcMappings.empty()) s.pop_back();
             s += "}";
             // Automation data serialization would be complex and is omitted for brevity
             s += "}";

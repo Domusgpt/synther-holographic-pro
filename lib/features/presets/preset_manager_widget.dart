@@ -100,13 +100,26 @@ class _PresetManagerWidgetState extends State<PresetManagerWidget> {
     }
     setState(() { _isLoading = true; _statusMessage = "Saving preset '$presetName'..."; });
 
-    Pointer<Utf8>? namePtr = presetName.toNativeUtf8();
-    Pointer<Utf8>? jsonResultPtr = nullptr;
+    Pointer<Utf8> namePtr = presetName.toNativeUtf8(); // Changed to non-nullable, will be freed in finally
+    Pointer<Utf8> jsonResultPtr = nullptr; // Initialize to nullptr
 
     try {
       jsonResultPtr = _nativeAudioLib.getCurrentPresetJson(namePtr);
+
+      if (jsonResultPtr.address == 0) {
+        // Handle null pointer from native call
+        print("Error saving preset: Native function returned null JSON pointer.");
+        setState(() { _statusMessage = "Error saving preset: Failed to retrieve preset data from engine."; });
+        // No need to free jsonResultPtr here as it's null
+        // namePtr will be freed in finally
+        return;
+      }
+
       final String presetJson = jsonResultPtr.toDartString();
-      calloc.free(jsonResultPtr); // Free memory allocated by native code (strdup or new char[])
+
+      // --- CORRECT MEMORY MANAGEMENT ---
+      _nativeAudioLib.freePresetJson(jsonResultPtr);
+      // --- END CORRECT MEMORY MANAGEMENT ---
 
       // Conceptual file saving
       // final dirPath = await _getPresetsDirectoryPath();
@@ -128,8 +141,13 @@ class _PresetManagerWidgetState extends State<PresetManagerWidget> {
     } catch (e) {
       print("Error saving preset: $e");
       setState(() { _statusMessage = "Error saving preset: $e"; });
+      // If jsonResultPtr was allocated but an error occurred (e.g., during toDartString or file ops), free it.
+      if (jsonResultPtr != nullptr && jsonResultPtr.address != 0) {
+        _nativeAudioLib.freePresetJson(jsonResultPtr);
+      }
     } finally {
-      if (namePtr != nullptr) calloc.free(namePtr);
+      calloc.free(namePtr); // Free namePtr, which is allocated by toNativeUtf8()
+      // jsonResultPtr is already freed or was null, so no need to free it here again.
       setState(() { _isLoading = false; });
     }
   }
