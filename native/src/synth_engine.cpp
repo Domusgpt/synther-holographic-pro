@@ -28,7 +28,9 @@ SynthEngine::SynthEngine()
       isRecordingAutomation(false), isPlayingAutomation(false),
       automationParameterChangeCallback(nullptr),
       uiControlMidiCallback_{nullptr},      // Initialize new callback
-      currentUiTargetPanelId_{0}       // Initialize new panel ID target
+      currentUiTargetPanelId_{0},       // Initialize new panel ID target
+      currentXYPadXParameterId(SynthParameterId::filterCutoff), // Default X to filterCutoff
+      currentXYPadYParameterId(SynthParameterId::filterResonance) // Default Y to filterResonance
       // automationRecordStartTime, automationPlaybackStartTime are default constructed
       // recordedAutomation, automationPlaybackIndices are default constructed
 {
@@ -506,6 +508,22 @@ bool SynthEngine::setParameter(int parameterId, float value, bool fromAutomation
         
         // Handle parameter based on ID (apply to synth modules)
         // This part remains largely the same, applying the value to the actual sound-producing components.
+
+        // XY Pad Value Passthrough
+        // If Flutter's XY Pad sends its value using one of these master IDs,
+        // apply the value to the currently mapped actual parameter.
+        if (parameterId == SynthParameterId::xyPadXValue) {
+            // Value received is for X-axis, apply it to the parameter stored in currentXYPadXParameterId
+            // Note: The 'value' here is the raw X value (e.g., 0.0-1.0).
+            // The setParameter method needs to handle appropriate scaling if the target parameter expects a different range.
+            // This assumes 'value' is already correctly scaled or that the target setParameter call handles it.
+            return this->setParameter(currentXYPadXParameterId.load(), value, fromAutomation);
+        }
+        if (parameterId == SynthParameterId::xyPadYValue) {
+            // Value received is for Y-axis, apply it to the parameter stored in currentXYPadYParameterId
+            return this->setParameter(currentXYPadYParameterId.load(), value, fromAutomation);
+        }
+
         switch (parameterId) {
             // Master parameters
             case SynthParameterId::masterVolume:

@@ -23,12 +23,24 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   // Initialize Firebase with proper error handling
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-  
-  // Initialize Firebase services
-  await FirebaseService.instance.initialize();
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("Firebase initialized successfully.");
+
+    // Initialize Firebase services after core app initialization
+    await FirebaseService.instance.initialize();
+    print("FirebaseService initialized.");
+
+  } catch (e) {
+    print('🔥🔥🔥 Firebase core initialization failed: $e');
+    // Depending on the app's requirements, you might want to:
+    // 1. Show a specific error UI to the user.
+    // 2. Allow the app to continue with Firebase features disabled.
+    // For now, we print the error and let the app continue,
+    // FirebaseService.instance.initialize() also has fallbacks.
+  }
   
   // Set system UI for immersive experience
   SystemChrome.setSystemUIOverlayStyle(

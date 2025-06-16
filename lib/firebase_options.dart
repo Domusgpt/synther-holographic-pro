@@ -15,6 +15,27 @@ import 'package:flutter/foundation.dart'
 /// );
 /// ```
 class DefaultFirebaseOptions {
+
+  // Define keys for environment variables
+  static const String _firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '');
+  static const String _firebaseAppId = String.fromEnvironment('FIREBASE_APP_ID', defaultValue: '');
+  static const String _firebaseMessagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID', defaultValue: '');
+  static const String _firebaseProjectId = String.fromEnvironment('FIREBASE_PROJECT_ID', defaultValue: '');
+  static const String _firebaseAuthDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN', defaultValue: '');
+  static const String _firebaseStorageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET', defaultValue: '');
+  static const String _firebaseMeasurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID', defaultValue: ''); // For Web
+  static const String _firebaseIosBundleId = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID', defaultValue: ''); // For iOS
+
+  // Specific App IDs for different platforms if they differ from _firebaseAppId
+  // Often, App ID is platform-specific, while other values might be shared.
+  static const String _firebaseAppIdWeb = String.fromEnvironment('FIREBASE_APP_ID_WEB', defaultValue: _firebaseAppId);
+  static const String _firebaseAppIdAndroid = String.fromEnvironment('FIREBASE_APP_ID_ANDROID', defaultValue: _firebaseAppId);
+  static const String _firebaseAppIdIos = String.fromEnvironment('FIREBASE_APP_ID_IOS', defaultValue: _firebaseAppId);
+  static const String _firebaseAppIdLinux = String.fromEnvironment('FIREBASE_APP_ID_LINUX', defaultValue: _firebaseAppId);
+  // It's also common to have different API keys per platform, but for simplicity here, one main key is used.
+  // If platform-specific API keys are needed, define more String.fromEnvironment variables like:
+  // static const String _firebaseApiKeyWeb = String.fromEnvironment('FIREBASE_API_KEY_WEB', defaultValue: _firebaseApiKey);
+
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
       return web;
@@ -44,47 +65,41 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCTWZsQTMVeaEsHXrg_pEF_CCzI7sYlZPw',
-    appId: '1:872646180221:web:c394d10b5b82696417a014',
-    messagingSenderId: '872646180221',
-    projectId: 'synther-pro-holo',
-    authDomain: 'synther-pro-holo.firebaseapp.com',
-    storageBucket: 'synther-pro-holo.firebasestorage.app',
+    apiKey: _firebaseApiKey,
+    appId: _firebaseAppIdWeb,
+    messagingSenderId: _firebaseMessagingSenderId,
+    projectId: _firebaseProjectId,
+    authDomain: _firebaseAuthDomain,
+    storageBucket: _firebaseStorageBucket,
+    measurementId: _firebaseMeasurementId, // Web often uses measurementId
   );
 
-  // TODO: Replace apiKey with actual value from Firebase console if necessary.
-  // This configuration is for the Android app with package name:
-  // com.domusgpt.synther_holographic_pro
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAaJ5wlzrBfSZ_brPeSgsGr1hFXroCnw4o', // Updated apiKey
-    appId: '1:872646180221:android:6c4d1ee3c5092d0417a014', // Updated appId
-    messagingSenderId: '872646180221', // From web
-    projectId: 'synther-pro-holo', // From web
-    authDomain: 'synther-pro-holo.firebaseapp.com', // From web
-    storageBucket: 'synther-pro-holo.firebasestorage.app',
+    apiKey: _firebaseApiKey, // Assuming same API key, or use _firebaseApiKeyAndroid
+    appId: _firebaseAppIdAndroid,
+    messagingSenderId: _firebaseMessagingSenderId,
+    projectId: _firebaseProjectId,
+    authDomain: _firebaseAuthDomain, // Added from web, ensure it's correct for Android too
+    storageBucket: _firebaseStorageBucket,
   );
 
-  // TODO: Replace with actual values from Firebase console.
-  // The apiKey and appId are placeholders.
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCTWZsQTMVeaEsHXrg_pEF_CCzI7sYlZPw', // Placeholder from web
-    appId: '1:872646180221:ios:placeholder_ios_app_id_generated', // Placeholder
-    messagingSenderId: '872646180221', // From web
-    projectId: 'synther-pro-holo', // From web
-    authDomain: 'synther-pro-holo.firebaseapp.com', // From web
-    storageBucket: 'synther-pro-holo.firebasestorage.app',
+    apiKey: _firebaseApiKey, // Assuming same API key, or use _firebaseApiKeyIos
+    appId: _firebaseAppIdIos,
+    messagingSenderId: _firebaseMessagingSenderId,
+    projectId: _firebaseProjectId,
+    authDomain: _firebaseAuthDomain, // Added from web
+    storageBucket: _firebaseStorageBucket,
+    iosBundleId: _firebaseIosBundleId,
   );
 
-  // Placeholder Linux FirebaseOptions.
-  // For distinct analytics or if you need a specific Linux app configuration,
-  // register a Linux app in your Firebase console. This might provide a unique appId.
-  // The apiKey and other values are currently based on the web configuration.
   static const FirebaseOptions linux = FirebaseOptions(
-    apiKey: 'AIzaSyCTWZsQTMVeaEsHXrg_pEF_CCzI7sYlZPw', // From web
-    appId: '1:872646180221:linux:placeholder_linux_app_id_generated', // Placeholder
-    messagingSenderId: '872646180221', // From web
-    projectId: 'synther-pro-holo', // From web
-    authDomain: 'synther-pro-holo.firebaseapp.com', // From web
-    storageBucket: 'synther-pro-holo.firebasestorage.app', // From web
+    apiKey: _firebaseApiKey, // Assuming same API key, or use _firebaseApiKeyLinux
+    appId: _firebaseAppIdLinux,
+    messagingSenderId: _firebaseMessagingSenderId,
+    projectId: _firebaseProjectId,
+    authDomain: _firebaseAuthDomain, // Added from web
+    storageBucket: _firebaseStorageBucket,
+    // measurementId: _firebaseMeasurementId, // Linux might use measurementId if using Analytics
   );
 }

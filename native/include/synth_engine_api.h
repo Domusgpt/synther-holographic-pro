@@ -99,6 +99,10 @@ SYNTH_API bool has_automation_data_ffi();
 SYNTH_API bool is_automation_recording_ffi();
 SYNTH_API bool is_automation_playing_ffi();
 
+// --- XY Pad Parameter Assignment ---
+SYNTH_API void set_xy_pad_x_parameter_ffi(int32_t parameter_id);
+SYNTH_API void set_xy_pad_y_parameter_ffi(int32_t parameter_id);
+
 
 #ifdef __cplusplus
 }

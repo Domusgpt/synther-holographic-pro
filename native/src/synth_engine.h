@@ -346,6 +346,12 @@ public:
 
 private:
     std::function<void(int, float)> automationParameterChangeCallback{nullptr};
+    std::function<void(int, int, int)> uiControlMidiCallback_{nullptr}; // Added from ffi_bridge.cpp context
+    std::atomic<int> currentUiTargetPanelId_{0}; // Added from ffi_bridge.cpp context
+
+    // XY Pad mapped parameters
+    std::atomic<int> currentXYPadXParameterId;
+    std::atomic<int> currentXYPadYParameterId;
 
     // Internal helper for preset application
     bool applyParameterMap(const std::unordered_map<int, float>& parameters, bool fromPreset);
@@ -353,6 +359,10 @@ private:
     // ApplyAutomationData would be complex, involving clearing and then adding events.
 
 public: // Temporarily public for easier struct definition visibility, or move struct out.
+    // Public methods for XY Pad parameter assignment
+    void setXYPadXParameter(int parameterId);
+    void setXYPadYParameter(int parameterId);
+
     struct SynthPreset {
         std::string name;
         std::unordered_map<int, float> parameters; // parameterId -> value
@@ -443,7 +453,34 @@ namespace SynthParameterId {
     constexpr int granularPan = 49;
     constexpr int granularPanVar = 50;
     constexpr int granularWindowType = 51;
+    // Aliases from original parameter_definitions.dart (ensure these are handled or merged if used)
+    // static const int granularPositionVar = 52;
+    // static const int granularPitchVar = 53;
+    // static const int granularDurationVar = 54;
+    // static const int granularPanVar = 55;
+
+    // Wavetable parameters
+    constexpr int wavetablePosition = 60;
+
+    // Microphone parameters
+    constexpr int microphoneVolume = 70;
+
+    // LFO parameters
+    constexpr int lfo1Rate = 80; // Added from parameter_definitions.dart
+    constexpr int lfo1Amount = 81; // Added from parameter_definitions.dart
     
+    // Mixer parameters
+    // constexpr int oscillator1Volume = 3; // Already defined as oscillatorVolume in practice
+    constexpr int oscillator2Volume = 90; // Added from parameter_definitions.dart
+    constexpr int oscillatorMix = 91;     // Added from parameter_definitions.dart
+
+    // XY Pad direct value parameters (used if XY doesn't map to other params directly)
+    // These are IDs that Dart would use with the generic SetParameter FFI
+    // if the engine is to then apply these values to currentXYPadXParameterId/currentXYPadYParameterId targets.
+    constexpr int xyPadXValue = 600; // Example ID for X value input
+    constexpr int xyPadYValue = 601; // Example ID for Y value input
+
+
     // Oscillator parameters (per oscillator)
     // For oscillator n, use: oscillatorType + (n * 10)
     constexpr int oscillatorType = 100;

@@ -45,6 +45,9 @@ typedef GetCurrentPresetJsonC = Pointer<Utf8> Function(Pointer<Utf8> nameJson);
 typedef ApplyPresetJsonC = Int32 Function(Pointer<Utf8> presetJson);
 typedef FreePresetJsonC = Void Function(Pointer<Utf8> jsonString);
 
+// XY Pad Parameter Assignment FFI functions
+typedef SetXYPadAxisParameterC = Void Function(Int32 parameterId);
+
 
 // --- Typedefs for Dart functions ---
 typedef InitializeSynthEngineDart = int Function(int sampleRate, int bufferSize, double initialVolume);
@@ -72,6 +75,8 @@ typedef RegisterParameterChangeCallbackDart = void Function(Pointer<NativeFuncti
 typedef GetCurrentPresetJsonDart = Pointer<Utf8> Function(Pointer<Utf8> nameJson);
 typedef ApplyPresetJsonDart = int Function(Pointer<Utf8> presetJson);
 typedef FreePresetJsonDart = void Function(Pointer<Utf8> jsonString);
+
+typedef SetXYPadAxisParameterDart = void Function(int parameterId);
 
 
 class NativeAudioLib {
@@ -117,6 +122,10 @@ class NativeAudioLib {
   late GetCurrentPresetJsonDart getCurrentPresetJson;
   late ApplyPresetJsonDart applyPresetJson;
   late FreePresetJsonDart freePresetJson;
+
+  // XY Pad Parameter Assignment
+  late SetXYPadAxisParameterDart setXYPadXParameter;
+  late SetXYPadAxisParameterDart setXYPadYParameter;
 
 
   NativeAudioLib._internal() {
@@ -238,5 +247,9 @@ class NativeAudioLib {
     getCurrentPresetJson = _dylib.lookup<NativeFunction<GetCurrentPresetJsonC>>('get_current_preset_json_ffi').asFunction();
     applyPresetJson = _dylib.lookup<NativeFunction<ApplyPresetJsonC>>('apply_preset_json_ffi').asFunction();
     freePresetJson = _dylib.lookup<NativeFunction<FreePresetJsonC>>('free_preset_json_ffi').asFunction();
+
+    // XY Pad Parameter Assignment
+    setXYPadXParameter = _dylib.lookupFunction<SetXYPadAxisParameterC, SetXYPadAxisParameterDart>('set_xy_pad_x_parameter_ffi');
+    setXYPadYParameter = _dylib.lookupFunction<SetXYPadAxisParameterC, SetXYPadAxisParameterDart>('set_xy_pad_y_parameter_ffi');
   }
 }
