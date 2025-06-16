@@ -103,6 +103,13 @@ SYNTH_API bool is_automation_playing_ffi();
 SYNTH_API void set_xy_pad_x_parameter_ffi(int32_t parameter_id);
 SYNTH_API void set_xy_pad_y_parameter_ffi(int32_t parameter_id);
 
+// --- Polyphonic Aftertouch ---
+SYNTH_API void send_poly_aftertouch_ffi(int note_number, int pressure);
+
+// --- Pitch Bend & Mod Wheel ---
+SYNTH_API void send_pitch_bend_ffi(int value); // 0-16383, 8192 center
+SYNTH_API void send_mod_wheel_ffi(int value);  // 0-127
+
 
 #ifdef __cplusplus
 }

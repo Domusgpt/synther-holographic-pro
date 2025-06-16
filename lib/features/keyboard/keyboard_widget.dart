@@ -3,6 +3,7 @@ import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:provider/provider.dart';
 import 'dart:math' as math; // For black key positioning
 import '../../core/synth_parameters.dart'; // Assuming this provides SynthParametersModel
+import '../../core/ffi/native_audio_ffi.dart'; // Import for NativeAudioLib
 import '../../ui/holographic/holographic_theme.dart';
 
 // --- Musical Scale Definitions ---
@@ -29,13 +30,13 @@ final Map<MusicalScale, List<int>> scaleIntervals = {
 class VirtualKeyboardWidget extends StatefulWidget {
   final Size initialSize;
   final bool isInitiallyCollapsed;
-  final Function(Size)? onSizeChanged; // For future resizable frame
-  final Function(bool)? onCollapsedChanged; // For collapse button interaction with frame
+  final Function(Size)? onSizeChanged;
+  final Function(bool)? onCollapsedChanged;
 
   final int minOctave;
   final int maxOctave;
-  final int initialOctave; // The octave number for the first C key displayed
-  final int numWhiteKeysToDisplay; // Determines the width of the keyboard visually
+  final int initialOctave;
+  final int numWhiteKeysToDisplay;
 
   const VirtualKeyboardWidget({
     Key? key,
@@ -45,8 +46,8 @@ class VirtualKeyboardWidget extends StatefulWidget {
     this.onCollapsedChanged,
     this.minOctave = 0,
     this.maxOctave = 7,
-    this.initialOctave = 3, // C3
-    this.numWhiteKeysToDisplay = 14, // Roughly 2 octaves of white keys
+    this.initialOctave = 3,
+    this.numWhiteKeysToDisplay = 14,
   }) : super(key: key);
 
   @override
@@ -59,27 +60,23 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
   late int _currentOctave;
   double _velocity = 100.0 / 127.0;
 
-  // New state variables for adjustable key size and range
   late double _keyWidthFactor;
   late int _numVisibleWhiteKeysActual;
 
-  // State variables for scale and key selection
   MusicalScale _selectedScale = MusicalScale.Chromatic;
-  int _selectedRootNoteMidiOffset = 0; // 0 for C, 1 for C#, etc.
-  final Set<int> _notesInCurrentScale = {}; // Holds MIDI note offsets (0-11) for the current scale & key
+  int _selectedRootNoteMidiOffset = 0;
+  final Set<int> _notesInCurrentScale = {};
 
   final Set<int> _pressedKeys = {};
+  final NativeAudioLib _nativeAudioLib = NativeAudioLib(); // Instance of FFI bridge
 
-  // Gesture-related state
   double _initialKeyWidthFactorForPinch = 1.0;
-  // int _initialNumVisibleWhiteKeysForPinch = 14; // For scaling number of keys, if implemented
-  ScaleUpdateDetails? _lastScaleDetails; // To detect horizontal pan during pinch for octave
-  double _octaveScrollAccumulator = 0.0; // Accumulates horizontal drag for octave change
+  ScaleUpdateDetails? _lastScaleDetails;
+  double _octaveScrollAccumulator = 0.0;
 
-  // Key layout constants
   static const int notesInOctave = 12;
-  static const List<bool> _isBlackKeyMap = [false, true, false, true, false, false, true, false, true, false, true, false]; // C, C#, D, D#, E, F, F#, G, G#, A, A#, B
-  static const List<double> _blackKeyOffsets = [0.0, 0.60, 0.0, 0.70, 0.0, 0.0, 0.55, 0.0, 0.65, 0.0, 0.75, 0.0]; // Visual offset for black keys
+  static const List<bool> _isBlackKeyMap = [false, true, false, true, false, false, true, false, true, false, true, false];
+  static const List<double> _blackKeyOffsets = [0.0, 0.60, 0.0, 0.70, 0.0, 0.0, 0.55, 0.0, 0.65, 0.0, 0.75, 0.0];
   static const double blackKeyWidthFactor = 0.65;
   static const double blackKeyHeightFactor = 0.6;
 
@@ -91,7 +88,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     _currentOctave = widget.initialOctave.clamp(widget.minOctave, widget.maxOctave);
     _keyWidthFactor = 1.0;
     _numVisibleWhiteKeysActual = widget.numWhiteKeysToDisplay.clamp(7, 28);
-    _updateNotesInScale(); // Initialize notes in scale
+    _updateNotesInScale();
   }
 
   void _updateNotesInScale() {
@@ -101,16 +98,13 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
         _notesInCurrentScale.add((_selectedRootNoteMidiOffset + interval) % 12);
       }
     }
-    _releaseAllNotes(); // Release notes when scale changes
+    _releaseAllNotes();
     if(mounted) setState(() {});
   }
 
   void _onNoteOn(int keyMidiOffset) {
-    // keyMidiOffset is the chromatic index (0-11) relative to the start of the *displayed* keyboard's first C
-    // For scale conformance, we need its chromatic value within any octave (0-11)
     int noteChromaticOffsetInKey = keyMidiOffset % 12;
     if (_selectedScale != MusicalScale.Chromatic && !_notesInCurrentScale.contains(noteChromaticOffsetInKey)) {
-      // If note is not in scale (and not chromatic mode), do not play it.
       return;
     }
 
@@ -119,20 +113,44 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
 
     if (!_pressedKeys.contains(midiNote)) {
       final model = context.read<SynthParametersModel>();
-      model.noteOn(midiNote, (_velocity * 127).round());
+      int currentVelocity = (_velocity * 127).round();
+      model.noteOn(midiNote, currentVelocity);
+
+      // Placeholder for Polyphonic Aftertouch: Send a fixed aftertouch value shortly after note-on for testing.
+      // In a real scenario, this would come from continuous pressure data from Listener.onPointerMove or similar.
+      // TODO: Remove this placeholder and implement actual aftertouch gesture detection.
+      Future.delayed(const Duration(milliseconds: 150), () { // Delay slightly more
+        if (_pressedKeys.contains(midiNote)) { // Check if key is still pressed
+          int placeholderPressure = 80; // Example pressure value 0-127
+          print("Keyboard: Sending Polyphonic Aftertouch for note $midiNote with pressure $placeholderPressure (placeholder call)");
+          _nativeAudioLib.sendPolyAftertouch(midiNote, placeholderPressure);
+
+          // Example of varying pressure for testing:
+          // Future.delayed(const Duration(milliseconds: 300), () {
+          //   if (_pressedKeys.contains(midiNote)) {
+          //     _nativeAudioLib.sendPolyAftertouch(midiNote, 120);
+          //      print("Keyboard: Poly AT $midiNote updated to 120");
+          //   }
+          // });
+        }
+      });
+
       setState(() {
         _pressedKeys.add(midiNote);
       });
     }
   }
 
-  void _onNoteOff(int keyMidiOffset) { // Parameter is now MIDI offset from C of the current octave
+  void _onNoteOff(int keyMidiOffset) {
     final midiNote = (_currentOctave * notesInOctave) + keyMidiOffset;
     if (midiNote > 127) return;
 
     if (_pressedKeys.contains(midiNote)) {
       final model = context.read<SynthParametersModel>();
       model.noteOff(midiNote);
+      // Also send poly aftertouch of 0 when note is released
+      // print("Keyboard: Sending Polyphonic Aftertouch for note $midiNote with pressure 0 (note-off)");
+      // _nativeAudioLib.sendPolyAftertouch(midiNote, 0); // Pressure 0 on note off
       setState(() {
         _pressedKeys.remove(midiNote);
       });
@@ -143,18 +161,20 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     final model = context.read<SynthParametersModel>();
     for (int note in _pressedKeys) {
       model.noteOff(note);
+      // _nativeAudioLib.sendPolyAftertouch(note, 0); // Pressure 0 on note off
     }
     setState(() {
       _pressedKeys.clear();
     });
   }
 
+  // ... (rest of the _build methods remain the same as current version)
   Widget _buildHeader() {
     return Container(
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(HolographicTheme.widgetTransparency * 1.8), // Slightly more opaque header
+        color: Colors.black.withOpacity(HolographicTheme.widgetTransparency * 1.8),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
         border: Border(bottom: BorderSide(color: HolographicTheme.primaryEnergy.withOpacity(0.6), width: 1)),
       ),
@@ -177,7 +197,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
           IconButton(
             icon: Icon(_isCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up, color: HolographicTheme.primaryEnergy),
             onPressed: () {
-              if (!_isCollapsed) _releaseAllNotes(); // Release notes when collapsing
+              if (!_isCollapsed) _releaseAllNotes();
               setState(() { _isCollapsed = !_isCollapsed; });
               widget.onCollapsedChanged?.call(_isCollapsed);
             },
@@ -257,7 +277,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             ),
             child: Slider(
               value: _keyWidthFactor,
-              min: 0.5, max: 2.0, divisions: 15, // 0.5x to 2.0x
+              min: 0.5, max: 2.0, divisions: 15,
               onChanged: (value) { setState(() { _keyWidthFactor = value; }); },
             ),
           ),
@@ -284,9 +304,9 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             ),
             child: Slider(
               value: _numVisibleWhiteKeysActual.toDouble(),
-              min: 7,  // 1 octave of white keys
-              max: 28, // 4 octaves of white keys
-              divisions: 21, // (28-7)
+              min: 7,
+              max: 28,
+              divisions: 21,
               label: "$_numVisibleWhiteKeysActual keys",
               onChanged: (value) {
                 _releaseAllNotes();
@@ -306,7 +326,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
       children: [
         Text('Root:', style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.accentEnergy, fontSize: 10, glowIntensity: 0.2)),
         Container(
-          height: 30, // Consistent height with other dropdowns/sliders in header
+          height: 30,
           padding: const EdgeInsets.symmetric(horizontal: 6.0),
           decoration: BoxDecoration(
             color: HolographicTheme.accentEnergy.withOpacity(HolographicTheme.widgetTransparency * 1.2),
@@ -315,7 +335,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
           child: DropdownButton<int>(
             value: _selectedRootNoteMidiOffset,
             isDense: true,
-            dropdownColor: Colors.black.withOpacity(HolographicTheme.hoverTransparency * 1.5), // Adjusted for more translucency
+            dropdownColor: Colors.black.withOpacity(HolographicTheme.hoverTransparency * 1.5),
             underline: Container(),
             icon: Icon(Icons.arrow_drop_down, color: HolographicTheme.accentEnergy.withOpacity(0.9), size: 18),
             items: rootNoteNames.asMap().entries.map((entry) {
@@ -353,7 +373,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
           child: DropdownButton<MusicalScale>(
             value: _selectedScale,
             isDense: true,
-            dropdownColor: Colors.black.withOpacity(HolographicTheme.hoverTransparency * 1.5), // Adjusted for more translucency
+            dropdownColor: Colors.black.withOpacity(HolographicTheme.hoverTransparency * 1.5),
             underline: Container(),
             icon: Icon(Icons.arrow_drop_down, color: HolographicTheme.accentEnergy.withOpacity(0.9), size: 18),
             items: MusicalScale.values.map((MusicalScale scale) {
@@ -389,127 +409,71 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
         final double blackKeyActualHeight = whiteKeyHeight * blackKeyHeightFactor;
 
         List<Widget> keyWidgets = [];
-
-        // This array maps a white key index (0-6 for C to B) to its chromatic index (0-11)
         const List<int> whiteKeyChromaticIndex = [0, 2, 4, 5, 7, 9, 11];
 
         for (int i = 0; i < _numVisibleWhiteKeysActual; i++) {
-          // Determine the note properties for this visual white key
-          int octaveOffset = i ~/ 7; // How many full C-to-B octaves we've passed visually
-          int whiteKeyIndexInVisualOctave = i % 7; // Which white key within the current visual C-to-B (0-6)
-
-          // Chromatic index (0-11) for this white key relative to C
+          int octaveOffset = i ~/ 7;
+          int whiteKeyIndexInVisualOctave = i % 7;
           int chromaticNoteIndex = whiteKeyChromaticIndex[whiteKeyIndexInVisualOctave];
-          // Full MIDI offset from the start of the *displayed* keyboard range's C
           int keyMidiOffset = octaveOffset * notesInOctave + chromaticNoteIndex;
-
           final bool isPressed = _pressedKeys.contains((_currentOctave * notesInOctave) + keyMidiOffset);
-
           keyWidgets.add(
             Positioned(
-              left: i * actualWhiteKeyWidth,
-              top: 0,
-              width: actualWhiteKeyWidth,
-              height: whiteKeyHeight,
-              child: _buildKey(
-                isBlack: false,
-                width: actualWhiteKeyWidth,
-                height: whiteKeyHeight,
-                keyMidiOffset: keyMidiOffset,
-                isPressed: isPressed,
-              ),
+              left: i * actualWhiteKeyWidth, top: 0, width: actualWhiteKeyWidth, height: whiteKeyHeight,
+              child: _buildKey(isBlack: false, width: actualWhiteKeyWidth, height: whiteKeyHeight, keyMidiOffset: keyMidiOffset, isPressed: isPressed,),
             ),
           );
         }
 
-        // Draw black keys
         for (int i = 0; i < _numVisibleWhiteKeysActual -1; i++) {
-            // Calculate the chromatic index of the current white key
             int currentWhiteVisualOctave = i ~/ 7;
             int currentWhiteVisualIndexInOctave = i % 7;
             int currentWhiteChromaticIndex = whiteKeyChromaticIndex[currentWhiteVisualIndexInOctave];
             int currentWhiteKeyMidiOffset = currentWhiteVisualOctave * notesInOctave + currentWhiteChromaticIndex;
-
-            // A black key exists if the *next* chromatic note is black
             int potentialBlackKeyMidiOffset = currentWhiteKeyMidiOffset + 1;
 
             if (_isBlackKeyMap[potentialBlackKeyMidiOffset % notesInOctave]) {
                 final bool isPressed = _pressedKeys.contains((_currentOctave * notesInOctave) + potentialBlackKeyMidiOffset);
-
-                // Offset for black key is relative to the white key it's conceptually "after"
-                // _blackKeyOffsets maps chromatic index to its visual offset factor
                 double blackKeyVisualOffsetFactor = _blackKeyOffsets[potentialBlackKeyMidiOffset % notesInOctave];
-
                 keyWidgets.add(
                     Positioned(
-                    left: (i * actualWhiteKeyWidth) + (actualWhiteKeyWidth * blackKeyVisualOffsetFactor) - (blackKeyActualWidth * 0.1), // Fine tune centering
-                    top: 0,
-                    width: blackKeyActualWidth,
-                    height: blackKeyActualHeight,
-                    child: _buildKey(
-                        isBlack: true,
-                        width: blackKeyActualWidth,
-                        height: blackKeyActualHeight,
-                        keyMidiOffset: potentialBlackKeyMidiOffset,
-                        isPressed: isPressed,
-                    ),
+                    left: (i * actualWhiteKeyWidth) + (actualWhiteKeyWidth * blackKeyVisualOffsetFactor) - (blackKeyActualWidth * 0.1),
+                    top: 0, width: blackKeyActualWidth, height: blackKeyActualHeight,
+                    child: _buildKey(isBlack: true, width: blackKeyActualWidth, height: blackKeyActualHeight, keyMidiOffset: potentialBlackKeyMidiOffset, isPressed: isPressed,),
                     ),
                 );
             }
         }
-
-        // Total width of all keys for the scroll view content
         final double totalKeysWidth = actualWhiteKeyWidth * _numVisibleWhiteKeysActual;
-
         return GestureDetector(
           onScaleStart: (details) {
             _initialKeyWidthFactorForPinch = _keyWidthFactor;
-            // _initialNumVisibleWhiteKeysForPinch = _numVisibleWhiteKeysActual; // If scaling num keys
-            _lastScaleDetails = null; // Reset for octave scroll detection
+            _lastScaleDetails = null;
             _octaveScrollAccumulator = 0.0;
           },
           onScaleUpdate: (details) {
-            // Use two fingers for key size (pinch-to-zoom)
-            if (details.pointerCount == 2 || (details.pointerCount == 1 && _lastScaleDetails?.pointerCount == 2) ) { // Allow finishing pinch with one finger up
+            if (details.pointerCount == 2 || (details.pointerCount == 1 && _lastScaleDetails?.pointerCount == 2) ) {
               if (details.scale != 1.0) {
                 _releaseAllNotes();
-                setState(() {
-                  _keyWidthFactor = (_initialKeyWidthFactorForPinch * details.scale).clamp(0.3, 3.0); // Wider clamp
-                });
+                setState(() { _keyWidthFactor = (_initialKeyWidthFactorForPinch * details.scale).clamp(0.3, 3.0); });
                 HapticFeedback.lightImpact();
               }
             }
-            // Use three (or more) finger horizontal pan for octave scroll
-            // This is experimental and might conflict with other gestures or be hard to trigger.
-            // A two-finger horizontal pan might be more common but conflicts with pinch-zoom's panning aspect.
             else if (details.pointerCount >= 3) {
               if (_lastScaleDetails != null) {
-                // Using focalPointDelta for smoother panning feel with multiple fingers
                 double dx = details.focalPointDelta.dx;
                 _octaveScrollAccumulator += dx;
-
-                // Heuristic: Define a threshold for octave change
-                // Adjust sensitivity based on key width for a more consistent feel
-                double changeThreshold = actualWhiteKeyWidth * 3; // e.g., drag 3 white keys width to change octave
-
+                double changeThreshold = actualWhiteKeyWidth * 3;
                 if (_octaveScrollAccumulator > changeThreshold) {
-                  if (_currentOctave < widget.maxOctave) {
-                    _releaseAllNotes();
-                    setState(() { _currentOctave++; });
-                    HapticFeedback.selectionClick();
-                  }
-                  _octaveScrollAccumulator = 0; // Reset accumulator
+                  if (_currentOctave < widget.maxOctave) { _releaseAllNotes(); setState(() { _currentOctave++; }); HapticFeedback.selectionClick(); }
+                  _octaveScrollAccumulator = 0;
                 } else if (_octaveScrollAccumulator < -changeThreshold) {
-                  if (_currentOctave > widget.minOctave) {
-                    _releaseAllNotes();
-                    setState(() { _currentOctave--; });
-                    HapticFeedback.selectionClick();
-                  }
-                  _octaveScrollAccumulator = 0; // Reset accumulator
+                  if (_currentOctave > widget.minOctave) { _releaseAllNotes(); setState(() { _currentOctave--; }); HapticFeedback.selectionClick(); }
+                  _octaveScrollAccumulator = 0;
                 }
               }
             }
-            _lastScaleDetails = details; // Store details for next update
+            _lastScaleDetails = details;
           },
           onScaleEnd: (details) {
             _lastScaleDetails = null;
@@ -518,7 +482,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             physics: _lastScaleDetails != null && _lastScaleDetails!.pointerCount > 1
-                ? const NeverScrollableScrollPhysics() // Disable scroll during multi-finger gestures
+                ? const NeverScrollableScrollPhysics()
                 : const BouncingScrollPhysics(),
             child: Container(
               width: totalKeysWidth,
@@ -535,18 +499,17 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     required bool isBlack,
     required double width,
     required double height,
-    required int keyMidiOffset, // MIDI offset from C of the *displayed* keyboard base octave
+    required int keyMidiOffset,
     required bool isPressed,
   }) {
     int noteChromaticIndexInOctave = keyMidiOffset % 12;
     bool isNoteInScale = _selectedScale == MusicalScale.Chromatic || _notesInCurrentScale.contains(noteChromaticIndexInOctave);
-
     Color keyColor;
     Color borderColor;
     double keyOpacityFactor = 1.0;
 
     if (_selectedScale != MusicalScale.Chromatic && !isNoteInScale) {
-      keyOpacityFactor = 0.3; // Dim out-of-scale keys
+      keyOpacityFactor = 0.3;
     }
 
     if (isBlack) {
@@ -558,11 +521,9 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     }
 
     if (_selectedScale != MusicalScale.Chromatic && isNoteInScale && !isPressed) {
-      // Highlight in-scale keys if a scale is selected
       borderColor = HolographicTheme.accentEnergy.withOpacity(0.9 * keyOpacityFactor);
-      keyColor = keyColor.withAlpha((keyColor.alpha * 1.2).clamp(0,255).toInt()); // Slightly brighter fill
+      keyColor = keyColor.withAlpha((keyColor.alpha * 1.2).clamp(0,255).toInt());
     }
-
 
     BoxDecoration decoration = isPressed
         ? HolographicTheme.createHolographicBorder(
@@ -574,25 +535,15 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             color: HolographicTheme.glowColor.withOpacity(HolographicTheme.activeTransparency * 1.8)
           )
         : BoxDecoration(
-            color: keyColor, // Uses modified keyColor
+            color: keyColor,
             borderRadius: BorderRadius.circular(isBlack ? 3 : 4),
-            border: Border.all(
-              color: borderColor, // Uses modified borderColor
-              width: 1.0,
-            ),
-             boxShadow: [
-                BoxShadow(
-                    color: borderColor.withOpacity(0.3 * keyOpacityFactor),
-                    blurRadius: 3,
-                    spreadRadius: 0.5,
-                    offset: Offset(0,1.5)
-                )
-            ]
+            border: Border.all(color: borderColor, width: 1.0,),
+             boxShadow: [ BoxShadow( color: borderColor.withOpacity(0.3 * keyOpacityFactor), blurRadius: 3, spreadRadius: 0.5, offset: Offset(0,1.5) ) ]
           );
     
     return Listener(
       onPointerDown: (_) {
-        if (_selectedScale != MusicalScale.Chromatic && !isNoteInScale) return; // Prevent playing out-of-scale notes
+        if (_selectedScale != MusicalScale.Chromatic && !isNoteInScale) return;
         _onNoteOn(keyMidiOffset);
       },
       onPointerUp: (_) => _onNoteOff(keyMidiOffset),
@@ -600,7 +551,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
       child: Container(
         width: width,
         height: height,
-        margin: isBlack ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 0.75), // Slightly increased gap
+        margin: isBlack ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 0.75),
         decoration: decoration,
       ),
     );
@@ -608,16 +559,15 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // The main container for the keyboard, applying overall holographic border
     return Container(
-      width: _isCollapsed ? 280 : _currentSize.width, // Fixed width when collapsed for controls
+      width: _isCollapsed ? 280 : _currentSize.width,
       height: _isCollapsed ? 40 : _currentSize.height,
       decoration: HolographicTheme.createHolographicBorder(
         energyColor: HolographicTheme.primaryEnergy,
-        intensity: 0.6, // Slightly less intense border for the whole widget
+        intensity: 0.6,
         cornerRadius: 10,
       ).copyWith(
-         color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.2), // Very transparent base
+         color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.2),
       ),
       child: Column(
         children: [
@@ -625,7 +575,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
           if (!_isCollapsed)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(5.0, 2.0, 5.0, 5.0), // Padding around keyboard area
+                padding: const EdgeInsets.fromLTRB(5.0, 2.0, 5.0, 5.0),
                 child: _buildKeyboardArea(),
               ),
             ),
