@@ -69,6 +69,8 @@ class _EmbeddedHyperAVVisualizerWebState extends EmbeddedHyperAVVisualizerState<
         // but setting them here ensures iframe itself doesn't break parent's clipping.
         ..style.borderRadius = '8px' // Match the ClipRRect in buildVisualizerContent
         ..style.overflow = 'hidden'
+        // Add this line:
+        ..style.backgroundColor = 'transparent' // Attempt to make iframe background transparent
         ..allow = 'microphone; autoplay; encrypted-media';
 
       // ignore: undefined_prefixed_name
@@ -84,6 +86,18 @@ class _EmbeddedHyperAVVisualizerWebState extends EmbeddedHyperAVVisualizerState<
             _isVisualizerLoaded = true;
           });
           debugPrint('✅ HyperAV Visualizer IFrame content loaded successfully');
+
+           // Add these lines:
+           _iframe?.contentWindow?.postMessage({
+             'type': 'setGeometry',
+             'geometry': 'hypercube', // Default geometry
+           }, '*');
+           _iframe?.contentWindow?.postMessage({
+             'type': 'setProjection',
+             'projection': 'perspective', // Default projection
+           }, '*');
+
+           debugPrint('🚀 Sent initial geometry and projection to HyperAV visualizer.');
           
           // Example: Simulate audio activity detection after load for testing UI
           Future.delayed(Duration(seconds: 2), () {
