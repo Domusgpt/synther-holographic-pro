@@ -61,6 +61,9 @@ While this marks a major milestone, Synther Professional is an ambitious project
 - **Performance Modes**: Normal, Performance, Minimal, Visualizer-only
 - **Holographic Aesthetics**: Translucency, parallax, neon glow, scanline effects
 - **Touch-First Design**: Optimized for mobile with haptic feedback
+- **Polyphonic Aftertouch**: Virtual keyboard supports per-note pressure sensitivity.
+- **On-Screen Pitch Bend Wheel**: Dedicated control for MIDI pitch bend with auto-return.
+- **On-Screen Modulation Wheel**: Dedicated, configurable control for MIDI CC messages (e.g., Mod Wheel CC#1).
 
 ### 🌌 HyperAV 4D Visualizer
 - **Real-Time 4D Geometry**: Hypercube, hypersphere, and complex polytope rendering

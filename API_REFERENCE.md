@@ -230,6 +230,21 @@ class InteractiveKnobPainter extends CustomPainter {
 }
 ```
 
+#### Interactive Performance Controls
+
+*   **VirtualKeyboardWidget**: Provides an on-screen piano keyboard for note input.
+    *   Sends note on/off messages through the `AudioEngine`.
+    *   Supports **Polyphonic Aftertouch**, sending pressure data (0-127) for individual notes via `NativeAudioLib.sendPolyAftertouch(note, pressure)`.
+*   **PitchBendWheelWidget**: An on-screen virtual wheel to control MIDI pitch bend.
+    *   Drag to change pitch bend value (-1.0 to 1.0 UI range).
+    *   Automatically returns to center (0.0) upon release.
+    *   Sends 14-bit MIDI pitch bend messages (0-16383, center 8192) via `NativeAudioLib.sendPitchBend(value)`.
+*   **ModulationWheelWidget**: An on-screen virtual wheel to control MIDI CC messages, typically CC#1 (Modulation).
+    *   Drag to change CC value (0.0 to 1.0 UI range).
+    *   Stays in position upon release.
+    *   Configurable `ccNumber` property.
+    *   Sends 7-bit MIDI CC messages (controller number, value 0-127) via `NativeAudioLib.sendControlChange(cc, value)`.
+
 ## 🌐 Cloud Functions API
 
 ### generatePreset Function
