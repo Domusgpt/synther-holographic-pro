@@ -45,6 +45,36 @@ int InitializeSynthEngine(int sampleRate, int bufferSize, float initialVolume) {
     }
 }
 
+FFI_BRIDGE_EXPORT void send_pitch_bend_ffi(int value) {
+    try {
+        SynthEngine::getInstance().setPitchBend(value);
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in send_pitch_bend_ffi: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception in send_pitch_bend_ffi" << std::endl;
+    }
+}
+
+FFI_BRIDGE_EXPORT void send_mod_wheel_ffi(int value) {
+    try {
+        SynthEngine::getInstance().setModWheel(value);
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in send_mod_wheel_ffi: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception in send_mod_wheel_ffi" << std::endl;
+    }
+}
+
+FFI_BRIDGE_EXPORT void send_poly_aftertouch_ffi(int note_number, int pressure) {
+    try {
+        SynthEngine::getInstance().polyAftertouch(note_number, pressure);
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in send_poly_aftertouch_ffi: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception in send_poly_aftertouch_ffi" << std::endl;
+    }
+}
+
 FFI_BRIDGE_EXPORT void set_xy_pad_x_parameter_ffi(int32_t parameter_id) {
     try {
         SynthEngine::getInstance().setXYPadXParameter(parameter_id);

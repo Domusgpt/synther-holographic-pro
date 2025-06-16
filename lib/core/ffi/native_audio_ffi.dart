@@ -48,6 +48,13 @@ typedef FreePresetJsonC = Void Function(Pointer<Utf8> jsonString);
 // XY Pad Parameter Assignment FFI functions
 typedef SetXYPadAxisParameterC = Void Function(Int32 parameterId);
 
+// Polyphonic Aftertouch FFI function
+typedef SendPolyAftertouchC = Void Function(Int32 noteNumber, Int32 pressure);
+
+// Pitch Bend & Mod Wheel FFI functions
+typedef SendPitchBendC = Void Function(Int32 value);
+typedef SendModWheelC = Void Function(Int32 value);
+
 
 // --- Typedefs for Dart functions ---
 typedef InitializeSynthEngineDart = int Function(int sampleRate, int bufferSize, double initialVolume);
@@ -77,6 +84,11 @@ typedef ApplyPresetJsonDart = int Function(Pointer<Utf8> presetJson);
 typedef FreePresetJsonDart = void Function(Pointer<Utf8> jsonString);
 
 typedef SetXYPadAxisParameterDart = void Function(int parameterId);
+
+typedef SendPolyAftertouchDart = void Function(int noteNumber, int pressure);
+
+typedef SendPitchBendDart = void Function(int value);
+typedef SendModWheelDart = void Function(int value);
 
 
 class NativeAudioLib {
@@ -126,6 +138,13 @@ class NativeAudioLib {
   // XY Pad Parameter Assignment
   late SetXYPadAxisParameterDart setXYPadXParameter;
   late SetXYPadAxisParameterDart setXYPadYParameter;
+
+  // Polyphonic Aftertouch
+  late SendPolyAftertouchDart sendPolyAftertouch;
+
+  // Pitch Bend & Mod Wheel
+  late SendPitchBendDart sendPitchBend;
+  late SendModWheelDart sendModWheel;
 
 
   NativeAudioLib._internal() {
@@ -251,5 +270,12 @@ class NativeAudioLib {
     // XY Pad Parameter Assignment
     setXYPadXParameter = _dylib.lookupFunction<SetXYPadAxisParameterC, SetXYPadAxisParameterDart>('set_xy_pad_x_parameter_ffi');
     setXYPadYParameter = _dylib.lookupFunction<SetXYPadAxisParameterC, SetXYPadAxisParameterDart>('set_xy_pad_y_parameter_ffi');
+
+    // Polyphonic Aftertouch
+    sendPolyAftertouch = _dylib.lookupFunction<SendPolyAftertouchC, SendPolyAftertouchDart>('send_poly_aftertouch_ffi');
+
+    // Pitch Bend & Mod Wheel
+    sendPitchBend = _dylib.lookupFunction<SendPitchBendC, SendPitchBendDart>('send_pitch_bend_ffi');
+    sendModWheel = _dylib.lookupFunction<SendModWheelC, SendModWheelDart>('send_mod_wheel_ffi');
   }
 }
