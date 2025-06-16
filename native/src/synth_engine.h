@@ -255,6 +255,20 @@ private:
     // Note tracking
     std::unordered_map<int, float> activeNotes; // note -> velocity
     std::mutex notesMutex;
+
+    // For Polyphonic Aftertouch
+    std::unordered_map<int, float> activeNotesPressure;
+    std::mutex pressureMutex; // To protect activeNotesPressure
+
+    // For Pitch Bend
+    std::atomic<float> currentPitchBendFactor{1.0f}; // Initialize to 1.0f (no bend)
+
+    // For Mod Wheel
+    std::atomic<float> currentModWheelValue{0.0f}; // Initialize to 0.0f
+
+    // For Voice Management
+    std::vector<int> voiceToNoteMap;       // Maps voice index (oscillator index) to MIDI note number, -1 if inactive
+    std::vector<float> voiceBaseFrequency; // Stores the base frequency of the note on a given voice/oscillator
     
     // Parameter cache
     std::unordered_map<int, float> parameterCache;
@@ -359,6 +373,15 @@ private:
     // ApplyAutomationData would be complex, involving clearing and then adding events.
 
 public: // Temporarily public for easier struct definition visibility, or move struct out.
+    // Polyphonic Aftertouch
+    void polyAftertouch(int noteNumber, int pressure);
+
+    // Pitch Bend
+    void setPitchBend(int value); // Value is 0-16383, 8192 is center
+
+    // Mod Wheel
+    void setModWheel(int value); // Value is 0-127
+
     // Public methods for XY Pad parameter assignment
     void setXYPadXParameter(int parameterId);
     void setXYPadYParameter(int parameterId);

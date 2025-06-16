@@ -65,6 +65,13 @@ bool SynthEngine::initialize(int sr, int bs, float initialVolume) {
         
         // Initialize modules
         initializeDefaultModules();
+
+        // Initialize voice management structures after oscillators are created
+        if (!oscillators.empty()) {
+            size_t numVoices = oscillators.size();
+            voiceToNoteMap.assign(numVoices, -1);
+            voiceBaseFrequency.assign(numVoices, 0.0f);
+        }
         
         // Create audio platform
         audioPlatform = AudioPlatform::createForCurrentPlatform();
@@ -154,84 +161,113 @@ void SynthEngine::shutdown() {
 }
 
 void SynthEngine::processAudio(float* outputBuffer, int numFrames, int numChannels) {
-    if (!initialized || masterMute) {
-        // Clear the output buffer if engine is not initialized or muted
+    if (!initialized || masterMute.load()) { // Assuming masterMute is atomic or properly protected if accessed from other threads
         for (int i = 0; i < numFrames * numChannels; ++i) {
             outputBuffer[i] = 0.0f;
         }
         return;
     }
-    
-    // Process audio for each frame
-    // Get smoothed master volume per-sample. If smoothing factor is very small (long smooth time),
-    // it might be optimized to get it once per block, but per-sample is safest for responsiveness.
+
+    float currentGlobalPitchBend = currentPitchBendFactor.load();
+
     for (int frame = 0; frame < numFrames; ++frame) {
         float currentSmoothedMasterVolume = masterVolume.getNextValue();
-
         float sampleLeft = 0.0f;
         float sampleRight = 0.0f;
-        
-        // Process all oscillators
-        for (auto& osc : oscillators) {
-            float oscSample = osc->process(); // Oscillator internal params (vol, pan, detune) should be smoothed too
-            
-            // Apply envelope
-            if (envelope && envelope->isActive()) {
-                oscSample *= envelope->process(); // Envelope output is inherently smoothed
+        float mixedVoicesSample = 0.0f;
+
+        // --- Process Voices (Oscillators) ---
+        for (int vIdx = 0; vIdx < static_cast<int>(oscillators.size()); ++vIdx) {
+            int note = voiceToNoteMap[vIdx]; // Assumes voiceToNoteMap is correctly sized
+
+            if (note != -1) { // Voice is active
+                // Dynamic Pitch Bend
+                // Ensure voiceBaseFrequency has valid data for this vIdx
+                if (vIdx < static_cast<int>(voiceBaseFrequency.size())) {
+                     oscillators[vIdx]->setFrequency(voiceBaseFrequency[vIdx] * currentGlobalPitchBend);
+                }
+
+                float oscSample = oscillators[vIdx]->process();
+
+                // Per-Voice Aftertouch Modulation
+                float pressure = 0.0f;
+                { // Scope for mutex lock
+                    std::lock_guard<std::mutex> lock(pressureMutex);
+                    // Check if note exists in map before accessing
+                    auto it = activeNotesPressure.find(note);
+                    if (it != activeNotesPressure.end()) {
+                        pressure = it->second;
+                    }
+                }
+
+                float aftertouchSensitivity = 0.5f; // Example: 0.0 to 0.5 additional gain
+                oscSample *= (1.0f + pressure * aftertouchSensitivity);
+
+                mixedVoicesSample += oscSample;
             }
-            
-            // Apply filter
-            if (filter) {
-                // filter->process() is assumed to use internal SmoothedParameterF for cutoff/resonance
-                // and call getNextValue() on them.
-                oscSample = filter->process(oscSample);
-            }
-            
-            // Add to output (simple stereo panning would go here)
-            sampleLeft += oscSample;
-            sampleRight += oscSample;
+            // Else: voice is inactive, its oscillator should output 0.0f
+            // (ideally its volume was set to 0 in noteOff)
         }
-        
-        // Add granular synthesis if active
-        if (granularSynth) {
+
+        // --- Apply Global Envelope and Filter ---
+        if (this->envelope && this->envelope->isActive()) {
+            mixedVoicesSample *= this->envelope->process();
+        }
+        if (this->filter) {
+            mixedVoicesSample = this->filter->process(mixedVoicesSample);
+        }
+
+        sampleLeft = mixedVoicesSample;
+        sampleRight = mixedVoicesSample; // Assuming mono mix from voices for now
+
+        // --- Add Granular Synthesis (after main synth's global filter) ---
+        if (granularSynth) { // Check if granularSynth is initialized
             float granLeft = 0.0f, granRight = 0.0f;
-            // Granular synth parameters (pitch, position etc.) should also be smoothed internally
-            granularSynth->process(granLeft, granRight);
+            granularSynth->process(granLeft, granRight); // Assumes this method exists and works
             sampleLeft += granLeft;
             sampleRight += granRight;
         }
-        
-        // Apply effects
-        // Effect parameters (mix, time, feedback) should also be smoothed internally by the effect's process method.
-        if (delay) {
-            sampleLeft = delay->process(sampleLeft);
-            sampleRight = delay->process(sampleRight);
+
+        // --- Apply Effects (Delay, Reverb) ---
+        if (this->delay) { // Check if delay is initialized
+            // Assuming delay processes stereo (or adapt if it's mono-in/stereo-out etc.)
+            // This is a simplified placeholder. A real delay might take separate L/R inputs
+            // or process a mono sum and output stereo.
+            // If delay is mono-in mono-out:
+            // float delayedSample = this->delay->process((sampleLeft + sampleRight) * 0.5f);
+            // sampleLeft = delayedSample; sampleRight = delayedSample;
+            // Or if it handles stereo:
+            float processedLeft = this->delay->process(sampleLeft); // Hypothetical stereo processing
+            float processedRight = this->delay->process(sampleRight); // Hypothetical
+            sampleLeft = processedLeft;
+            sampleRight = processedRight;
         }
         
-        if (reverb) {
-            sampleLeft = reverb->process(sampleLeft);
-            sampleRight = reverb->process(sampleRight);
+        if (this->reverb) { // Check if reverb is initialized
+            // Similar assumptions for reverb processing (mono/stereo)
+            float processedLeft = this->reverb->process(sampleLeft); // Hypothetical stereo processing
+            float processedRight = this->reverb->process(sampleRight); // Hypothetical
+            sampleLeft = processedLeft;
+            sampleRight = processedRight;
         }
-        
-        // Apply master volume
+
+        // --- Apply Master Volume ---
         sampleLeft *= currentSmoothedMasterVolume;
         sampleRight *= currentSmoothedMasterVolume;
-        
-        // Write to output buffer
+
+        // --- Write to Output Buffer ---
         if (numChannels == 1) {
-            // Mono output
             outputBuffer[frame] = (sampleLeft + sampleRight) * 0.5f;
         } else {
-            // Stereo output
             outputBuffer[frame * numChannels] = sampleLeft;
             outputBuffer[frame * numChannels + 1] = sampleRight;
         }
     }
-    
-    // Update audio analysis
+
+    // Update audio analysis (original position is fine)
     updateAudioAnalysis(outputBuffer, numFrames, numChannels);
 
-    // Automation Playback Logic
+    // Automation Playback Logic (original position is fine)
     if (isPlayingAutomation.load()) {
         std::lock_guard<std::mutex> lock(automationMutex);
         // Get current time relative to playback start
@@ -270,31 +306,53 @@ void SynthEngine::processAudio(float* outputBuffer, int numFrames, int numChanne
 }
 
 bool SynthEngine::noteOn(int note, int velocity) {
-    if (!initialized) {
+    if (!initialized || oscillators.empty()) {
         return false;
     }
-    
+
     try {
-        // Normalize velocity to 0.0-1.0
+        int vIdx = -1;
+        // Find an available voice
+        for (size_t i = 0; i < oscillators.size(); ++i) {
+            if (voiceToNoteMap[i] == -1) {
+                vIdx = static_cast<int>(i);
+                break;
+            }
+        }
+
+        // If no free voice, steal the first one (simple strategy)
+        if (vIdx == -1) {
+            vIdx = 0;
+            // Optional: Could send a noteOff for the stolen note: voiceToNoteMap[vIdx]
+            // For now, just overwrite.
+        }
+
+        voiceToNoteMap[vIdx] = note;
+        float baseFreq = noteToFrequency(note);
+        voiceBaseFrequency[vIdx] = baseFreq;
         float normalizedVelocity = static_cast<float>(velocity) / 127.0f;
-        
-        // Set oscillator frequencies based on MIDI note
-        float frequency = noteToFrequency(note);
-        for (auto& osc : oscillators) {
-            osc->setFrequency(frequency);
+
+        // Apply current pitch bend and set frequency
+        oscillators[vIdx]->setFrequency(baseFreq * currentPitchBendFactor.load());
+        oscillators[vIdx]->setVolume(normalizedVelocity); // Set individual oscillator volume
+
+        // Retrigger global envelope if used
+        if (this->envelope) {
+            this->envelope->noteOn(normalizedVelocity);
         }
-        
-        // Trigger envelope
-        if (envelope) {
-            envelope->noteOn(normalizedVelocity);
+
+        // Initialize pressure for the note
+        {
+            std::lock_guard<std::mutex> lock(pressureMutex);
+            activeNotesPressure[note] = 0.0f;
         }
-        
-        // Track active note
+
+        // Keep activeNotes map for global envelope logic for now
         {
             std::lock_guard<std::mutex> lock(notesMutex);
             activeNotes[note] = normalizedVelocity;
         }
-        
+
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Exception in SynthEngine::noteOn: " << e.what() << std::endl;
@@ -306,35 +364,50 @@ bool SynthEngine::noteOn(int note, int velocity) {
 }
 
 bool SynthEngine::noteOff(int note) {
-    if (!initialized) {
+    if (!initialized || oscillators.empty()) {
         return false;
     }
-    
+
     try {
-        // Check if this note is active
-        bool noteWasActive = false;
-        {
-            std::lock_guard<std::mutex> lock(notesMutex);
-            auto it = activeNotes.find(note);
-            if (it != activeNotes.end()) {
-                activeNotes.erase(it);
-                noteWasActive = true;
+        int vIdx = -1;
+        // Find the voice playing this note
+        for (size_t i = 0; i < oscillators.size(); ++i) {
+            if (voiceToNoteMap[i] == note) {
+                vIdx = static_cast<int>(i);
+                break;
             }
         }
-        
-        if (noteWasActive) {
-            // If there are no more active notes, trigger envelope release
-            bool anyNotesActive = false;
+
+        if (vIdx != -1) {
+            voiceToNoteMap[vIdx] = -1; // Free the voice
+            oscillators[vIdx]->setVolume(0.0f); // Silence the specific oscillator quickly
+
+            // Remove pressure information for the note
+            {
+                std::lock_guard<std::mutex> lock(pressureMutex);
+                activeNotesPressure.erase(note);
+            }
+
+            // Remove from activeNotes map (still used for global envelope check)
             {
                 std::lock_guard<std::mutex> lock(notesMutex);
-                anyNotesActive = !activeNotes.empty();
+                activeNotes.erase(note);
             }
-            
-            if (!anyNotesActive && envelope) {
-                envelope->noteOff();
+
+            // Check if any other voices are still active using voiceToNoteMap
+            bool anyVoiceStillActive = false;
+            for (size_t i = 0; i < voiceToNoteMap.size(); ++i) {
+                if (voiceToNoteMap[i] != -1) {
+                    anyVoiceStillActive = true;
+                    break;
+                }
+            }
+
+            // If no voices are active, trigger global envelope release
+            if (!anyVoiceStillActive && this->envelope) {
+                this->envelope->noteOff();
             }
         }
-        
         return true;
     } catch (const std::exception& e) {
         std::cerr << "Exception in SynthEngine::noteOff: " << e.what() << std::endl;
@@ -793,6 +866,52 @@ float SynthEngine::getParameter(int parameterId) {
         std::cerr << "Unknown exception in SynthEngine::getParameter" << std::endl;
         return 0.0f;
     }
+}
+
+// --- Polyphonic Aftertouch, Pitch Bend, Mod Wheel Callbacks ---
+
+void SynthEngine::polyAftertouch(int noteNumber, int pressure) {
+    if (!initialized) return;
+    float normPressure = static_cast<float>(pressure) / 127.0f;
+
+    std::lock_guard<std::mutex> lock(pressureMutex);
+    activeNotesPressure[noteNumber] = normPressure;
+    // Note: The actual application of this pressure to a sound parameter (e.g., filter cutoff, volume)
+    // would happen in the audio processing loop by checking activeNotesPressure for active notes.
+}
+
+void SynthEngine::setPitchBend(int value) {
+    if (!initialized) return;
+    // value is 0-16383, 8192 is center
+    // Common range is +/- 2 semitones.
+    const float bendRangeSemitones = 2.0f;
+    float normalizedBend = (static_cast<float>(value) - 8192.0f) / 8192.0f; // -1.0 to 1.0
+
+    // Calculate factor: 2^(semitones/12)
+    float factor = std::pow(2.0f, (normalizedBend * bendRangeSemitones) / 12.0f);
+    currentPitchBendFactor.store(factor);
+
+    // Update active oscillator frequencies immediately
+    // This requires iterating through active voices and updating their oscillators
+    for (size_t i = 0; i < oscillators.size(); ++i) {
+        if (voiceToNoteMap[i] != -1) { // If voice is active
+            float baseFreq = voiceBaseFrequency[i];
+            oscillators[i]->setFrequency(baseFreq * factor);
+        }
+    }
+}
+
+void SynthEngine::setModWheel(int value) {
+    if (!initialized) return;
+    float normValue = static_cast<float>(value) / 127.0f; // 0.0 to 1.0
+    currentModWheelValue.store(normValue);
+
+    // Example: Link Mod Wheel to LFO1 Amount (Intensity)
+    // This assumes LFO1 is implemented and SynthParameterId::lfo1Amount controls its depth.
+    // The setParameter function would need a case for lfo1Amount to apply this.
+    this->setParameter(SynthParameterId::lfo1Amount, normValue);
+    // Also, potentially LFO1 rate, or filter cutoff, etc.
+    // For now, just one example link.
 }
 
 void SynthEngine::initializeDefaultModules() {
