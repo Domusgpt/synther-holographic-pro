@@ -24,19 +24,26 @@ sudo apt-get install -y curl unzip xz-utils git apt-transport-https ca-certifica
 
 # --- Flutter SDK ---
 # Flutter version is pinned for consistent development environments.
-FLUTTER_VERSION="3.22.2"
+FLUTTER_VERSION="3.24.0" # Reverted to a version known to be downloadable
 FLUTTER_INSTALL_DIR="$HOME/sdks/flutter" # User-specific install directory to avoid needing sudo for Flutter itself.
 echo "Installing Flutter SDK version $FLUTTER_VERSION..."
 
+# Remove existing Flutter directory to ensure fresh install of the specified version
 if [ -d "$FLUTTER_INSTALL_DIR" ]; then
-  echo "Flutter directory $FLUTTER_INSTALL_DIR already exists. Skipping download and extraction."
-else
-  mkdir -p "$HOME/sdks" # Ensure the parent SDKs directory exists.
+  echo "Removing existing Flutter directory: $FLUTTER_INSTALL_DIR"
+  rm -rf "$FLUTTER_INSTALL_DIR"
+fi
+
+# The script originally skipped if directory existed. Now we ensure it installs the target version.
+# if [ -d "$FLUTTER_INSTALL_DIR" ]; then
+#  echo "Flutter directory $FLUTTER_INSTALL_DIR already exists. Skipping download and extraction."
+# else
+mkdir -p "$HOME/sdks" # Ensure the parent SDKs directory exists.
   # Download and extract Flutter SDK.
   wget "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -O "$HOME/sdks/flutter.tar.xz"
   tar xf "$HOME/sdks/flutter.tar.xz" -C "$HOME/sdks"
   rm "$HOME/sdks/flutter.tar.xz" # Clean up downloaded archive.
-fi
+# fi # Removed orphaned fi
 
 # Add Flutter to PATH for the current session.
 # Persistent PATH modification should be done by the user in their .bashrc or .zshrc.
