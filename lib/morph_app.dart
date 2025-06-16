@@ -10,6 +10,8 @@ import 'design_system/layout/morph_layout_manager.dart';
 import 'design_system/components/components.dart';
 import 'features/xy_pad/xy_pad.dart';
 import 'features/keyboard/keyboard_widget.dart';
+import 'features/controls/pitch_bend_wheel_widget.dart';
+import 'features/controls/modulation_wheel_widget.dart';
 import 'features/shared_controls/control_panel_widget.dart';
 import 'features/microphone_input/mic_input_widget.dart';
 import 'features/llm_presets/llm_preset_widget.dart';
@@ -440,11 +442,23 @@ class _MorphSynthesizerHomePageState extends State<MorphSynthesizerHomePage> {
   Widget _buildKeyboard() {
     return Padding(
       padding: EdgeInsets.all(DesignTokens.spacing3),
-      child: KeyboardWidget(
-        height: 200,
-        startOctave: 3,
-        numOctaves: 2,
-        showLabels: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch, // To make wheels stretch vertically
+        children: [
+          PitchBendWheelWidget(size: Size(50, double.infinity)), // Use available height
+          SizedBox(width: DesignTokens.spacing2), // Use design token for spacing
+          ModulationWheelWidget(size: Size(50, double.infinity)), // Use available height
+          SizedBox(width: DesignTokens.spacing3), // Use design token for spacing
+          Expanded(
+            child: KeyboardWidget(
+              // Consider removing fixed height or making it more flexible
+              // height: 200,
+              startOctave: 3,
+              numOctaves: 2,
+              showLabels: true,
+            ),
+          ),
+        ],
       ),
     );
   }
