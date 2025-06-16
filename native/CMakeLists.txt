@@ -21,6 +21,17 @@ include_directories(src/wavetable)
 include_directories(src/audio_platform)
 include_directories(include)
 
+# nlohmann/json (header-only Modern JSON library)
+include(FetchContent)
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.3 # Using a specific stable version
+)
+FetchContent_MakeAvailable(nlohmann_json)
+# nlohmann_json adds an interface target nlohmann_json::nlohmann_json
+# which handles includes automatically when linked.
+
 # Find or download RTAudio
 option(USE_SYSTEM_RTAUDIO "Use system-installed RTAudio" OFF)
 
@@ -75,9 +86,9 @@ endif()
 
 # Link with necessary libraries
 if(USE_SYSTEM_RTAUDIO)
-    target_link_libraries(synthengine PRIVATE RTAudio::rtaudio)
+    target_link_libraries(synthengine PRIVATE RTAudio::rtaudio nlohmann_json::nlohmann_json)
 else()
-    target_link_libraries(synthengine PRIVATE rtaudio)
+    target_link_libraries(synthengine PRIVATE rtaudio nlohmann_json::nlohmann_json)
 endif()
 
 # Audio API-specific dependencies

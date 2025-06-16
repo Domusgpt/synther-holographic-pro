@@ -62,6 +62,44 @@ SYNTH_API double GetDominantFrequency();
 #define SYNTH_PARAM_GRANULAR_PITCH       44
 #define SYNTH_PARAM_GRANULAR_AMPLITUDE   45
 
+// Preset management - memory handling
+SYNTH_API const char* get_current_preset_json_ffi(const char* name_c_str);
+SYNTH_API int apply_preset_json_ffi(const char* preset_json_c_str);
+SYNTH_API void free_preset_json_ffi(char* json_string);
+
+// --- MIDI Device Management ---
+SYNTH_API const char* get_midi_devices_json();
+SYNTH_API void select_midi_device(const char* device_id);
+
+// --- Callbacks ---
+// Typedef for MIDI message callback from C++ to Dart
+typedef void (*SynthMidiMessageCallback)(const unsigned char* messageData, int length);
+SYNTH_API void register_midi_message_callback(SynthMidiMessageCallback callback_ptr);
+
+// Typedef for parameter change callback from C++ to Dart (for automation)
+typedef void (*SynthParameterChangeCallback)(int parameterId, float value);
+SYNTH_API void register_parameter_change_callback_ffi(SynthParameterChangeCallback callback_ptr);
+
+// Typedef for UI control MIDI callback from C++ to Dart
+typedef void (*SynthUiControlMidiCallback)(int targetPanelId, int ccNumber, int ccValue);
+SYNTH_API void register_ui_control_midi_callback(SynthUiControlMidiCallback callback_ptr);
+
+
+// --- MIDI Learn ---
+SYNTH_API void start_midi_learn_ffi(int parameter_id);
+SYNTH_API void stop_midi_learn_ffi();
+
+// --- Automation ---
+SYNTH_API void start_automation_recording_ffi();
+SYNTH_API void stop_automation_recording_ffi();
+SYNTH_API void start_automation_playback_ffi();
+SYNTH_API void stop_automation_playback_ffi();
+SYNTH_API void clear_automation_data_ffi();
+SYNTH_API bool has_automation_data_ffi();
+SYNTH_API bool is_automation_recording_ffi();
+SYNTH_API bool is_automation_playing_ffi();
+
+
 #ifdef __cplusplus
 }
 #endif

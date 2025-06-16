@@ -1,5 +1,6 @@
 import 'dart:ffi';
 import 'dart:io' show Platform;
+import 'dart:isolate'; // Required for Isolate.current.debugName
 import 'package:ffi/ffi.dart';
 
 // --- Typedefs for C functions ---
@@ -42,6 +43,7 @@ typedef RegisterParameterChangeCallbackC = Void Function(Pointer<NativeFunction<
 // Preset Management FFI functions
 typedef GetCurrentPresetJsonC = Pointer<Utf8> Function(Pointer<Utf8> nameJson);
 typedef ApplyPresetJsonC = Int32 Function(Pointer<Utf8> presetJson);
+typedef FreePresetJsonC = Void Function(Pointer<Utf8> jsonString);
 
 
 // --- Typedefs for Dart functions ---
@@ -69,6 +71,7 @@ typedef RegisterParameterChangeCallbackDart = void Function(Pointer<NativeFuncti
 
 typedef GetCurrentPresetJsonDart = Pointer<Utf8> Function(Pointer<Utf8> nameJson);
 typedef ApplyPresetJsonDart = int Function(Pointer<Utf8> presetJson);
+typedef FreePresetJsonDart = void Function(Pointer<Utf8> jsonString);
 
 
 class NativeAudioLib {
@@ -95,7 +98,7 @@ class NativeAudioLib {
   // New MIDI functions
   late GetMidiDevicesJsonDart getMidiDevicesJson;
   late SelectMidiDeviceDart selectMidiDevice;
-  late RegisterMidiMessageCallbackDart registerMidiMessageCallback;
+  late RegisterMidiMessageCallbackDart registerMidiMessageCallbackNative; // Renamed to avoid conflict
   late StartMidiLearnDart startMidiLearn;
   late StopMidiLearnDart stopMidiLearn;
 
@@ -108,17 +111,81 @@ class NativeAudioLib {
   late BoolStateDart hasAutomationData;
   late BoolStateDart isAutomationRecording;
   late BoolStateDart isAutomationPlaying;
-  late RegisterParameterChangeCallbackDart registerParameterChangeCallback;
+  late RegisterParameterChangeCallbackDart registerParameterChangeCallbackNative; // Renamed
 
   // Preset Management
   late GetCurrentPresetJsonDart getCurrentPresetJson;
   late ApplyPresetJsonDart applyPresetJson;
+  late FreePresetJsonDart freePresetJson;
 
 
   NativeAudioLib._internal() {
     _dylib = _loadLibrary();
-    _lookupFunctions();
+    _lookupFunctions(); // This looks up C functions callable from Dart
+
+    // Setup and register Dart callbacks that C can call
+    // These Callables must be kept alive. Static fields are a good way.
+    _parameterChangeCallable = NativeCallable<ParameterChangeCallbackNative>.isolateLocal(
+      _staticParameterChangeHandler,
+      exceptionalReturn: Void(), // Or some other way to signal error if needed
+    );
+    _midiMessageCallable = NativeCallable<MidiMessageCallbackNative>.isolateLocal(
+      _staticMidiMessageHandler,
+      exceptionalReturn: Void(),
+    );
+
+    // Automatically register them if the native functions are available
+    if (_dylib.providesSymbol('register_parameter_change_callback_ffi')) {
+       this.registerParameterChangeCallbackNative(_parameterChangeCallable!.nativeFunction);
+       print("NativeAudioLib: ParameterChangeCallback registered with native.");
+    } else {
+      print("NativeAudioLib: register_parameter_change_callback_ffi not found in library.");
+    }
+
+    if (_dylib.providesSymbol('register_midi_message_callback')) {
+      this.registerMidiMessageCallbackNative(_midiMessageCallable!.nativeFunction);
+      print("NativeAudioLib: MidiMessageCallback registered with native.");
+    } else {
+      print("NativeAudioLib: register_midi_message_callback not found in library.");
+    }
   }
+
+  // Static references to NativeCallables to keep them alive
+  static NativeCallable<ParameterChangeCallbackNative>? _parameterChangeCallable;
+  static NativeCallable<MidiMessageCallbackNative>? _midiMessageCallable;
+
+  // Static handler functions that are called by C++ via NativeCallable
+  // These run on the main Dart isolate.
+  static void _staticParameterChangeHandler(int parameterId, double value) {
+    // This is where you'd typically forward the event to your application's state management
+    // For example, using a StreamController, Provider, Riverpod, Bloc, etc.
+    print('Dart: ParameterChangeCallback - ID: $parameterId, Value: $value (Thread: ${Isolate.current.debugName})');
+    // Example: _parameterChangeStreamController.add({'id': parameterId, 'value': value});
+  }
+
+  static void _staticMidiMessageHandler(Pointer<Uint8> messageData, int length) {
+    // This is where you'd forward the MIDI event
+    final message = List<int>.generate(length, (i) => messageData[i]);
+    print('Dart: MidiMessageCallback - Data: $message (Thread: ${Isolate.current.debugName})');
+    // Example: _midiMessageStreamController.add(message);
+  }
+
+  // Public methods to allow external listeners (optional, depends on app architecture)
+  // static final _parameterChangeStreamController = StreamController<Map<String, dynamic>>.broadcast();
+  // static Stream<Map<String, dynamic>> get onParameterChanged => _parameterChangeStreamController.stream;
+
+  // static final _midiMessageStreamController = StreamController<List<int>>.broadcast();
+  // static Stream<List<int>> get onMidiMessage => _midiMessageStreamController.stream;
+
+  // Call this method to clean up the NativeCallables when the library is no longer needed.
+  void disposeCallables() {
+    _parameterChangeCallable?.close();
+    _parameterChangeCallable = null;
+    _midiMessageCallable?.close();
+    _midiMessageCallable = null;
+    print("NativeAudioLib: Callbacks disposed.");
+  }
+
 
   DynamicLibrary _loadLibrary() {
     if (Platform.isMacOS || Platform.isIOS) {
@@ -152,7 +219,7 @@ class NativeAudioLib {
     // New MIDI functions
     getMidiDevicesJson = _dylib.lookup<NativeFunction<GetMidiDevicesJsonC>>('get_midi_devices_json').asFunction();
     selectMidiDevice = _dylib.lookup<NativeFunction<SelectMidiDeviceC>>('select_midi_device').asFunction();
-    registerMidiMessageCallback = _dylib.lookup<NativeFunction<RegisterMidiMessageCallbackC>>('register_midi_message_callback').asFunction();
+    registerMidiMessageCallbackNative = _dylib.lookup<NativeFunction<RegisterMidiMessageCallbackC>>('register_midi_message_callback').asFunction();
     startMidiLearn = _dylib.lookup<NativeFunction<StartMidiLearnC>>('start_midi_learn_ffi').asFunction();
     stopMidiLearn = _dylib.lookup<NativeFunction<StopMidiLearnC>>('stop_midi_learn_ffi').asFunction();
 
@@ -165,10 +232,11 @@ class NativeAudioLib {
     hasAutomationData = _dylib.lookup<NativeFunction<BoolStateC>>('has_automation_data_ffi').asFunction();
     isAutomationRecording = _dylib.lookup<NativeFunction<BoolStateC>>('is_automation_recording_ffi').asFunction();
     isAutomationPlaying = _dylib.lookup<NativeFunction<BoolStateC>>('is_automation_playing_ffi').asFunction();
-    registerParameterChangeCallback = _dylib.lookup<NativeFunction<RegisterParameterChangeCallbackC>>('register_parameter_change_callback_ffi').asFunction();
+    registerParameterChangeCallbackNative = _dylib.lookup<NativeFunction<RegisterParameterChangeCallbackC>>('register_parameter_change_callback_ffi').asFunction();
 
     // Preset Management
     getCurrentPresetJson = _dylib.lookup<NativeFunction<GetCurrentPresetJsonC>>('get_current_preset_json_ffi').asFunction();
     applyPresetJson = _dylib.lookup<NativeFunction<ApplyPresetJsonC>>('apply_preset_json_ffi').asFunction();
+    freePresetJson = _dylib.lookup<NativeFunction<FreePresetJsonC>>('free_preset_json_ffi').asFunction();
   }
 }

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:html' as html;
+import 'dart:ui' as ui; // Required for platform view registration
 import '../core/holographic_theme.dart';
 import 'embedded_hyperav_visualizer_interface.dart';
 
@@ -51,40 +52,62 @@ class _EmbeddedHyperAVVisualizerWebState extends EmbeddedHyperAVVisualizerState<
   html.IFrameElement? _iframe;
   bool _isVisualizerLoaded = false;
   bool _isAudioActive = false;
+  final String _viewId = 'hyperav_visualizer_iframe'; // Unique ID for the view
 
   @override
   void initializePlatformSpecific() {
+    if (!kIsWeb) return; // Should not happen due to conditional import, but good practice
+
     try {
-      // Create iframe pointing to our working HyperAV visualizer - web only
       _iframe = html.IFrameElement()
-        ..src = 'assets/visualizer/index-hyperav.html'
+        ..id = _viewId // Not strictly necessary but good for DOM inspection
+        ..src = 'assets/assets/visualizer/index-hyperav.html' // Corrected path for Flutter web
         ..style.border = 'none'
         ..style.width = '100%'
         ..style.height = '100%'
-        ..style.borderRadius = '12px'
+        // borderRadius and overflow should be handled by Flutter's ClipRRect if possible,
+        // but setting them here ensures iframe itself doesn't break parent's clipping.
+        ..style.borderRadius = '8px' // Match the ClipRRect in buildVisualizerContent
         ..style.overflow = 'hidden'
         ..allow = 'microphone; autoplay; encrypted-media';
 
-      // Listen for load event
+      // ignore: undefined_prefixed_name
+      ui.platformViewRegistry.registerViewFactory(
+        _viewId,
+        (int viewId) => _iframe!,
+      );
+
+      // Listen for load event on the iframe itself
       _iframe!.onLoad.listen((_) {
         if (mounted) {
           setState(() {
             _isVisualizerLoaded = true;
           });
-          debugPrint('✅ HyperAV Visualizer loaded successfully');
+          debugPrint('✅ HyperAV Visualizer IFrame content loaded successfully');
           
-          // Enable audio activity detection
-          Future.delayed(Duration(seconds: 1), () {
+          // Example: Simulate audio activity detection after load for testing UI
+          Future.delayed(Duration(seconds: 2), () {
             if (mounted) {
               setState(() {
-                _isAudioActive = true; // Assume active for now
+                _isAudioActive = true;
               });
             }
           });
         }
       });
 
-      // Listen for audio activity (if the visualizer posts messages)
+      // Error handling for iframe
+      _iframe!.onError.listen((event) {
+        debugPrint('❌ HyperAV Visualizer IFrame error: $event');
+        if (mounted) {
+          setState(() {
+            _isVisualizerLoaded = false; // Mark as not loaded on error
+          });
+        }
+      });
+
+
+      // Listen for audio activity messages from the iframe
       html.window.addEventListener('message', (event) {
         if (event is html.MessageEvent && mounted) {
           final data = event.data;
@@ -148,57 +171,18 @@ class _EmbeddedHyperAVVisualizerWebState extends EmbeddedHyperAVVisualizerState<
   }
 
   Widget _buildLoadedVisualizer() {
-    // For simplicity, create a direct iframe container
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      child: Stack(
-        children: [
-          // Iframe placeholder - will be managed by web platform
-          Container(
-            color: Colors.black.withOpacity(0.9),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.view_in_ar,
-                    color: HolographicTheme.primaryEnergy,
-                    size: 48,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'HyperAV 4D Visualizer',
-                    style: TextStyle(
-                      color: HolographicTheme.primaryEnergy,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  Text(
-                    'Audio-Reactive 4D Geometry',
-                    style: TextStyle(
-                      color: HolographicTheme.primaryEnergy.withOpacity(0.7),
-                      fontSize: 12,
-                    ),
-                  ),
-                  SizedBox(height: 16),
-                  Text(
-                    'Open visualizer/index-hyperav.html\\nin browser for full experience',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: HolographicTheme.primaryEnergy.withOpacity(0.5),
-                      fontSize: 10,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    if (_iframe == null) {
+      // This case should ideally not be reached if initializePlatformSpecific was successful
+      return Center(
+        child: Text(
+          'Visualizer IFrame not initialized.',
+          style: TextStyle(color: HolographicTheme.warningEnergy),
+        ),
+      );
+    }
+
+    // Use HtmlElementView to display the registered IFrame.
+    return HtmlElementView(viewType: _viewId);
   }
 
   Widget _buildLoadingState() {

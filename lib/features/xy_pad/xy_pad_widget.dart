@@ -412,6 +412,7 @@ class _XYPadWidgetState extends State<XYPadWidget> {
                   color: Colors.transparent, // See-through center
                 ),
                 child: CustomPaint(
+                  clipBehavior: Clip.antiAlias, // Added to prevent drawing outside bounds
                   painter: _XYPadHolographicPainter(
                     x: _xValue,
                     y: _yValue,

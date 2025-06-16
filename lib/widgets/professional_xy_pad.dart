@@ -96,7 +96,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
     );
     
     _energyController = AnimationController(
-      duration: Duration(seconds: 4),
+      duration: Duration(seconds: 8), // Increased duration to slow down particle/ripple animation rate
       vsync: this,
     );
     
@@ -224,7 +224,8 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
       top: widget.position?.dy ?? 0,
       child: Container(
         width: widget.width,
-        height: widget.height + 80, // Reduced extra space for controls
+        // Directly set the total height of the widget when expanded, as per new instruction
+        height: 350.0,
         child: Column(
           children: [
             // Header with collapse button
@@ -433,16 +434,17 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(13),
-          child: AnimatedBuilder(
-            animation: Listenable.merge([
-              _glowAnimation,
-              _energyAnimation,
-            ]),
-            builder: (context, child) {
-              return CustomPaint(
-                painter: XYPadPainter(
-                  touchPosition: _touchPosition,
-                  isInteracting: _isInteracting,
+          child: RepaintBoundary( // Added RepaintBoundary
+            child: AnimatedBuilder(
+              animation: Listenable.merge([
+                _glowAnimation,
+                _energyAnimation,
+              ]),
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: XYPadPainter(
+                    touchPosition: _touchPosition,
+                    isInteracting: _isInteracting,
                   glowIntensity: _glowAnimation.value,
                   energyPhase: _energyAnimation.value,
                   particles: _particles,
@@ -551,7 +553,7 @@ class EnergyParticle {
   
   void update() {
     position += velocity;
-    life += 0.01;
+    life += 0.005; // Reduced rate of change for particle life/opacity cycle
     
     // Wrap around edges
     if (position.dx < 0 || position.dx > 1) velocity = Offset(-velocity.dx, velocity.dy);

@@ -10,6 +10,7 @@
 #include "granular/granular_synth.h"
 #include <cmath>
 #include <iostream>
+#include "nlohmann/json.hpp" // For JSON handling
 
 // SynthEngine implementation
 SynthEngine& SynthEngine::getInstance() {
@@ -951,7 +952,7 @@ std::string SynthEngine::getCurrentPresetDataJson(const std::string& name) {
     }
     { // MIDI Mappings
         std::lock_guard<std::mutex> lock(midiMappingMutex);
-        preset.midiC পরিবর্তনMappings = this->ccToParameterMap;
+        preset.midiCcMappings = this->ccToParameterMap; // Use corrected name
     }
     { // Automation Data - conceptual copy
       // This would be complex to serialize fully. For now, just acknowledge it.
@@ -959,40 +960,43 @@ std::string SynthEngine::getCurrentPresetDataJson(const std::string& name) {
       // preset.automationTracks = this->recordedAutomation; // Deep copy needed
     }
     // TODO: Add wavetable selections, granular sample info, etc.
+    // TODO: Serialize automationTracks if needed.
 
-    // Using the very basic toJsonString placeholder from the struct.
-    // This will NOT be robust JSON for complex data like automation.
-    // It's primarily to show the data gathering.
-    // A better approach for FFI: C++ gathers data into struct, Dart pulls it field by field, Dart builds JSON.
-    // Or C++ uses a proper JSON lib.
+    nlohmann::json j;
+    j["name"] = preset.name;
 
-    // Manual, simplified JSON string construction for parameters and MIDI map for FFI:
-    std::string jsonOutput = "{";
-    jsonOutput += "\"name\":\"" + name + "\",";
-
-    // Parameters
-    jsonOutput += "\"parameters\":{";
-    bool firstParam = true;
+    // Parameters - convert int keys to string for JSON keys
     for (const auto& pair : preset.parameters) {
-        if (!firstParam) jsonOutput += ",";
-        jsonOutput += "\"" + std::to_string(pair.first) + "\":" + std::to_string(pair.second);
-        firstParam = false;
+        j["parameters"][std::to_string(pair.first)] = pair.second;
     }
-    jsonOutput += "},";
 
-    // MIDI Mappings
-    jsonOutput += "\"midiMappings\":{";
-    bool firstMidiMap = true;
-    for (const auto& pair : preset.midiC পরিবর্তনMappings) {
-        if (!firstMidiMap) jsonOutput += ",";
-        jsonOutput += "\"" + std::to_string(pair.first) + "\":" + std::to_string(pair.second);
-        firstMidiMap = false;
+    // MIDI Mappings - convert int keys to string for JSON keys
+    for (const auto& pair : preset.midiCcMappings) {
+        j["midiCcMappings"][std::to_string(pair.first)] = pair.second;
     }
-    jsonOutput += "}";
-    // Automation data would go here if serialized
 
-    jsonOutput += "}";
-    return jsonOutput;
+    // AutomationData serialization (conceptual example)
+    // This would be more complex depending on how AutomationEvent is structured
+    // For now, let's assume AutomationEvent is simple enough or skipped
+    /*
+    if (!preset.automationTracks.empty()) {
+        nlohmann::json automationJson;
+        for (const auto& track_pair : preset.automationTracks) {
+            nlohmann::json trackEventsJson = nlohmann::json::array();
+            for (const auto& event : track_pair.second) {
+                nlohmann::json eventJson;
+                eventJson["parameterId"] = event.parameterId;
+                eventJson["value"] = event.value;
+                eventJson["timestamp"] = event.timestamp;
+                trackEventsJson.push_back(eventJson);
+            }
+            automationJson[std::to_string(track_pair.first)] = trackEventsJson;
+        }
+        j["automationTracks"] = automationJson;
+    }
+    */
+
+    return j.dump(4); // dump with indent 4 for readability, or j.dump() for compact
 }
 
 // Applies a map of parameters. fromPresetOrAutomation helps distinguish source.
@@ -1017,77 +1021,94 @@ bool SynthEngine::applyMidiMap(const std::unordered_map<int, int>& midiMappings)
 
 
 bool SynthEngine::applyPresetDataJson(const std::string& jsonString) {
-    // This is where proper JSON parsing is CRITICAL.
-    // The SynthPreset::fromJsonString is a placeholder and NOT functional for real JSON.
-    // We will simulate parsing for parameters and MIDI maps only for this example.
-
     std::cout << "SynthEngine: Applying preset from JSON string (length " << jsonString.length() << ")" << std::endl;
-    // Example: Manually parse a very specific format like the one constructed in getCurrentPresetDataJson
-    // THIS IS NOT A ROBUST JSON PARSER.
-    SynthPreset preset; // Dummy preset object
+    try {
+        nlohmann::json j = nlohmann::json::parse(jsonString);
+        SynthPreset preset; // Helper struct, though we'll apply directly
 
-    // Simulated parsing for "parameters": {...}
-    std::string params_key = "\"parameters\":{";
-    size_t params_start = jsonString.find(params_key);
-    if (params_start != std::string::npos) {
-        size_t params_end = jsonString.find("}", params_start);
-        if (params_end != std::string::npos) {
-            std::string params_content = jsonString.substr(params_start + params_key.length(), params_end - (params_start + params_key.length()));
-            // Crude parsing of "id":value pairs
-            size_t current_pos = 0;
-            while(current_pos < params_content.length()) {
-                size_t p_id_start = params_content.find("\"", current_pos);
-                if (p_id_start == std::string::npos) break;
-                size_t p_id_end = params_content.find("\"", p_id_start + 1);
-                if (p_id_end == std::string::npos) break;
-                std::string p_id_str = params_content.substr(p_id_start + 1, p_id_end - (p_id_start + 1));
+        // Apply name (optional, could be just for info)
+        // preset.name = j.value("name", "Unnamed Preset");
 
-                size_t p_val_start = params_content.find(":", p_id_end);
-                if (p_val_start == std::string::npos) break;
-                size_t p_val_end = params_content.find(",", p_val_start + 1);
-                if (p_val_end == std::string::npos) p_val_end = params_content.length(); // last item
-
-                std::string p_val_str = params_content.substr(p_val_start + 1, p_val_end - (p_val_start + 1));
+        // Apply parameters
+        if (j.contains("parameters") && j["parameters"].is_object()) {
+            std::unordered_map<int, float> paramsToApply;
+            for (auto& [key_str, val] : j["parameters"].items()) {
                 try {
-                    preset.parameters[std::stoi(p_id_str)] = std::stof(p_val_str);
-                } catch (const std::exception& e) { /* ignore parse error for this crude parser */ }
-                current_pos = p_val_end + 1;
+                    int paramId = std::stoi(key_str);
+                    if (val.is_number()) {
+                        paramsToApply[paramId] = val.get<float>();
+                    }
+                } catch (const std::invalid_argument& ia) {
+                    std::cerr << "Warning: Invalid parameter ID string in JSON: " << key_str << std::endl;
+                } catch (const nlohmann::json::type_error& te) {
+                    std::cerr << "Warning: Type error for parameter value in JSON for key " << key_str << ": " << te.what() << std::endl;
+                }
+            }
+            if (!applyParameterMap(paramsToApply, true)) { // fromPreset = true
+                std::cerr << "Warning: Some parameters failed to apply." << std::endl;
+                // Decide if this is a fatal error for preset loading
             }
         }
-    }
 
-    // Simulated parsing for "midiMappings": {...}
-    std::string map_key = "\"midiMappings\":{";
-    size_t map_start = jsonString.find(map_key);
-     if (map_start != std::string::npos) {
-        size_t map_end = jsonString.find("}", map_start);
-        if (map_end != std::string::npos) {
-            std::string map_content = jsonString.substr(map_start + map_key.length(), map_end - (map_start + map_key.length()));
-            size_t current_pos = 0;
-            while(current_pos < map_content.length()) {
-                 size_t m_cc_start = map_content.find("\"", current_pos);
-                if (m_cc_start == std::string::npos) break;
-                size_t m_cc_end = map_content.find("\"", m_cc_start + 1);
-                if (m_cc_end == std::string::npos) break;
-                std::string m_cc_str = map_content.substr(m_cc_start + 1, m_cc_end - (m_cc_start + 1));
-
-                size_t m_pid_start = map_content.find(":", m_cc_end);
-                if (m_pid_start == std::string::npos) break;
-                size_t m_pid_end = map_content.find(",", m_pid_start + 1);
-                if (m_pid_end == std::string::npos) m_pid_end = map_content.length();
-
-                std::string m_pid_str = map_content.substr(m_pid_start + 1, m_pid_end - (m_pid_start + 1));
-                 try {
-                    preset.midiC পরিবর্তনMappings[std::stoi(m_cc_str)] = std::stoi(m_pid_str);
-                } catch (const std::exception& e) { /* ignore */ }
-                current_pos = m_pid_end + 1;
+        // Apply MIDI Mappings
+        if (j.contains("midiCcMappings") && j["midiCcMappings"].is_object()) { // Use corrected name
+            std::unordered_map<int, int> midiMapToApply;
+            for (auto& [key_str, val] : j["midiCcMappings"].items()) {
+                try {
+                    int ccNumber = std::stoi(key_str);
+                    if (val.is_number()) {
+                        midiMapToApply[ccNumber] = val.get<int>();
+                    }
+                } catch (const std::invalid_argument& ia) {
+                    std::cerr << "Warning: Invalid MIDI CC number string in JSON: " << key_str << std::endl;
+                } catch (const nlohmann::json::type_error& te) {
+                     std::cerr << "Warning: Type error for MIDI mapping value in JSON for key " << key_str << ": " << te.what() << std::endl;
+                }
+            }
+            if (!applyMidiMap(midiMapToApply)) {
+                std::cerr << "Warning: MIDI map failed to apply." << std::endl;
             }
         }
-    }
 
-    // Apply parsed data
-    bool paramsOk = applyParameterMap(preset.parameters, true); // fromPreset = true
-    bool midiOk = applyMidiMap(preset.midiC পরিবর্তনMappings);
+        // TODO: Apply automation data from j["automationTracks"] if present and structured
+        // This would involve parsing the automation structure (similar to how it's serialized)
+        // and then setting this->recordedAutomation and resetting playback indices.
+        // Example:
+        /*
+        if (j.contains("automationTracks") && j["automationTracks"].is_object()) {
+            std::lock_guard<std::mutex> lock(automationMutex);
+            recordedAutomation.clear(); // Clear existing before loading new
+            automationPlaybackIndices.clear();
+            for (auto& [param_id_str, track_json] : j["automationTracks"].items()) {
+                try {
+                    int param_id = std::stoi(param_id_str);
+                    AutomationTrack track;
+                    for (const auto& event_json : track_json) {
+                        track.push_back({
+                            event_json.value("parameterId", -1),
+                            event_json.value("value", 0.0f),
+                            event_json.value("timestamp", 0.0)
+                        });
+                    }
+                    recordedAutomation[param_id] = track;
+                } catch (const std::exception& e) {
+                    std::cerr << "Error parsing automation track for param " << param_id_str << ": " << e.what() << std::endl;
+                }
+            }
+        }
+        */
+
+        std::cout << "SynthEngine: Preset application finished." << std::endl;
+        return true; // Indicate success, even if some individual parts had warnings.
+                     // Or return false if strict parsing is required.
+
+    } catch (const nlohmann::json::parse_error& e) {
+        std::cerr << "SynthEngine: Failed to parse preset JSON: " << e.what() << std::endl;
+        return false;
+    } catch (const std::exception& e) {
+        std::cerr << "SynthEngine: Unexpected error applying preset JSON: " << e.what() << std::endl;
+        return false;
+    }
 
     // TODO: Apply automation data from preset.automationTracks
     // This would involve:
@@ -1098,9 +1119,10 @@ bool SynthEngine::applyPresetDataJson(const std::string& jsonString) {
     // 5. Update hasAutomationData appropriately.
 
     // TODO: Apply wavetable selections, granular sample info etc.
+    // These would also be read from the nlohmann::json object 'j'.
 
-    std::cout << "SynthEngine: Preset application finished." << std::endl;
-    return paramsOk && midiOk; // For now, only reflects param and MIDI map application
+    // Fallback if parsing failed before reaching a conclusive state (should be caught by try-catch)
+    return false;
 }
 
 

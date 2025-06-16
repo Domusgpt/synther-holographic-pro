@@ -301,10 +301,12 @@ class _DraggableKnobState extends State<DraggableKnob>
         Container(
           width: 60,
           height: 60,
-          child: Stack(
-            children: [
-              // RGB separated circles for chromatic effect
-              if (_isInteracting) ...[
+          child: ClipOval( // Added ClipOval for safety with translated chromatic circles
+            clipBehavior: Clip.antiAlias,
+            child: Stack(
+              children: [
+                // RGB separated circles for chromatic effect
+                if (_isInteracting) ...[
                 _buildChromaticCircle(Colors.red.withOpacity(0.6), Offset(2, 0)),
                 _buildChromaticCircle(Colors.cyan.withOpacity(0.6), Offset(-2, 0)),
                 _buildChromaticCircle(Colors.green.withOpacity(0.6), Offset(0, 2)),
@@ -339,6 +341,7 @@ class _DraggableKnobState extends State<DraggableKnob>
                 ),
               ),
             ],
+            ),
           ),
         ),
       ],
@@ -363,6 +366,7 @@ class _DraggableKnobState extends State<DraggableKnob>
   Widget _buildGlitchOverlay() {
     return Positioned.fill(
       child: CustomPaint(
+        clipBehavior: Clip.hardEdge, // Added for safety
         painter: GlitchOverlayPainter(
           intensity: _glitchIntensity,
           time: _glitchController.value,
