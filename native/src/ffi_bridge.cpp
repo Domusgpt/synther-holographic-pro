@@ -45,6 +45,26 @@ int InitializeSynthEngine(int sampleRate, int bufferSize, float initialVolume) {
     }
 }
 
+FFI_BRIDGE_EXPORT void set_xy_pad_x_parameter_ffi(int32_t parameter_id) {
+    try {
+        SynthEngine::getInstance().setXYPadXParameter(parameter_id);
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in set_xy_pad_x_parameter_ffi: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception in set_xy_pad_x_parameter_ffi" << std::endl;
+    }
+}
+
+FFI_BRIDGE_EXPORT void set_xy_pad_y_parameter_ffi(int32_t parameter_id) {
+    try {
+        SynthEngine::getInstance().setXYPadYParameter(parameter_id);
+    } catch (const std::exception& e) {
+        std::cerr << "Exception in set_xy_pad_y_parameter_ffi: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception in set_xy_pad_y_parameter_ffi" << std::endl;
+    }
+}
+
 FFI_BRIDGE_EXPORT void free_preset_json_ffi(char* json_string) {
     if (json_string) {
         delete[] json_string;

@@ -72,8 +72,11 @@ class FirebaseService {
     try {
       final UserCredential result = await _auth.signInAnonymously();
       return result.user;
+    } on FirebaseAuthException catch (e) {
+      print('FirebaseAuthException during anonymous sign in: ${e.code} - ${e.message}');
+      return null;
     } catch (e) {
-      print('Anonymous sign in error: $e');
+      print('Generic error during anonymous sign in: $e');
       return null;
     }
   }
@@ -86,8 +89,14 @@ class FirebaseService {
         password: password,
       );
       return result.user;
+    } on FirebaseAuthException catch (e) {
+      print('FirebaseAuthException during email sign in: ${e.code} - ${e.message}');
+      // Example: Handle specific codes if needed by UI
+      // if (e.code == 'user-not-found') { ... }
+      // if (e.code == 'wrong-password') { ... }
+      return null;
     } catch (e) {
-      print('Email sign in error: $e');
+      print('Generic error during email sign in: $e');
       return null;
     }
   }
@@ -104,15 +113,27 @@ class FirebaseService {
       await _createUserProfile(result.user!);
       
       return result.user;
+    } on FirebaseAuthException catch (e) {
+      print('FirebaseAuthException during account creation: ${e.code} - ${e.message}');
+      // Example: Handle specific codes
+      // if (e.code == 'email-already-in-use') { ... }
+      // if (e.code == 'weak-password') { ... }
+      return null;
     } catch (e) {
-      print('Account creation error: $e');
+      print('Generic error during account creation: $e');
       return null;
     }
   }
   
   /// Sign out
   Future<void> signOut() async {
-    await _auth.signOut();
+    try {
+      await _auth.signOut();
+    } on FirebaseAuthException catch (e) {
+      print('FirebaseAuthException during sign out: ${e.code} - ${e.message}');
+    } catch (e) {
+      print('Generic error during sign out: $e');
+    }
   }
   
   // USER PROFILE METHODS

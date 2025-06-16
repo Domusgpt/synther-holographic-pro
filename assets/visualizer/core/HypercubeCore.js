@@ -29,22 +29,61 @@ class HypercubeCore {
     _setUniforms() {
         const gl = this.gl; const dirty = this.state._dirtyUniforms; const programName = this.state.shaderProgramName;
         if (!this.shaderManager.useProgram(programName) || this.shaderManager.currentProgramName !== programName) return;
-        const timeLoc = this.shaderManager.getUniformLocation('u_time'); if (timeLoc) gl.uniform1f(timeLoc, this.state.time); else dirty.add('u_time');
-        const uniformsToRetry = new Set();
-        dirty.forEach(name => { if (name === 'u_time') return; const loc = this.shaderManager.getUniformLocation(name); if (loc !== null) { try { switch (name) {
-            case 'u_resolution': gl.uniform2fv(loc, this.state.resolution); break; case 'u_dimension': gl.uniform1f(loc, this.state.dimensions); break;
-            case 'u_morphFactor': gl.uniform1f(loc, this.state.morphFactor); break; case 'u_rotationSpeed': gl.uniform1f(loc, this.state.rotationSpeed); break;
-            case 'u_universeModifier': gl.uniform1f(loc, this.state.universeModifier); break; case 'u_patternIntensity': gl.uniform1f(loc, this.state.patternIntensity); break;
-            case 'u_gridDensity': gl.uniform1f(loc, this.state.gridDensity); break; case 'u_lineThickness': gl.uniform1f(loc, this.state.lineThickness); break;
-            case 'u_shellWidth': gl.uniform1f(loc, this.state.shellWidth); break; case 'u_tetraThickness': gl.uniform1f(loc, this.state.tetraThickness); break;
-            case 'u_glitchIntensity': gl.uniform1f(loc, this.state.glitchIntensity); break; case 'u_colorShift': gl.uniform1f(loc, this.state.colorShift); break;
-            case 'u_audioBass': gl.uniform1f(loc, this.state.audioLevels.bass); break; case 'u_audioMid': gl.uniform1f(loc, this.state.audioLevels.mid); break; case 'u_audioHigh': gl.uniform1f(loc, this.state.audioLevels.high); break;
-            case 'u_primaryColor': gl.uniform3fv(loc, this.state.colorScheme.primary); break; case 'u_secondaryColor': gl.uniform3fv(loc, this.state.colorScheme.secondary); break; case 'u_backgroundColor': gl.uniform3fv(loc, this.state.colorScheme.background); break;
-            default: break; } } catch (e) { console.error(`Error setting uniform '${name}':`, e); } } else { uniformsToRetry.add(name); } });
-        this.state._dirtyUniforms = uniformsToRetry;
+        const timeLoc = this.shaderManager.getUniformLocation('u_time');
+        if (timeLoc) {
+            gl.uniform1f(timeLoc, this.state.time);
+        } else {
+            // If u_time is essential and not found, it's a problem.
+            // For now, assume ShaderManager caches null if not found, so this path won't be hit often after first try.
+            // If it was previously in dirty, it will be processed below.
+        }
+
+        const stillDirtyUniforms = new Set();
+        this.state._dirtyUniforms.forEach(name => {
+            if (name === 'u_time' && timeLoc) return; // Already handled if found
+
+            const loc = this.shaderManager.getUniformLocation(name);
+            if (loc !== null) {
+                try {
+                    switch (name) {
+                        case 'u_resolution': gl.uniform2fv(loc, this.state.resolution); break;
+                        case 'u_dimension': gl.uniform1f(loc, this.state.dimensions); break;
+                        case 'u_morphFactor': gl.uniform1f(loc, this.state.morphFactor); break;
+                        case 'u_rotationSpeed': gl.uniform1f(loc, this.state.rotationSpeed); break;
+                        case 'u_universeModifier': gl.uniform1f(loc, this.state.universeModifier); break;
+                        case 'u_patternIntensity': gl.uniform1f(loc, this.state.patternIntensity); break;
+                        case 'u_gridDensity': gl.uniform1f(loc, this.state.gridDensity); break;
+                        case 'u_lineThickness': gl.uniform1f(loc, this.state.lineThickness); break;
+                        case 'u_shellWidth': gl.uniform1f(loc, this.state.shellWidth); break;
+                        case 'u_tetraThickness': gl.uniform1f(loc, this.state.tetraThickness); break;
+                        case 'u_glitchIntensity': gl.uniform1f(loc, this.state.glitchIntensity); break;
+                        case 'u_colorShift': gl.uniform1f(loc, this.state.colorShift); break;
+                        case 'u_audioBass': gl.uniform1f(loc, this.state.audioLevels.bass); break;
+                        case 'u_audioMid': gl.uniform1f(loc, this.state.audioLevels.mid); break;
+                        case 'u_audioHigh': gl.uniform1f(loc, this.state.audioLevels.high); break;
+                        case 'u_primaryColor': gl.uniform3fv(loc, this.state.colorScheme.primary); break;
+                        case 'u_secondaryColor': gl.uniform3fv(loc, this.state.colorScheme.secondary); break;
+                        case 'u_backgroundColor': gl.uniform3fv(loc, this.state.colorScheme.background); break;
+                        default:
+                            // console.warn(`Uniform '${name}' marked dirty but not handled in _setUniforms.`);
+                            stillDirtyUniforms.add(name); // Keep it dirty if not explicitly handled
+                            break;
+                    }
+                } catch (e) {
+                    console.error(`Error setting uniform '${name}':`, e);
+                    stillDirtyUniforms.add(name); // Keep it dirty if setting failed
+                }
+            } else {
+                // Uniform location not found by ShaderManager (it will have cached null).
+                // This usually means the uniform is not active in the current shader.
+                // No need to add to stillDirtyUniforms if it's correctly not found.
+                // console.warn(`Uniform '${name}' location not found in shader program '${programName}'. It might be optimized out or misspelled.`);
+            }
+        });
+        this.state._dirtyUniforms = stillDirtyUniforms; // Only retain uniforms that genuinely need retry or were unhandled.
     }
-    _render(timestamp) { if (!this.state.isRendering) return; const gl = this.gl; if (!gl || gl.isContextLost()) { console.error(`Context lost.`); this.stop(); this.state.callbacks.onError?.(new Error("WebGL context lost")); return; } if (!this.state.startTime) this.state.startTime = timestamp; const currentTime = (timestamp - this.state.startTime) * 0.001; this.state.deltaTime = currentTime - this.state.time; this.state.time = currentTime; this.state.lastUpdateTime = timestamp; this._markUniformDirty('time'); this._checkResize(); if (this.state.needsShaderUpdate) { if (!this._updateShaderIfNeeded()) { return; } } this._setUniforms(); const bg = this.state.colorScheme.background; gl.clearColor(bg[0], bg[1], bg[2], 1.0); gl.clear(gl.COLOR_BUFFER_BIT); if (this.quadBuffer && this.aPositionLoc !== null && this.aPositionLoc >= 0) { try { gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer); gl.enableVertexAttribArray(this.aPositionLoc); gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } catch (e) { console.error("Draw error:", e); this.stop(); this.state.callbacks.onError?.(new Error("WebGL draw error")); } } this.state.callbacks.onRender?.(this.state); this.state.animationFrameId = requestAnimationFrame(this._render.bind(this)); }
-    start() { if (this.state.isRendering) return; if (!this.gl || this.gl.isContextLost()) { console.error(`Cannot start, WebGL context invalid.`); return; } console.log(`Starting render loop.`); this.state.isRendering = true; this.state.startTime = performance.now(); this.state.time = 0; this.state.lastUpdateTime = this.state.startTime; if (this.state.needsShaderUpdate) { if (!this._updateShaderIfNeeded()) { console.error(`Initial shader update failed.`); this.state.isRendering = false; return; } } else if (this.aPositionLoc === null || this.aPositionLoc < 0) { this.aPositionLoc = this.shaderManager.getAttributeLocation('a_position'); if (this.aPositionLoc === null || this.aPositionLoc < 0) { console.error(`Attr 'a_position' invalid.`); this.state.isRendering = false; return; } try { this.gl.enableVertexAttribArray(this.aPositionLoc); } catch (e) { console.error("Enable attr error:", e); this.state.isRendering = false; return; } } this._markAllUniformsDirty(); this.state.animationFrameId = requestAnimationFrame(this._render.bind(this)); }
+    _render(timestamp) { if (!this.state.isRendering) return; const gl = this.gl; if (!gl || gl.isContextLost()) { console.error(`Context lost.`); this.stop(); this.state.callbacks.onError?.(new Error("WebGL context lost")); return; } if (!this.state.startTime) this.state.startTime = timestamp; const currentTime = (timestamp - this.state.startTime) * 0.001; this.state.deltaTime = currentTime - this.state.time; this.state.time = currentTime; this.state.lastUpdateTime = timestamp; this._markUniformDirty('time'); this._checkResize(); if (this.state.needsShaderUpdate) { if (!this._updateShaderIfNeeded()) { return; } } this._setUniforms(); const bg = this.state.colorScheme.background; gl.clearColor(bg[0], bg[1], bg[2], 1.0); gl.clear(gl.COLOR_BUFFER_BIT); if (this.quadBuffer && this.aPositionLoc !== null && this.aPositionLoc >= 0) { try { gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer); /*gl.enableVertexAttribArray(this.aPositionLoc);*/ gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } catch (e) { console.error("Draw error:", e); this.stop(); this.state.callbacks.onError?.(new Error("WebGL draw error")); } } this.state.callbacks.onRender?.(this.state); this.state.animationFrameId = requestAnimationFrame(this._render.bind(this)); }
+    start() { if (this.state.isRendering) return; if (!this.gl || this.gl.isContextLost()) { console.error(`Cannot start, WebGL context invalid.`); return; } console.log(`Starting render loop.`); this.state.isRendering = true; this.state.startTime = performance.now(); this.state.time = 0; this.state.lastUpdateTime = this.state.startTime; if (this.state.needsShaderUpdate) { if (!this._updateShaderIfNeeded()) { console.error(`Initial shader update failed.`); this.state.isRendering = false; return; } } else if (this.aPositionLoc === null || this.aPositionLoc < 0) { this.aPositionLoc = this.shaderManager.getAttributeLocation('a_position'); if (this.aPositionLoc === null || this.aPositionLoc < 0) { console.error(`Attr 'a_position' invalid.`); this.state.isRendering = false; return; } } if (this.aPositionLoc !== null && this.aPositionLoc >=0) { try { this.gl.enableVertexAttribArray(this.aPositionLoc); } catch (e) { console.error("Enable attr error during start:", e); this.state.isRendering = false; return; } } this._markAllUniformsDirty(); this.state.animationFrameId = requestAnimationFrame(this._render.bind(this)); }
     stop() { if (!this.state.isRendering) return; console.log(`Stopping render loop.`); if (this.state.animationFrameId) { cancelAnimationFrame(this.state.animationFrameId); } this.state.isRendering = false; this.state.animationFrameId = null; }
     dispose() { const name = this.state?.shaderProgramName || 'Unknown'; console.log(`Disposing HypercubeCore (${name})...`); this.stop(); if (this.gl && !this.gl.isContextLost()) { try { if (this.quadBuffer) this.gl.deleteBuffer(this.quadBuffer); if (this.shaderManager?.dispose) { this.shaderManager.dispose(); } const loseCtx = this.gl.getExtension('WEBGL_lose_context'); loseCtx?.loseContext(); } catch(e) { console.warn(`WebGL cleanup error:`, e); } } this.quadBuffer = null; this.gl = null; this.canvas = null; this.shaderManager = null; this.state = {}; console.log(`HypercubeCore (${name}) disposed.`); }
 }
