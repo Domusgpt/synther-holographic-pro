@@ -844,6 +844,22 @@ document.addEventListener('DOMContentLoaded', () => {
         if (event.data?.type === 'toggleControls') {
             document.body.classList.toggle('show-controls', event.data.show);
         }
+
+        if (event.data?.type === 'setGeometry' && mainVisualizerCore) {
+          console.log(`Received setGeometry: ${event.data.geometry}`);
+          mainVisualizerCore.updateParameters({ geometryType: event.data.geometry });
+          // Optionally update the dropdown UI if it exists and is visible
+          const geometrySelect = document.getElementById('geometryType');
+          if (geometrySelect) geometrySelect.value = event.data.geometry;
+        }
+
+        if (event.data?.type === 'setProjection' && mainVisualizerCore) {
+          console.log(`Received setProjection: ${event.data.projection}`);
+          mainVisualizerCore.updateParameters({ projectionMethod: event.data.projection });
+          // Optionally update the dropdown UI
+          const projectionSelect = document.getElementById('projectionMethod');
+          if (projectionSelect) projectionSelect.value = event.data.projection;
+        }
         
         if (event.data?.type === 'parameterUpdate' && mainVisualizerCore) {
             const { parameter, value } = event.data;

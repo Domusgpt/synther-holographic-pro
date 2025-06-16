@@ -160,6 +160,7 @@ class _GlassmorphicPaneState extends State<GlassmorphicPane>
                       // Main glassmorphic container
                       Container(
                         decoration: BoxDecoration(
+                          color: Colors.transparent, // Explicitly set base color to transparent
                           gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
@@ -186,7 +187,11 @@ class _GlassmorphicPaneState extends State<GlassmorphicPane>
                               sigmaY: widget.blurIntensity,
                             ),
                             child: Container(
+                              // Add this line if it's a simple container,
+                              // or inside its BoxDecoration if it has one.
+                              // For example, if it has padding:
                               padding: widget.padding,
+                              decoration: BoxDecoration(color: Colors.transparent), // Explicitly transparent
                               child: widget.child,
                             ),
                           ),
