@@ -78,77 +78,69 @@ class _EmbeddedHyperAVVisualizerState extends State<EmbeddedHyperAVVisualizer>
   }
 
   Widget _buildCollapsedState() {
-    return Positioned(
-      left: widget.position?.dx ?? 0,
-      top: widget.position?.dy ?? 0,
-      child: GestureDetector(
-        onTap: widget.onToggleCollapse,
-        onPanUpdate: (details) {
-          widget.onPositionChanged?.call(
-            (widget.position ?? Offset.zero) + details.delta,
-          );
-        },
-        child: Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.2),
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
-              color: HolographicTheme.primaryEnergy.withOpacity(0.6),
-              width: 2,
+    return GestureDetector(
+      onTap: widget.onToggleCollapse,
+      onPanUpdate: (details) {
+        widget.onPositionChanged?.call(
+          (widget.position ?? Offset.zero) + details.delta,
+        );
+      },
+      child: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: HolographicTheme.primaryEnergy.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: HolographicTheme.primaryEnergy.withOpacity(0.6),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: HolographicTheme.primaryEnergy.withOpacity(0.4),
+              blurRadius: 15,
+              spreadRadius: 3,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: HolographicTheme.primaryEnergy.withOpacity(0.4),
-                blurRadius: 15,
-                spreadRadius: 3,
-              ),
-            ],
-          ),
-          child: Icon(
-            Icons.view_in_ar,
-            color: HolographicTheme.primaryEnergy,
-            size: 24,
-          ),
+          ],
+        ),
+        child: Icon(
+          Icons.view_in_ar,
+          color: HolographicTheme.primaryEnergy,
+          size: 24,
         ),
       ),
     );
   }
 
   Widget _buildFullInterface() {
-    return Positioned(
-      left: widget.position?.dx ?? 0,
-      top: widget.position?.dy ?? 0,
-      child: Container(
-        width: widget.width,
-        height: widget.height,
-        decoration: BoxDecoration(
-          color: Colors.black.withOpacity(0.3),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: HolographicTheme.primaryEnergy.withOpacity(0.4),
-            width: 2,
+    return Container(
+      width: widget.width,
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: HolographicTheme.primaryEnergy.withOpacity(0.4),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: HolographicTheme.primaryEnergy.withOpacity(0.2),
+            blurRadius: 20,
+            spreadRadius: 5,
           ),
-          boxShadow: [
-            BoxShadow(
-              color: HolographicTheme.primaryEnergy.withOpacity(0.2),
-              blurRadius: 20,
-              spreadRadius: 5,
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(),
-            
-            // Visualizer content
-            Expanded(
-              child: _buildVisualizerContent(),
-            ),
-          ],
-        ),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Header
+          _buildHeader(),
+          
+          // Visualizer content
+          Expanded(
+            child: _buildVisualizerContent(),
+          ),
+        ],
       ),
     );
   }

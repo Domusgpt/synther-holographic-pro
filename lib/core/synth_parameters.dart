@@ -4,6 +4,7 @@ import 'audio_backend.dart';
 import 'platform_audio_backend.dart';
 import 'granular_parameters.dart';
 import 'parameter_definitions.dart';
+import 'music_theory.dart';
 import '../utils/audio_ui_sync.dart';
 
 /// The main model class for synth parameters
@@ -705,9 +706,7 @@ enum FilterType {
   highShelf,
 }
 
-// TODO: Move MusicalScale enum to a shared file (e.g. lib/core/music_theory.dart or parameter_definitions.dart)
-// Defined here temporarily for the diff to work and for context.
-enum MusicalScale { Chromatic, Major, MinorNatural, MinorHarmonic, MinorMelodic, PentatonicMajor, PentatonicMinor, Blues, Dorian, Mixolydian }
+// MusicalScale enum is now imported from music_theory.dart
 
 
 /// Possible XY pad parameter assignments

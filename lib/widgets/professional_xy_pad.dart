@@ -5,7 +5,7 @@ import 'dart:math' as math;
 import '../core/hyperav_bridge.dart';
 import '../core/holographic_theme.dart';
 import '../core/parameter_definitions.dart'; // For XYPadAssignment and SynthParameterId
-import '../core/ffi/native_audio_ffi.dart';   // For NativeAudioLib
+import '../core/ffi/native_audio_ffi_factory.dart';   // For NativeAudioLib factory
 
 // Note: The local 'SynthParameter' enum has been removed. Using XYPadAssignment from parameter_definitions.dart
 
@@ -60,7 +60,7 @@ class _ProfessionalXYPadState extends State<ProfessionalXYPad>
   late XYPadAssignment _selectedYParameter;
 
   // FFI bridge instance
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib();
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
 
   // Parameter lists for dropdowns
   final List<XYPadAssignment> _assignableParameters = [

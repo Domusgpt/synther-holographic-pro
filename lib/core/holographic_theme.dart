@@ -9,6 +9,7 @@ class HolographicTheme {
   
   // Background and Surface Colors
   static const Color voidBlack = Color(0xFF000011);        // Deep void black
+  static const Color deepSpaceBlack = Color(0xFF000011);   // Alias for deep space black
   static const Color glassWhite = Color(0x1AFFFFFF);       // Translucent white
   
   // Accent Colors for Variations
@@ -210,5 +211,66 @@ class HolographicTheme {
       default:
         return Paint()..color = baseColor;
     }
+  }
+
+  // Helper method for glow color - alias for primary energy
+  static Color get glowColor => primaryEnergy;
+
+  // Create holographic text style
+  static TextStyle createHolographicText({
+    required Color energyColor,
+    double fontSize = 14.0,
+    FontWeight fontWeight = FontWeight.bold,
+    double glowIntensity = 1.0,
+    double letterSpacing = 1.0,
+  }) {
+    return TextStyle(
+      color: energyColor,
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      letterSpacing: letterSpacing,
+      shadows: [
+        Shadow(
+          color: energyColor.withOpacity(0.8 * glowIntensity),
+          blurRadius: 4.0 * glowIntensity,
+        ),
+        Shadow(
+          color: energyColor.withOpacity(0.4 * glowIntensity),
+          blurRadius: 8.0 * glowIntensity,
+        ),
+      ],
+    );
+  }
+
+  // Create holographic container decoration
+  static BoxDecoration createHolographicContainer({
+    required Color energyColor,
+    double intensity = 1.0,
+    double borderOpacity = 0.4,
+    double backgroundOpacity = 0.1,
+    double blurRadius = 20.0,
+    double spreadRadius = 5.0,
+    BorderRadius? borderRadius,
+  }) {
+    return BoxDecoration(
+      color: Colors.black.withOpacity(backgroundOpacity),
+      borderRadius: borderRadius ?? BorderRadius.circular(16),
+      border: Border.all(
+        color: energyColor.withOpacity(borderOpacity * intensity),
+        width: 2,
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: energyColor.withOpacity(0.2 * intensity),
+          blurRadius: blurRadius * intensity,
+          spreadRadius: spreadRadius * intensity,
+        ),
+        BoxShadow(
+          color: energyColor.withOpacity(0.1 * intensity),
+          blurRadius: blurRadius * 2 * intensity,
+          spreadRadius: spreadRadius * 2 * intensity,
+        ),
+      ],
+    );
   }
 }

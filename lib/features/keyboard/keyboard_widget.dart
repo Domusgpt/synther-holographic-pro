@@ -3,7 +3,7 @@ import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:provider/provider.dart';
 import 'dart:math' as math; // For black key positioning
 import '../../core/synth_parameters.dart'; // Assuming this provides SynthParametersModel
-import '../../core/ffi/native_audio_ffi.dart'; // Import for NativeAudioLib
+import '../../core/ffi/native_audio_ffi_factory.dart'; // Import for NativeAudioLib factory
 import '../../ui/holographic/holographic_theme.dart';
 
 // --- Musical Scale Definitions ---
@@ -69,7 +69,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
 
   final Set<int> _pressedKeys = {};
   final Map<int, int> _activePointersToMidiNotes = {}; // Map pointerId to midiNote
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib(); // Instance of FFI bridge
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib(); // Instance of FFI bridge via factory
 
   double _initialKeyWidthFactorForPinch = 1.0;
   ScaleUpdateDetails? _lastScaleDetails;
@@ -320,13 +320,14 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
   }
 
   Widget _buildRootNoteSelector() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Root:', style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.accentEnergy, fontSize: 10, glowIntensity: 0.2)),
-        Container(
-          height: 30,
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Root:', style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.accentEnergy, fontSize: 9, glowIntensity: 0.2)),
+          Container(
+            height: 28,
           padding: const EdgeInsets.symmetric(horizontal: 6.0),
           decoration: BoxDecoration(
             color: HolographicTheme.accentEnergy.withOpacity(HolographicTheme.widgetTransparency * 1.2),
@@ -353,18 +354,20 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildScaleSelector() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-         Text('Scale:', style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.accentEnergy, fontSize: 10, glowIntensity: 0.2)),
-        Container(
-          height: 30,
+    return Expanded(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Scale:', style: HolographicTheme.createHolographicText(energyColor: HolographicTheme.accentEnergy, fontSize: 9, glowIntensity: 0.2)),
+          Container(
+            height: 28,
           padding: const EdgeInsets.symmetric(horizontal: 6.0),
            decoration: BoxDecoration(
             color: HolographicTheme.accentEnergy.withOpacity(HolographicTheme.widgetTransparency * 1.2),
@@ -391,7 +394,8 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             },
           ),
         ),
-      ],
+        ],
+      ),
     );
   }
 

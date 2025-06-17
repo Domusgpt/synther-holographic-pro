@@ -16,8 +16,8 @@ import 'core/synth_parameters.dart';
 // Firebase Services
 import 'services/firebase_service.dart';
 
-// Cohesive Holographic Interface (Proper Design)
-import 'ui/cohesive_holographic_interface.dart';
+// Professional Synthesizer Interface (Complete)
+import 'ui/professional_synthesizer_interface.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,7 +68,7 @@ void main() async {
         ChangeNotifierProvider<SynthParametersModel>.value(value: synthParameters),
         Provider<FirebaseService>.value(value: FirebaseService.instance),
       ],
-      child: const CohesiveHolographicInterface(),
+      child: const ProfessionalSynthesizerInterface(),
     ),
   );
 }

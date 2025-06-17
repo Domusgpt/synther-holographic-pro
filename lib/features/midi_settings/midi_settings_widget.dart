@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:ffi/ffi.dart';
 import 'dart:convert'; // For jsonDecode
 
-import '../../core/ffi/native_audio_ffi.dart'; // Assumed path
+import '../../core/ffi/native_audio_ffi_factory.dart'; // Factory pattern
 import '../../ui/holographic/holographic_theme.dart';
 
 class MidiDevice {
@@ -48,7 +48,7 @@ class _MidiSettingsWidgetState extends State<MidiSettingsWidget> {
   String _lastMidiMessage = "No MIDI messages received yet.";
 
   // Native library instance
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib();
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
 
   @override
   void initState() {

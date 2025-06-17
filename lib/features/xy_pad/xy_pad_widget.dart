@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/synth_parameters.dart'; // Assuming this defines XYPadAssignment and SynthParametersModel
 import '../../ui/holographic/holographic_theme.dart';
+import '../../core/music_theory.dart';
 
 // Placeholder for SynthParameterId mappings if not provided by synth_parameters.dart
 // These should match synth_engine.h or a shared constants definition.
@@ -28,10 +29,6 @@ class AudioEngineInterface {
 }
 // --- End Placeholder Definitions ---
 
-// --- Musical Scale Definitions (copied from VirtualKeyboardWidget for now) ---
-// TODO: Move to a shared 'lib/core/music_theory.dart' or similar
-enum MusicalScale { Chromatic, Major, MinorNatural, MinorHarmonic, MinorMelodic, PentatonicMajor, PentatonicMinor, Blues, Dorian, Mixolydian }
-
 const List<String> rootNoteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 final Map<MusicalScale, List<int>> scaleIntervals = {
@@ -46,7 +43,6 @@ final Map<MusicalScale, List<int>> scaleIntervals = {
   MusicalScale.Dorian: [0,2,3,5,7,9,10],
   MusicalScale.Mixolydian: [0,2,4,5,7,9,10],
 };
-// --- End Musical Scale Definitions ---
 
 
 /// A widget that displays an XY pad for controlling synthesis parameters.
@@ -412,7 +408,7 @@ class _XYPadWidgetState extends State<XYPadWidget> {
                   color: Colors.transparent, // See-through center
                 ),
                 child: CustomPaint(
-                  clipBehavior: Clip.antiAlias, // Added to prevent drawing outside bounds
+                  // clipBehavior not supported on CustomPaint - use ClipRRect wrapper if needed
                   painter: _XYPadHolographicPainter(
                     x: _xValue,
                     y: _yValue,

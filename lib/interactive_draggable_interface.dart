@@ -24,7 +24,7 @@ import 'ui/holographic/holographic_theme.dart';
 
 import 'dart:ffi'; // For Pointer.fromFunction
 import 'package:ffi/ffi.dart'; // For calloc if needed for string passing (not directly here)
-import 'core/ffi/native_audio_ffi.dart'; // For NativeAudioLib and callback typedef
+import 'core/ffi/native_audio_ffi_factory.dart'; // For NativeAudioLib factory and callback typedef
 import 'core/services/panel_state_service.dart'; // Import the new service
 
 // Define a class to hold panel configuration and state
@@ -137,7 +137,7 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   @override
   void initState() {
     super.initState();
-    _nativeAudioLib = NativeAudioLib(); // Initialize FFI
+    _nativeAudioLib = createNativeAudioLib(); // Initialize FFI via factory
 
     // Try to load panel layout first
     _loadPanelLayoutAndInitialize();
