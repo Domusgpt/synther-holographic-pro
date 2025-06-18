@@ -15,6 +15,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
     with TickerProviderStateMixin {
   
   late AnimationController _glowController;
+  late TabController _tabController;
   
   // Parameter state
   double _cutoff = 1000.0;
@@ -25,10 +26,6 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
   double _release = 0.5;
   double _volume = 0.75;
   double _reverb = 0.3;
-  
-  // XY Pad state
-  double _xyX = 0.5;
-  double _xyY = 0.5;
   
   // LLM preset prompt
   String _llmPrompt = '';
@@ -41,11 +38,13 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
       vsync: this,
     )..repeat(reverse: true);
     _initializeAudioEngine();
+    _tabController = TabController(length: 2, vsync: this);
   }
   
   @override
   void dispose() {
     _glowController.dispose();
+    _tabController.dispose();
     super.dispose();
   }
   
@@ -85,36 +84,32 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
               builder: (context, audioEngine, child) {
                 return Column(
                   children: [
-                    // Top Section: XY Pad + LLM Presets
                     Expanded(
-                      flex: 3,
-                      child: Row(
-                        children: [
-                          // XY Pad for Pitch/Note Control
-                          Expanded(
-                            flex: 2,
-                            child: _buildXYPad(audioEngine),
-                          ),
-                          
-                          // LLM Preset Interface
-                          Expanded(
-                            flex: 1,
-                            child: _buildLLMPresetInterface(),
-                          ),
-                        ],
-                      ),
+                      flex: 1, // Temporary flex
+                      child: _buildLLMPresetInterface(),
                     ),
-                    
-                    // Middle Section: Adjustable Knobs and Sliders
                     Expanded(
-                      flex: 2,
+                      flex: 2, // Adjusted flex
                       child: _buildParameterControls(audioEngine),
                     ),
-                    
-                    // Bottom Section: Keyboard Input Interface
+                    // Add TabBar
+                    TabBar(
+                      controller: _tabController,
+                      tabs: const [
+                        Tab(icon: Icon(Icons.touch_app), text: "XY Pad"),
+                        Tab(icon: Icon(Icons.keyboard), text: "Keyboard"),
+                      ],
+                    ),
+                    // Add TabBarView
                     Expanded(
-                      flex: 2,
-                      child: _buildKeyboardInterface(audioEngine),
+                      flex: 3, // Temporary flex, this will be the main content area
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          XYPadTabView(audioEngine: audioEngine),
+                          KeyboardTabView(audioEngine: audioEngine),
+                        ],
+                      ),
                     ),
                   ],
                 );
@@ -165,67 +160,6 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
           ),
         );
       },
-    );
-  }
-  
-  Widget _buildXYPad(AudioEngine audioEngine) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFF00FFFF).withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              'XY PAD - PITCH/NOTE CONTROL',
-              style: TextStyle(
-                color: Color(0xFF00FFFF),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-          Expanded(
-            child: GestureDetector(
-              onPanUpdate: (details) {
-                final RenderBox box = context.findRenderObject() as RenderBox;
-                final localPosition = box.globalToLocal(details.globalPosition);
-                final size = box.size;
-                
-                setState(() {
-                  _xyX = (localPosition.dx / size.width).clamp(0.0, 1.0);
-                  _xyY = 1.0 - (localPosition.dy / size.height).clamp(0.0, 1.0);
-                });
-                
-                // Map XY to musical parameters
-                final note = 48 + (_xyX * 36).round(); // C3 to C6
-                final velocity = _xyY * 0.8 + 0.2; // 0.2 to 1.0
-                
-                audioEngine.playNote(note, velocity);
-              },
-              onPanEnd: (details) {
-                audioEngine.stopAllNotes();
-              },
-              child: Container(
-                margin: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: CustomPaint(
-                  painter: XYPadPainter(_xyX, _xyY),
-                  child: Container(),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
   
@@ -319,6 +253,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
       ),
       child: Column(
         children: [
+          // Existing Keyboard Content
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
@@ -337,10 +272,11 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
               child: Column(
                 children: [
                   // Filter controls
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildKnob(
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildKnob(
                           'CUTOFF',
                           _cutoff,
                           20.0,
@@ -366,13 +302,14 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                         ),
                       ),
                     ],
-                  ),
+                  )),
                   
                   // Envelope controls
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildKnob(
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildKnob(
                           'ATTACK',
                           _attack,
                           0.001,
@@ -398,13 +335,14 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                         ),
                       ),
                     ],
-                  ),
+                  )),
                   
                   // Volume and Reverb sliders
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildSlider(
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _buildSlider(
                           'VOLUME',
                           _volume,
                           0.0,
@@ -435,42 +373,18 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
               ),
             ),
           ),
+          // Add these placeholders:
+          Text('X-Axis Parameter: [Pitch] (selectable TBD)', style: TextStyle(color: Colors.white70)),
+          Text('Y-Axis Parameter: [Effect] (selectable TBD)', style: TextStyle(color: Colors.white70)),
+          SizedBox(height: 10),
+          Text('Sub-pad / Mini-Keyboard / Mini-Effect Pad Area:', style: TextStyle(color: Colors.white70)),
+          Placeholder(fallbackHeight: 50),
         ],
       ),
     );
   }
   
-  Widget _buildKeyboardInterface(AudioEngine audioEngine) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Color(0xFFFFFF00).withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              'KEYBOARD INPUT',
-              style: TextStyle(
-                color: Color(0xFFFFFF00),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-          Expanded(
-            child: _buildPianoKeyboard(audioEngine),
-          ),
-        ],
-      ),
-    );
-  }
-  
-  Widget _buildKnob(String label, double value, double min, double max, 
+  Widget _buildKnob(String label, double value, double min, double max,
                    ValueChanged<double> onChanged, Color color) {
     return Column(
       children: [
@@ -531,49 +445,6 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
     );
   }
   
-  Widget _buildPianoKeyboard(AudioEngine audioEngine) {
-    return Container(
-      margin: const EdgeInsets.all(16),
-      child: Row(
-        children: List.generate(12, (index) {
-          final isBlackKey = [1, 3, 6, 8, 10].contains(index % 12);
-          final note = 60 + index; // C4 to B4
-          
-          return Expanded(
-            child: GestureDetector(
-              onTapDown: (_) => audioEngine.playNote(note, 0.8),
-              onTapUp: (_) => audioEngine.stopNote(note),
-              onTapCancel: () => audioEngine.stopNote(note),
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 1),
-                decoration: BoxDecoration(
-                  color: isBlackKey ? Colors.black : Colors.white,
-                  border: Border.all(color: Color(0xFFFFFF00).withOpacity(0.5)),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Center(
-                  child: Text(
-                    _getNoteLabel(index),
-                    style: TextStyle(
-                      color: isBlackKey ? Colors.white : Colors.black,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-  
-  String _getNoteLabel(int index) {
-    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    return notes[index % 12];
-  }
-  
   void _generateLLMPreset() {
     // Simulate LLM preset generation
     if (_llmPrompt.isEmpty) return;
@@ -588,6 +459,9 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
     });
     
     // Apply to audio engine
+    // Ensure AudioEngine is accessible here, e.g. via Provider if needed, or pass as parameter.
+    // For now, assuming it's accessible via context.read if this method stays in _ProfessionalSynthesizerInterfaceState
+    // If _generateLLMPreset is moved or relies on AudioEngine from a different context, this needs adjustment.
     final audioEngine = context.read<AudioEngine>();
     audioEngine.setFilterCutoff(_cutoff);
     audioEngine.setFilterResonance(_resonance);
@@ -639,6 +513,189 @@ class XYPadPainter extends CustomPainter {
   
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// TabView Widgets
+
+// XYPadTabView Widget
+class XYPadTabView extends StatefulWidget {
+  final AudioEngine audioEngine;
+
+  const XYPadTabView({super.key, required this.audioEngine});
+
+  @override
+  State<XYPadTabView> createState() => _XYPadTabViewState();
+}
+
+class _XYPadTabViewState extends State<XYPadTabView> {
+  double _xyX = 0.5;
+  double _xyY = 0.5;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Color(0xFF00FFFF).withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              'XY PAD - PITCH/NOTE CONTROL',
+              style: TextStyle(
+                color: Color(0xFF00FFFF),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+          Expanded(
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                final RenderBox box = context.findRenderObject() as RenderBox;
+                final localPosition = box.globalToLocal(details.globalPosition);
+                final size = box.size;
+
+                setState(() {
+                  _xyX = (localPosition.dx / size.width).clamp(0.0, 1.0);
+                  _xyY = 1.0 - (localPosition.dy / size.height).clamp(0.0, 1.0);
+                });
+
+                // Map XY to musical parameters
+                final note = 48 + (_xyX * 36).round(); // C3 to C6
+                final velocity = _xyY * 0.8 + 0.2; // 0.2 to 1.0
+
+                widget.audioEngine.playNote(note, velocity);
+              },
+              onPanEnd: (details) {
+                widget.audioEngine.stopAllNotes();
+              },
+              child: Container(
+                margin: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return CustomPaint(
+                      painter: XYPadPainter(_xyX, _xyY),
+                      size: Size(
+                        constraints.maxWidth,
+                        constraints.maxHeight.isFinite ? constraints.maxHeight : 300,
+                      ),
+                      child: Container(),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// KeyboardTabView Widget
+class KeyboardTabView extends StatelessWidget {
+  final AudioEngine audioEngine;
+
+  const KeyboardTabView({super.key, required this.audioEngine});
+
+  static String _getNoteLabel(int index) {
+    const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    return notes[index % 12];
+  }
+
+  Widget _buildPianoKeyboard(BuildContext context, AudioEngine audioEngine) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      child: Expanded( // Ensure Row takes available space if parent constrains it
+        child: Row(
+          children: List.generate(12, (index) {
+            final isBlackKey = [1, 3, 6, 8, 10].contains(index % 12);
+            final note = 60 + index; // C4 to B4
+
+            return Expanded(
+              child: GestureDetector(
+                onTapDown: (_) => audioEngine.playNote(note, 0.8),
+                onTapUp: (_) => audioEngine.stopNote(note),
+                onTapCancel: () => audioEngine.stopNote(note),
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 1),
+                  decoration: BoxDecoration(
+                    color: isBlackKey ? Colors.black : Colors.white,
+                    border: Border.all(color: Color(0xFFFFFF00).withOpacity(0.5)),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Center(
+                    child: Text(
+                      _getNoteLabel(index),
+                      style: TextStyle(
+                        color: isBlackKey ? Colors.white : Colors.black,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.3),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Color(0xFFFFFF00).withOpacity(0.3)),
+      ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Text(
+              'KEYBOARD INPUT',
+              style: TextStyle(
+                color: Color(0xFFFFFF00),
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                letterSpacing: 2,
+              ),
+            ),
+          ),
+          Expanded( // Ensure piano keyboard section takes available space
+            child: _buildPianoKeyboard(context, audioEngine),
+          ),
+          // Placeholders for advanced features
+          SizedBox(height: 10),
+          Text('Pitch/Mod Wheel Area:', style: TextStyle(color: Colors.white70)),
+          Placeholder(fallbackHeight: 50, fallbackWidth: 100),
+          SizedBox(height: 10),
+          Text('Contextual Controls Area (from main panel):', style: TextStyle(color: Colors.white70)),
+          Placeholder(fallbackHeight: 50),
+          SizedBox(height: 10),
+          Text('Ergonomic Adjustment Controls Area:', style: TextStyle(color: Colors.white70)),
+          Placeholder(fallbackHeight: 30),
+          SizedBox(height: 10),
+          Text('Sub-pad Area:', style: TextStyle(color: Colors.white70)),
+          Placeholder(fallbackHeight: 50),
+        ],
+      ),
+    );
+  }
 }
 
 class KnobPainter extends CustomPainter {
