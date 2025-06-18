@@ -89,6 +89,7 @@ class _WaveformDisplayState extends State<WaveformDisplay>
       width: widget.width,
       height: widget.height,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header with title and controls
@@ -98,7 +99,8 @@ class _WaveformDisplayState extends State<WaveformDisplay>
           ],
           
           // Main waveform display
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             child: _buildWaveformArea(),
           ),
           
@@ -211,23 +213,27 @@ class _WaveformDisplayState extends State<WaveformDisplay>
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: CustomPaint(
-                  painter: WaveformPainter(
-                    waveformData: widget.waveformData,
-                    rightChannelData: widget.rightChannelData,
-                    color: widget.color,
-                    scanValue: _scanController.value,
-                    pulseValue: _pulseController.value,
-                    timeBase: _timeBase,
-                    amplitude: _amplitude,
-                    triggerLevel: _triggerLevel,
-                    selectedTime: _selectedTime,
-                    showGrid: widget.showGrid,
-                    stereoMode: widget.stereoMode,
-                    displayMode: _selectedDisplayMode,
-                    isHovering: _isHovering,
-                  ),
-                  size: Size.infinite,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return CustomPaint(
+                      painter: WaveformPainter(
+                        waveformData: widget.waveformData,
+                        rightChannelData: widget.rightChannelData,
+                        color: widget.color,
+                        scanValue: _scanController.value,
+                        pulseValue: _pulseController.value,
+                        timeBase: _timeBase,
+                        amplitude: _amplitude,
+                        triggerLevel: _triggerLevel,
+                        selectedTime: _selectedTime,
+                        showGrid: widget.showGrid,
+                        stereoMode: widget.stereoMode,
+                        displayMode: _selectedDisplayMode,
+                        isHovering: _isHovering,
+                      ),
+                      size: Size(constraints.maxWidth, constraints.maxHeight),
+                    );
+                  },
                 ),
               ),
             );

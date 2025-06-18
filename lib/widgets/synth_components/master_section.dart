@@ -174,6 +174,7 @@ class _MasterSectionState extends State<MasterSection>
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header
@@ -197,7 +198,8 @@ class _MasterSectionState extends State<MasterSection>
                     const SizedBox(width: 16),
                     
                     // Master volume
-                    Expanded(
+                    Flexible(
+                      fit: FlexFit.loose,
                       child: HolographicKnob(
                         label: 'VOLUME',
                         value: _masterParams['volume']!,
@@ -216,7 +218,8 @@ class _MasterSectionState extends State<MasterSection>
                 Row(
                   children: [
                     // Balance
-                    Expanded(
+                    Flexible(
+                      fit: FlexFit.loose,
                       child: HolographicKnob(
                         label: 'BALANCE',
                         value: (_masterParams['balance']! + 1.0) / 2.0,
@@ -230,7 +233,8 @@ class _MasterSectionState extends State<MasterSection>
                     const SizedBox(width: 12),
                     
                     // Stereo width
-                    Expanded(
+                    Flexible(
+                      fit: FlexFit.loose,
                       child: HolographicKnob(
                         label: 'WIDTH',
                         value: _masterParams['stereo_width']! / 2.0,
@@ -292,7 +296,10 @@ class _MasterSectionState extends State<MasterSection>
               clippingFlash: _peakController.value,
               gainReduction: _gainReduction,
             ),
-            size: Size.infinite,
+            child: SizedBox(
+              width: 60,
+              height: 120,
+            ),
           );
         },
       ),
@@ -303,6 +310,7 @@ class _MasterSectionState extends State<MasterSection>
     final limiterEnabled = _masterParams['limiter_enabled']! > 0.5;
     
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Limiter header with enable toggle
@@ -347,7 +355,8 @@ class _MasterSectionState extends State<MasterSection>
           Row(
             children: [
               // Threshold
-              Expanded(
+              Flexible(
+                fit: FlexFit.loose,
                 child: HolographicKnob(
                   label: 'THRESHOLD',
                   value: (_masterParams['limiter_threshold']! + 12.0) / 12.0,
@@ -361,7 +370,8 @@ class _MasterSectionState extends State<MasterSection>
               const SizedBox(width: 12),
               
               // Release time
-              Expanded(
+              Flexible(
+                fit: FlexFit.loose,
                 child: HolographicKnob(
                   label: 'RELEASE',
                   value: math.log(_masterParams['limiter_release']! + 1) / math.log(1001),
@@ -403,6 +413,7 @@ class _MasterSectionState extends State<MasterSection>
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             'GR',
@@ -412,13 +423,17 @@ class _MasterSectionState extends State<MasterSection>
               glowIntensity: 0.4,
             ),
           ),
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             child: CustomPaint(
               painter: GainReductionMeterPainter(
                 gainReduction: _gainReduction,
                 color: HolographicTheme.accentEnergy,
               ),
-              size: Size.infinite,
+              child: SizedBox(
+                width: 40,
+                height: 30,
+              ),
             ),
           ),
           Text(
@@ -438,8 +453,10 @@ class _MasterSectionState extends State<MasterSection>
     return Row(
       children: [
         // Output mode selector
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -500,6 +517,7 @@ class _MasterSectionState extends State<MasterSection>
         
         // Mono and polarity controls
         Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Mono mode toggle
             GestureDetector(

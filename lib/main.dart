@@ -3,6 +3,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -52,8 +53,12 @@ void main() async {
     ),
   );
   
-  // Request audio permissions immediately
-  await _requestAudioPermissions();
+  // Request audio permissions (optional for web)
+  try {
+    await _requestAudioPermissions();
+  } catch (e) {
+    print('⚠️ Audio permission request failed (continuing anyway): $e');
+  }
   
   // Create audio engine and synth parameters with error handling
   AudioEngine? audioEngine;
@@ -87,6 +92,12 @@ Future<void> _requestAudioPermissions() async {
   debugPrint('🎤 Requesting audio permissions...');
   
   try {
+    // Check if we're on web first
+    if (kIsWeb) {
+      debugPrint('🌐 Web platform detected - skipping mic permission request');
+      return;
+    }
+    
     final micStatus = await Permission.microphone.request();
     debugPrint('Microphone permission: $micStatus');
     

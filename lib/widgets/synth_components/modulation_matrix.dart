@@ -139,6 +139,7 @@ class _ModulationMatrixState extends State<ModulationMatrix>
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header with template selector
@@ -147,7 +148,8 @@ class _ModulationMatrixState extends State<ModulationMatrix>
                 const SizedBox(height: 16),
                 
                 // Modulation matrix visualization
-                Expanded(
+                Flexible(
+                  fit: FlexFit.loose,
                   child: _buildModulationMatrix(),
                 ),
                 
@@ -299,22 +301,26 @@ class _ModulationMatrixState extends State<ModulationMatrix>
             width: 1,
           ),
         ),
-        child: AnimatedBuilder(
-          animation: Listenable.merge([_flowController, _particleController]),
-          builder: (context, child) {
-            return CustomPaint(
-              painter: ModulationMatrixPainter(
-                sources: _modulationSources,
-                destinations: _modulationDestinations,
-                connections: _modulationMatrix,
-                selectedConnection: _selectedConnection,
-                flowAnimation: _flowController.value,
-                particleAnimation: _particleController.value,
-                isDragging: _isDragging,
-                dragStart: _dragStart,
-                dragEnd: _dragEnd,
-              ),
-              size: Size.infinite,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return AnimatedBuilder(
+              animation: Listenable.merge([_flowController, _particleController]),
+              builder: (context, child) {
+                return CustomPaint(
+                  painter: ModulationMatrixPainter(
+                    sources: _modulationSources,
+                    destinations: _modulationDestinations,
+                    connections: _modulationMatrix,
+                    selectedConnection: _selectedConnection,
+                    flowAnimation: _flowController.value,
+                    particleAnimation: _particleController.value,
+                    isDragging: _isDragging,
+                    dragStart: _dragStart,
+                    dragEnd: _dragEnd,
+                  ),
+                  size: Size(constraints.maxWidth, constraints.maxHeight.isFinite ? constraints.maxHeight : 300),
+                );
+              },
             );
           },
         ),

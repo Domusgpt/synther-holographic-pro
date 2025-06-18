@@ -158,6 +158,7 @@ class _LFOSectionState extends State<LFOSection>
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // LFO selection tabs
@@ -189,14 +190,17 @@ class _LFOSectionState extends State<LFOSection>
     return Row(
       children: [
         // LFO selection tabs
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: List.generate(_lfos.length, (index) {
               final isSelected = index == _selectedLFO;
               final isEnabled = _lfos[index]['enabled']! > 0.5;
               final lfoColor = _lfoColors[index];
               
-              return Expanded(
+              return Flexible(
+                fit: FlexFit.loose,
                 child: GestureDetector(
                   onTap: () => setState(() => _selectedLFO = index),
                   child: Container(
@@ -226,6 +230,7 @@ class _LFOSectionState extends State<LFOSection>
                       children: [
                         Center(
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
@@ -320,6 +325,7 @@ class _LFOSectionState extends State<LFOSection>
             ),
           ),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
@@ -382,13 +388,16 @@ class _LFOSectionState extends State<LFOSection>
     final currentLFO = _lfos[_selectedLFO];
     
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Top row: Waveform, Frequency, Amplitude
         Row(
           children: [
             // Waveform selector
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
@@ -448,7 +457,8 @@ class _LFOSectionState extends State<LFOSection>
             const SizedBox(width: 12),
             
             // Frequency
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'FREQUENCY',
                 value: math.log(currentLFO['frequency']! * 100 + 1) / math.log(10001),
@@ -465,7 +475,8 @@ class _LFOSectionState extends State<LFOSection>
             const SizedBox(width: 12),
             
             // Amplitude
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'AMPLITUDE',
                 value: currentLFO['amplitude']!,
@@ -484,7 +495,8 @@ class _LFOSectionState extends State<LFOSection>
         Row(
           children: [
             // Phase
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'PHASE',
                 value: currentLFO['phase']! / 360.0,
@@ -498,7 +510,8 @@ class _LFOSectionState extends State<LFOSection>
             const SizedBox(width: 12),
             
             // Offset
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'OFFSET',
                 value: (currentLFO['offset']! + 1.0) / 2.0,
@@ -510,8 +523,8 @@ class _LFOSectionState extends State<LFOSection>
             ),
             
             // Spacers
-            Expanded(child: Container()),
-            Expanded(child: Container()),
+            Flexible(fit: FlexFit.loose, child: Container()),
+            Flexible(fit: FlexFit.loose, child: Container()),
           ],
         ),
       ],
@@ -560,8 +573,10 @@ class _LFOSectionState extends State<LFOSection>
         
         // Sync rate (only visible when sync is on)
         if (isSync) ...[
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(

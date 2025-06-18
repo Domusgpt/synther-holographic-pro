@@ -152,6 +152,7 @@ class _SpectrumAnalyzerState extends State<SpectrumAnalyzer>
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Header with controls
@@ -160,7 +161,8 @@ class _SpectrumAnalyzerState extends State<SpectrumAnalyzer>
                 const SizedBox(height: 8),
                 
                 // Main spectrum display
-                Expanded(
+                Flexible(
+                  fit: FlexFit.loose,
                   child: _buildSpectrumDisplay(),
                 ),
                 

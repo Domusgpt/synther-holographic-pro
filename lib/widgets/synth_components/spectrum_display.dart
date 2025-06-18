@@ -120,6 +120,7 @@ class _SpectrumDisplayState extends State<SpectrumDisplay>
       width: widget.width,
       height: widget.height,
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Title
@@ -138,7 +139,8 @@ class _SpectrumDisplayState extends State<SpectrumDisplay>
           ],
           
           // Spectrum visualization
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             child: _buildSpectrumArea(),
           ),
           
@@ -182,18 +184,22 @@ class _SpectrumDisplayState extends State<SpectrumDisplay>
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: CustomPaint(
-                  painter: SpectrumPainter(
-                    spectrumData: widget.spectrumData,
-                    peakHoldData: _peakHoldValues,
-                    color: widget.color,
-                    pulseValue: _pulseController.value,
-                    peakPulse: _peakController.value,
-                    selectedFrequency: _selectedFrequency,
-                    showPeakHold: widget.showPeakHold,
-                    isHovering: _isHovering,
-                  ),
-                  size: Size.infinite,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return CustomPaint(
+                      painter: SpectrumPainter(
+                        spectrumData: widget.spectrumData,
+                        peakHoldData: _peakHoldValues,
+                        color: widget.color,
+                        pulseValue: _pulseController.value,
+                        peakPulse: _peakController.value,
+                        selectedFrequency: _selectedFrequency,
+                        showPeakHold: widget.showPeakHold,
+                        isHovering: _isHovering,
+                      ),
+                      size: Size(constraints.maxWidth, constraints.maxHeight),
+                    );
+                  },
                 ),
               ),
             );

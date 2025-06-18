@@ -197,13 +197,16 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 // Top row: Oscillators and Filters
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
+                    Flexible(
                       flex: 3,
+                      fit: FlexFit.loose,
                       child: _buildSectionSafe(
                         'oscillators',
                         'OSCILLATOR BANK',
@@ -214,8 +217,9 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Expanded(
+                    Flexible(
                       flex: 2,
+                      fit: FlexFit.loose,
                       child: _buildSectionSafe(
                         'filters',
                         'FILTER SECTION',
@@ -232,9 +236,11 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                 
                 // Middle row: Envelopes and LFOs
                 Row(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
+                    Flexible(
+                      fit: FlexFit.loose,
                       child: _buildSectionSafe(
                         'envelopes',
                         'ENVELOPE GENERATORS',
@@ -245,7 +251,8 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                       ),
                     ),
                     const SizedBox(width: 16),
-                    Expanded(
+                    Flexible(
+                      fit: FlexFit.loose,
                       child: _buildSectionSafe(
                         'lfos',
                         'LFO SECTION',
@@ -336,6 +343,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Synth logo/title
             Column(

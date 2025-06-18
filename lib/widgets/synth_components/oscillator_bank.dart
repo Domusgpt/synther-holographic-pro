@@ -142,6 +142,7 @@ class _OscillatorBankState extends State<OscillatorBank>
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Oscillator tabs
@@ -171,12 +172,14 @@ class _OscillatorBankState extends State<OscillatorBank>
 
   Widget _buildOscillatorTabs() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: List.generate(_oscillators.length, (index) {
         final osc = _oscillators[index];
         final isSelected = index == _selectedOscillator;
         final isEnabled = osc['enabled'] as bool;
         
-        return Expanded(
+        return Flexible(
+          fit: FlexFit.loose,
           child: GestureDetector(
             onTap: () => setState(() => _selectedOscillator = index),
             child: Container(
@@ -206,6 +209,7 @@ class _OscillatorBankState extends State<OscillatorBank>
                 children: [
                   Center(
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
@@ -270,15 +274,20 @@ class _OscillatorBankState extends State<OscillatorBank>
     final osc = _oscillators[_selectedOscillator];
     
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Basic controls
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           flex: 2,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
+                  Flexible(
+                    fit: FlexFit.loose,
                     child: HolographicKnob(
                       label: 'FREQUENCY',
                       value: (osc['frequency'] as double) / 2000.0,
@@ -288,7 +297,8 @@ class _OscillatorBankState extends State<OscillatorBank>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
+                  Flexible(
+                    fit: FlexFit.loose,
                     child: HolographicKnob(
                       label: 'AMPLITUDE',
                       value: osc['amplitude'] as double,
@@ -301,8 +311,10 @@ class _OscillatorBankState extends State<OscillatorBank>
               ),
               const SizedBox(height: 16),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
+                  Flexible(
+                    fit: FlexFit.loose,
                     child: HolographicKnob(
                       label: 'DETUNE',
                       value: ((osc['detune'] as double) + 50.0) / 100.0,
@@ -312,7 +324,8 @@ class _OscillatorBankState extends State<OscillatorBank>
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
+                  Flexible(
+                    fit: FlexFit.loose,
                     child: HolographicKnob(
                       label: 'PHASE',
                       value: (osc['phase'] as double) / 360.0,
@@ -330,8 +343,10 @@ class _OscillatorBankState extends State<OscillatorBank>
         const SizedBox(width: 20),
         
         // Synthesis type selector
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -411,6 +426,7 @@ class _OscillatorBankState extends State<OscillatorBank>
 
   Widget _buildFMControls(Map<String, dynamic> osc) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -423,8 +439,10 @@ class _OscillatorBankState extends State<OscillatorBank>
         ),
         const SizedBox(height: 12),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'FM AMOUNT',
                 value: osc['fm_amount'] as double,
@@ -434,7 +452,8 @@ class _OscillatorBankState extends State<OscillatorBank>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'FM FREQUENCY',
                 value: (osc['fm_frequency'] as double) / 10.0,
@@ -444,7 +463,8 @@ class _OscillatorBankState extends State<OscillatorBank>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Container(
                 height: 80,
                 decoration: BoxDecoration(
@@ -481,6 +501,7 @@ class _OscillatorBankState extends State<OscillatorBank>
 
   Widget _buildGranularControls(Map<String, dynamic> osc) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -493,8 +514,10 @@ class _OscillatorBankState extends State<OscillatorBank>
         ),
         const SizedBox(height: 12),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'GRAIN SIZE',
                 value: (osc['granular_size'] as double) / 500.0,
@@ -504,7 +527,8 @@ class _OscillatorBankState extends State<OscillatorBank>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'GRAIN DENSITY',
                 value: osc['granular_density'] as double,
@@ -514,7 +538,8 @@ class _OscillatorBankState extends State<OscillatorBank>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Container(
                 height: 80,
                 decoration: BoxDecoration(
@@ -553,6 +578,7 @@ class _OscillatorBankState extends State<OscillatorBank>
     final harmonics = osc['harmonics'] as List<double>;
     
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -582,8 +608,10 @@ class _OscillatorBankState extends State<OscillatorBank>
           child: Padding(
             padding: const EdgeInsets.all(8.0),
             child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: List.generate(harmonics.length, (index) {
-                return Expanded(
+                return Flexible(
+                  fit: FlexFit.loose,
                   child: GestureDetector(
                     onPanUpdate: (details) {
                       final newValue = 1.0 - (details.localPosition.dy / 104.0);
@@ -625,6 +653,7 @@ class _OscillatorBankState extends State<OscillatorBank>
 
   Widget _buildWavetableControls(Map<String, dynamic> osc) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -637,8 +666,10 @@ class _OscillatorBankState extends State<OscillatorBank>
         ),
         const SizedBox(height: 12),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               flex: 2,
               child: HolographicKnob(
                 label: 'WAVETABLE POSITION',
@@ -649,7 +680,8 @@ class _OscillatorBankState extends State<OscillatorBank>
               ),
             ),
             const SizedBox(width: 16),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               flex: 3,
               child: Container(
                 height: 80,
@@ -718,9 +750,11 @@ class _OscillatorBankState extends State<OscillatorBank>
         ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Spectrum analyzer
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             flex: 2,
             child: SpectrumDisplay(
               spectrumData: _generateSpectrumData(),
@@ -732,7 +766,8 @@ class _OscillatorBankState extends State<OscillatorBank>
           const SizedBox(width: 8),
           
           // Waveform display
-          Expanded(
+          Flexible(
+            fit: FlexFit.loose,
             flex: 2,
             child: WaveformDisplay(
               waveformData: _generateCurrentWaveform(),

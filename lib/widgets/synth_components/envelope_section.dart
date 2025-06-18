@@ -168,6 +168,7 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Envelope selection tabs
@@ -199,14 +200,17 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
     return Row(
       children: [
         // Envelope selection tabs
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: List.generate(_envelopes.length, (index) {
               final isSelected = index == _selectedEnvelope;
               final isEnabled = _envelopes[index]['enabled']! > 0.5;
               final envelopeColor = _envelopeColors[index];
               
-              return Expanded(
+              return Flexible(
+                fit: FlexFit.loose,
                 child: GestureDetector(
                   onTap: () => setState(() => _selectedEnvelope = index),
                   child: Container(
@@ -236,6 +240,7 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
                       children: [
                         Center(
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
@@ -371,17 +376,21 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
           child: AnimatedBuilder(
             animation: Listenable.merge([_envelopeController, _pulseController]),
             builder: (context, child) {
-              return CustomPaint(
-                painter: EnvelopePainter(
-                  envelopeParams: _envelopes[_selectedEnvelope],
-                  color: _envelopeColors[_selectedEnvelope],
-                  animationValue: _envelopeController.value,
-                  pulseValue: _pulseController.value,
-                  isTriggered: _isTriggered,
-                  isDragging: _isDraggingPoint,
-                  draggedPoint: _draggedPoint,
-                ),
-                size: Size.infinite,
+              return LayoutBuilder(
+                builder: (context, constraints) {
+                  return CustomPaint(
+                    painter: EnvelopePainter(
+                      envelopeParams: _envelopes[_selectedEnvelope],
+                      color: _envelopeColors[_selectedEnvelope],
+                      animationValue: _envelopeController.value,
+                      pulseValue: _pulseController.value,
+                      isTriggered: _isTriggered,
+                      isDragging: _isDraggingPoint,
+                      draggedPoint: _draggedPoint,
+                    ),
+                    size: Size(constraints.maxWidth, constraints.maxHeight),
+                  );
+                },
               );
             },
           ),
@@ -396,7 +405,8 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
     return Row(
       children: [
         // Attack
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'ATTACK',
             value: math.log(currentEnv['attack']! * 1000 + 10) / math.log(10010),
@@ -413,7 +423,8 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
         const SizedBox(width: 12),
         
         // Decay
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'DECAY',
             value: math.log(currentEnv['decay']! * 1000 + 10) / math.log(10010),
@@ -430,7 +441,8 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
         const SizedBox(width: 12),
         
         // Sustain
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'SUSTAIN',
             value: currentEnv['sustain']!,
@@ -444,7 +456,8 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
         const SizedBox(width: 12),
         
         // Release
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'RELEASE',
             value: math.log(currentEnv['release']! * 1000 + 10) / math.log(10010),
@@ -465,9 +478,11 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
     final currentEnv = _envelopes[_selectedEnvelope];
     
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Velocity sensitivity
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'VELOCITY',
             value: currentEnv['velocity']!,
@@ -481,7 +496,8 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
         const SizedBox(width: 12),
         
         // Curve shape
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'CURVE',
             value: currentEnv['curve']!,
@@ -493,8 +509,8 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
         ),
         
         // Spacers to maintain layout
-        Expanded(child: Container()),
-        Expanded(child: Container()),
+        Flexible(fit: FlexFit.loose, child: Container()),
+        Flexible(fit: FlexFit.loose, child: Container()),
       ],
     );
   }

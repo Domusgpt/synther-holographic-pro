@@ -171,6 +171,7 @@ class _EffectsChainState extends State<EffectsChain>
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Effects chain routing display
@@ -217,6 +218,7 @@ class _EffectsChainState extends State<EffectsChain>
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: List.generate(_effectsOrder.length * 2 - 1, (index) {
             if (index.isOdd) {
               // Arrow between effects
@@ -235,7 +237,8 @@ class _EffectsChainState extends State<EffectsChain>
               final isEnabled = _effectsEnabled[effectName] ?? false;
               final isSelected = effectIndex == _selectedEffect;
               
-              return Expanded(
+              return Flexible(
+                fit: FlexFit.loose,
                 child: GestureDetector(
                   onTap: () => setState(() => _selectedEffect = effectIndex),
                   child: Container(
@@ -314,13 +317,15 @@ class _EffectsChainState extends State<EffectsChain>
 
   Widget _buildEffectsTabs() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: List.generate(_effectsOrder.length, (index) {
         final effectName = _effectsOrder[index];
         final isSelected = index == _selectedEffect;
         final isEnabled = _effectsEnabled[effectName] ?? false;
         final isExpanded = _effectsExpanded[effectName] ?? false;
         
-        return Expanded(
+        return Flexible(
+          fit: FlexFit.loose,
           child: GestureDetector(
             onTap: () => setState(() => _selectedEffect = index),
             child: Container(
@@ -350,6 +355,7 @@ class _EffectsChainState extends State<EffectsChain>
                 children: [
                   Center(
                     child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Text(
@@ -473,6 +479,7 @@ class _EffectsChainState extends State<EffectsChain>
 
   Widget _buildEQControls() {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -487,10 +494,13 @@ class _EffectsChainState extends State<EffectsChain>
         
         // EQ bands
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             // Low band
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'LOW',
@@ -502,8 +512,10 @@ class _EffectsChainState extends State<EffectsChain>
                   ),
                   const SizedBox(height: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'FREQ',
                           value: (_eqParams['low_freq']! - 20.0) / 480.0,
@@ -514,7 +526,8 @@ class _EffectsChainState extends State<EffectsChain>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'GAIN',
                           value: (_eqParams['low_gain']! + 20.0) / 40.0,
@@ -525,7 +538,8 @@ class _EffectsChainState extends State<EffectsChain>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'Q',
                           value: (_eqParams['low_q']! - 0.1) / 9.9,
@@ -544,8 +558,10 @@ class _EffectsChainState extends State<EffectsChain>
             const SizedBox(width: 16),
             
             // Mid band
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'MID',
@@ -557,8 +573,10 @@ class _EffectsChainState extends State<EffectsChain>
                   ),
                   const SizedBox(height: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'FREQ',
                           value: (_eqParams['mid_freq']! - 200.0) / 3800.0,
@@ -569,7 +587,8 @@ class _EffectsChainState extends State<EffectsChain>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'GAIN',
                           value: (_eqParams['mid_gain']! + 20.0) / 40.0,
@@ -580,7 +599,8 @@ class _EffectsChainState extends State<EffectsChain>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'Q',
                           value: (_eqParams['mid_q']! - 0.1) / 9.9,
@@ -599,8 +619,10 @@ class _EffectsChainState extends State<EffectsChain>
             const SizedBox(width: 16),
             
             // High band
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
                     'HIGH',
@@ -612,8 +634,10 @@ class _EffectsChainState extends State<EffectsChain>
                   ),
                   const SizedBox(height: 8),
                   Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'FREQ',
                           value: (_eqParams['high_freq']! - 2000.0) / 18000.0,
@@ -624,7 +648,8 @@ class _EffectsChainState extends State<EffectsChain>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'GAIN',
                           value: (_eqParams['high_gain']! + 20.0) / 40.0,
@@ -635,7 +660,8 @@ class _EffectsChainState extends State<EffectsChain>
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Expanded(
+                      Flexible(
+                        fit: FlexFit.loose,
                         child: HolographicKnob(
                           label: 'Q',
                           value: (_eqParams['high_q']! - 0.1) / 9.9,
@@ -670,8 +696,10 @@ class _EffectsChainState extends State<EffectsChain>
         ),
         const SizedBox(height: 16),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'THRESHOLD',
                 value: (_compressorParams['threshold']! + 60.0) / 60.0,
@@ -681,7 +709,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'RATIO',
                 value: (_compressorParams['ratio']! - 1.0) / 19.0,
@@ -691,7 +720,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'ATTACK',
                 value: _compressorParams['attack']! / 1000.0,
@@ -701,7 +731,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'RELEASE',
                 value: _compressorParams['release']! / 5000.0,
@@ -711,7 +742,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'MAKEUP',
                 value: (_compressorParams['makeup_gain']! + 30.0) / 60.0,
@@ -721,7 +753,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'MIX',
                 value: _compressorParams['mix']!,
@@ -750,8 +783,10 @@ class _EffectsChainState extends State<EffectsChain>
         ),
         const SizedBox(height: 16),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'DRIVE',
                 value: _distortionParams['drive']!,
@@ -761,7 +796,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'TONE',
                 value: _distortionParams['tone']!,
@@ -771,7 +807,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'OUTPUT',
                 value: _distortionParams['output']!,
@@ -781,7 +818,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'MIX',
                 value: _distortionParams['mix']!,
@@ -810,8 +848,10 @@ class _EffectsChainState extends State<EffectsChain>
         ),
         const SizedBox(height: 16),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'RATE',
                 value: _chorusParams['rate']! / 10.0,
@@ -821,7 +861,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'DEPTH',
                 value: _chorusParams['depth']!,
@@ -831,7 +872,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'FEEDBACK',
                 value: _chorusParams['feedback']!,
@@ -841,7 +883,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'DELAY',
                 value: _chorusParams['delay']! / 50.0,
@@ -851,7 +894,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'MIX',
                 value: _chorusParams['mix']!,
@@ -880,8 +924,10 @@ class _EffectsChainState extends State<EffectsChain>
         ),
         const SizedBox(height: 16),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'TIME',
                 value: _delayParams['time']! / 2000.0,
@@ -891,7 +937,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'FEEDBACK',
                 value: _delayParams['feedback']!,
@@ -901,7 +948,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'HIGH CUT',
                 value: (_delayParams['high_cut']! - 1000.0) / 19000.0,
@@ -911,7 +959,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'LOW CUT',
                 value: (_delayParams['low_cut']! - 20.0) / 480.0,
@@ -921,7 +970,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'PING PONG',
                 value: _delayParams['ping_pong']!,
@@ -931,7 +981,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'MIX',
                 value: _delayParams['mix']!,
@@ -960,8 +1011,10 @@ class _EffectsChainState extends State<EffectsChain>
         ),
         const SizedBox(height: 16),
         Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'SIZE',
                 value: _reverbParams['size']!,
@@ -971,7 +1024,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'DECAY',
                 value: _reverbParams['decay']!,
@@ -981,7 +1035,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'DAMPING',
                 value: _reverbParams['damping']!,
@@ -991,7 +1046,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'PRE DELAY',
                 value: _reverbParams['pre_delay']! / 500.0,
@@ -1001,7 +1057,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'DIFFUSION',
                 value: _reverbParams['diffusion']!,
@@ -1011,7 +1068,8 @@ class _EffectsChainState extends State<EffectsChain>
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'MIX',
                 value: _reverbParams['mix']!,

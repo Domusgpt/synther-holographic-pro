@@ -118,6 +118,7 @@ class _FilterSectionState extends State<FilterSection>
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Filter selection tabs and routing
@@ -149,11 +150,14 @@ class _FilterSectionState extends State<FilterSection>
     return Row(
       children: [
         // Filter selection
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               // Filter 1 tab
-              Expanded(
+              Flexible(
+                fit: FlexFit.loose,
                 child: GestureDetector(
                   onTap: () => setState(() => _selectedFilter = 0),
                   child: Container(
@@ -185,6 +189,7 @@ class _FilterSectionState extends State<FilterSection>
                       children: [
                         Center(
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
@@ -241,7 +246,8 @@ class _FilterSectionState extends State<FilterSection>
               ),
               
               // Filter 2 tab
-              Expanded(
+              Flexible(
+                fit: FlexFit.loose,
                 child: GestureDetector(
                   onTap: () => setState(() => _selectedFilter = 1),
                   child: Container(
@@ -273,6 +279,7 @@ class _FilterSectionState extends State<FilterSection>
                       children: [
                         Center(
                           child: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               Text(
@@ -359,6 +366,7 @@ class _FilterSectionState extends State<FilterSection>
         ),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
@@ -398,6 +406,7 @@ class _FilterSectionState extends State<FilterSection>
     final filterNumber = _selectedFilter + 1;
     
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Filter type selector
@@ -412,7 +421,8 @@ class _FilterSectionState extends State<FilterSection>
               ),
             ),
             const SizedBox(width: 16),
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: Container(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -464,7 +474,8 @@ class _FilterSectionState extends State<FilterSection>
         Row(
           children: [
             // Cutoff frequency
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'CUTOFF',
                 value: math.log(currentFilter['cutoff']! / 20.0) / math.log(1000.0),
@@ -480,7 +491,8 @@ class _FilterSectionState extends State<FilterSection>
             const SizedBox(width: 12),
             
             // Resonance
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'RESONANCE',
                 value: currentFilter['resonance']!,
@@ -493,7 +505,8 @@ class _FilterSectionState extends State<FilterSection>
             const SizedBox(width: 12),
             
             // Drive/saturation
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'DRIVE',
                 value: currentFilter['drive']!,
@@ -506,7 +519,8 @@ class _FilterSectionState extends State<FilterSection>
             const SizedBox(width: 12),
             
             // Keyboard tracking
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'KEYTRACK',
                 value: currentFilter['keytrack']!,
@@ -523,7 +537,8 @@ class _FilterSectionState extends State<FilterSection>
         // Modulation controls
         Row(
           children: [
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'ENV MOD',
                 value: (currentFilter['envelope_amount']! + 1.0) / 2.0,
@@ -535,7 +550,8 @@ class _FilterSectionState extends State<FilterSection>
             
             const SizedBox(width: 12),
             
-            Expanded(
+            Flexible(
+              fit: FlexFit.loose,
               child: HolographicKnob(
                 label: 'LFO MOD',
                 value: (currentFilter['lfo_amount']! + 1.0) / 2.0,
@@ -546,8 +562,8 @@ class _FilterSectionState extends State<FilterSection>
             ),
             
             // Spacer for remaining controls
-            Expanded(child: Container()),
-            Expanded(child: Container()),
+            Flexible(fit: FlexFit.loose, child: Container()),
+            Flexible(fit: FlexFit.loose, child: Container()),
           ],
         ),
       ],
@@ -573,16 +589,20 @@ class _FilterSectionState extends State<FilterSection>
       child: AnimatedBuilder(
         animation: _responseController,
         builder: (context, child) {
-          return CustomPaint(
-            painter: FrequencyResponsePainter(
-              filter1Params: _filter1Params,
-              filter2Params: _filter2Params,
-              routingParams: _routingParams,
-              animationValue: _responseController.value,
-              primaryColor: HolographicTheme.primaryEnergy,
-              secondaryColor: HolographicTheme.secondaryEnergy,
-            ),
-            size: Size.infinite,
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              return CustomPaint(
+                painter: FrequencyResponsePainter(
+                  filter1Params: _filter1Params,
+                  filter2Params: _filter2Params,
+                  routingParams: _routingParams,
+                  animationValue: _responseController.value,
+                  primaryColor: HolographicTheme.primaryEnergy,
+                  secondaryColor: HolographicTheme.secondaryEnergy,
+                ),
+                size: Size(constraints.maxWidth, constraints.maxHeight),
+              );
+            },
           );
         },
       ),
@@ -593,7 +613,8 @@ class _FilterSectionState extends State<FilterSection>
     return Row(
       children: [
         // Filter mix (for parallel mode)
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'FILTER MIX',
             value: _routingParams['filter_mix']!,
@@ -606,7 +627,8 @@ class _FilterSectionState extends State<FilterSection>
         const SizedBox(width: 12),
         
         // Output gain
-        Expanded(
+        Flexible(
+          fit: FlexFit.loose,
           child: HolographicKnob(
             label: 'OUTPUT',
             value: _routingParams['output_gain']!,
@@ -617,8 +639,8 @@ class _FilterSectionState extends State<FilterSection>
         ),
         
         // Spacers
-        Expanded(child: Container()),
-        Expanded(child: Container()),
+        Flexible(fit: FlexFit.loose, child: Container()),
+        Flexible(fit: FlexFit.loose, child: Container()),
       ],
     );
   }
