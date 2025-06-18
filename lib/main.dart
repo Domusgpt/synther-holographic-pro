@@ -55,11 +55,21 @@ void main() async {
   // Request audio permissions immediately
   await _requestAudioPermissions();
   
-  // Create audio engine and synth parameters
-  final audioEngine = createAudioEngine();
-  await audioEngine.init();
+  // Create audio engine and synth parameters with error handling
+  AudioEngine? audioEngine;
+  SynthParametersModel? synthParameters;
   
-  final synthParameters = SynthParametersModel();
+  try {
+    audioEngine = createAudioEngine();
+    await audioEngine.init();
+    synthParameters = SynthParametersModel();
+    print("Audio engine initialized successfully");
+  } catch (e) {
+    print('⚠️ Audio engine initialization failed: $e');
+    // Create fallback instances
+    audioEngine = createAudioEngine();
+    synthParameters = SynthParametersModel();
+  }
   
   runApp(
     MultiProvider(
@@ -68,7 +78,7 @@ void main() async {
         ChangeNotifierProvider<SynthParametersModel>.value(value: synthParameters),
         Provider<FirebaseService>.value(value: FirebaseService.instance),
       ],
-      child: const ProfessionalSynthesizerInterface(),
+      child: const SyntherApp(),
     ),
   );
 }
@@ -87,5 +97,23 @@ Future<void> _requestAudioPermissions() async {
     }
   } catch (e) {
     debugPrint('⚠ Permission request error: $e');
+  }
+}
+
+class SyntherApp extends StatelessWidget {
+  const SyntherApp({Key? key}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Synther Professional Holographic',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        primarySwatch: Colors.cyan,
+        visualDensity: VisualDensity.adaptivePlatformDensity,
+      ),
+      home: const ProfessionalSynthesizerInterface(),
+    );
   }
 }
