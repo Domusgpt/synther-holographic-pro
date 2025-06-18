@@ -40,14 +40,14 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
   
   // Section visibility and collapse states
   final Map<String, bool> _sectionCollapsed = {
-    'oscillators': false,
-    'filters': false,
-    'envelopes': false,
-    'lfos': false,
-    'effects': false,
-    'modulation': false,
-    'spectrum': false,
-    'master': false,
+    'oscillators': false, // Start open
+    'filters': false,     // Start open
+    'envelopes': true,    // Start collapsed
+    'lfos': true,         // Start collapsed
+    'effects': true,      // Start collapsed
+    'modulation': true,   // Start collapsed
+    'spectrum': false,    // Keep open by default (or true if it should be initially hidden)
+    'master': false,      // Master section in header, usually not collapsed
   };
 
   @override
@@ -133,10 +133,12 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
             _buildHolographicBackground(),
             
             // Main synthesizer interface with error handling
-            _buildSynthesizerLayoutSafe(),
+            Positioned.fill( // Wrap with Positioned.fill
+              child: _buildSynthesizerLayoutSafe(),
+            ),
             
             // Floating spectrum analyzer overlay
-            _buildFloatingSpectrumAnalyzer(),
+            _buildFloatingSpectrumAnalyzer(), // This is already Positioned
             
             // Chromatic aberration overlay
             _buildChromaticAberrationOverlay(),
