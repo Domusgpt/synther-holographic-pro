@@ -180,6 +180,7 @@ class _SpectrumAnalyzerState extends State<SpectrumAnalyzer>
 
   Widget _buildHeader() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // Title
         Text(
@@ -191,7 +192,7 @@ class _SpectrumAnalyzerState extends State<SpectrumAnalyzer>
           ),
         ),
         
-        const Spacer(),
+        const SizedBox(width: 20),
         
         // Source selector
         _buildSourceSelector(),
@@ -367,6 +368,7 @@ class _SpectrumAnalyzerState extends State<SpectrumAnalyzer>
 
   Widget _buildAnalysisControls() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         // FFT Size
         _buildParameterControl(
@@ -393,7 +395,7 @@ class _SpectrumAnalyzerState extends State<SpectrumAnalyzer>
           () => _cycleDisplayMode(),
         ),
         
-        const Spacer(),
+        const SizedBox(width: 20),
         
         // Peak hold toggle
         GestureDetector(

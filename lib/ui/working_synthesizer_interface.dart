@@ -95,7 +95,7 @@ class _WorkingSynthesizerInterfaceState extends State<WorkingSynthesizerInterfac
                   // Effects section
                   _buildSection('EFFECTS', _buildEffectsControls()),
                   
-                  const Spacer(),
+                  const SizedBox(height: 20),
                   
                   // Master controls
                   _buildMasterControls(),
@@ -194,6 +194,7 @@ class _WorkingSynthesizerInterfaceState extends State<WorkingSynthesizerInterfac
 
   Widget _buildOscillatorControls() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         _buildKnob('FREQ', 440.0, 20.0, 2000.0),
         const SizedBox(width: 16),
@@ -208,6 +209,7 @@ class _WorkingSynthesizerInterfaceState extends State<WorkingSynthesizerInterfac
 
   Widget _buildFilterControls() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         _buildKnob('CUTOFF', 1000.0, 20.0, 20000.0),
         const SizedBox(width: 16),
@@ -222,6 +224,7 @@ class _WorkingSynthesizerInterfaceState extends State<WorkingSynthesizerInterfac
 
   Widget _buildEffectsControls() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         _buildKnob('REVERB', 0.2, 0.0, 1.0),
         const SizedBox(width: 16),
@@ -243,6 +246,7 @@ class _WorkingSynthesizerInterfaceState extends State<WorkingSynthesizerInterfac
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
               'MASTER',
@@ -254,7 +258,7 @@ class _WorkingSynthesizerInterfaceState extends State<WorkingSynthesizerInterfac
             ),
             const SizedBox(width: 32),
             _buildKnob('VOLUME', 0.7, 0.0, 1.0),
-            const Spacer(),
+            const SizedBox(width: 20),
             _buildPlayButton(),
           ],
         ),

@@ -355,7 +355,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
               ],
             ),
             
-            const Spacer(),
+            const SizedBox(width: 20),
             
             // Master controls
             MasterSection(
@@ -453,6 +453,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                       ),
                     ),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           isCollapsed ? Icons.keyboard_arrow_right : Icons.keyboard_arrow_down,
@@ -468,7 +469,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                             glowIntensity: 0.8,
                           ),
                         ),
-                        const Spacer(),
+                        const SizedBox(width: 8),
                         // Section-specific indicators
                         _buildSectionIndicators(sectionId),
                       ],

@@ -377,6 +377,7 @@ class _OscillatorBankState extends State<OscillatorBank>
                   onChanged: (value) => _updateParameter('type', value!),
                   dropdownColor: HolographicTheme.deepSpaceBlack,
                   underline: Container(),
+                  isExpanded: true,
                   icon: Icon(
                     Icons.keyboard_arrow_down,
                     color: HolographicTheme.primaryEnergy,

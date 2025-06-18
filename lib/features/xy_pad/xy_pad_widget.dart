@@ -375,7 +375,8 @@ class _XYPadWidgetState extends State<XYPadWidget> {
   }
 
   Widget _buildXYPadArea(SynthParametersModel model) {
-    return Expanded(
+    return Flexible(
+      fit: FlexFit.loose,
       child: LayoutBuilder(
         builder: (context, constraints) {
           // Use constraints to set the size of the pad area for hit detection
@@ -435,6 +436,7 @@ class _XYPadWidgetState extends State<XYPadWidget> {
     return Padding(
       padding: const EdgeInsets.all(8.0),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
@@ -476,6 +478,7 @@ class _XYPadWidgetState extends State<XYPadWidget> {
         color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.5),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _buildHeader(),
           if (!_isCollapsed) ...[

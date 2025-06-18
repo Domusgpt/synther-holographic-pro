@@ -167,6 +167,7 @@ class _ModulationMatrixState extends State<ModulationMatrix>
 
   Widget _buildHeader() {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           'MODULATION MATRIX',
@@ -177,7 +178,7 @@ class _ModulationMatrixState extends State<ModulationMatrix>
           ),
         ),
         
-        const Spacer(),
+        const SizedBox(width: 20),
         
         // Template selector
         Text(
@@ -355,6 +356,7 @@ class _ModulationMatrixState extends State<ModulationMatrix>
         ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           // Connection info
           Expanded(
