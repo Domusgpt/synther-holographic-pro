@@ -198,44 +198,63 @@ class _DraggableKnobState extends State<DraggableKnob>
       left: _position.dx,
       top: _position.dy,
       child: GestureDetector(
+        dragStartBehavior: DragStartBehavior.down,
         onPanStart: (details) {
-          if (!_isDragging) {
+          final RenderBox renderBox = context.findRenderObject() as RenderBox;
+          final localPositionOnPanStart = renderBox.globalToLocal(details.globalPosition);
+          final size = renderBox.size; // Overall widget size (80x120)
+
+          // Knob's visual center: X is center of widget, Y is 30px from top of widget.
+          // This assumes _buildKnobBody will place the 60x60 knob such that its center is here.
+          final knobVisualCenterX = size.width / 2; // 40.0
+          final knobVisualCenterY = 30.0;           // 30.0 (center of a 60px high knob at the top)
+          final knobVisualCenter = Offset(knobVisualCenterX, knobVisualCenterY);
+
+          const double knobVisualRadius = 30.0;
+          const double rotationTouchPadding = 15.0; // Forgiving touch area
+          const double rotationEffectiveRadius = knobVisualRadius + rotationTouchPadding; // 45.0
+
+          final distanceToKnobCenter = (localPositionOnPanStart - knobVisualCenter).distance;
+
+          if (distanceToKnobCenter <= rotationEffectiveRadius) {
+            _isDragging = false; // It's a rotation gesture
+            _onInteractionStart();
+
+            final knobSize = Size(knobVisualRadius * 2, knobVisualRadius * 2); // Actual knob size (60x60)
+            // Convert pan start position to be relative to the knob's own top-left corner.
+            final positionRelativeToKnobTopLeft = localPositionOnPanStart - knobVisualCenter + Offset(knobVisualRadius, knobVisualRadius);
+            _updateKnobValue(positionRelativeToKnobTopLeft, knobSize);
+          } else {
+            _isDragging = true; // It's a drag gesture
             _onInteractionStart();
           }
         },
         onPanUpdate: (details) {
-          if (!_isDragging) {
-            // Check if we're dragging the knob or rotating it
-            final RenderBox renderBox = context.findRenderObject() as RenderBox;
-            final localPosition = renderBox.globalToLocal(details.globalPosition);
-            final size = renderBox.size;
-            final center = Offset(size.width / 2, size.height / 2);
-            final distance = (localPosition - center).distance;
-            
-            if (distance > size.width * 0.4) {
-              // Dragging the entire knob
-              setState(() {
-                _isDragging = true;
-                _position += details.delta;
-              });
-              widget.onPositionChanged?.call(_position);
-            } else {
-              // Rotating the knob value
-              _updateKnobValue(localPosition, size);
-            }
-          } else {
-            // Continue dragging
+          final RenderBox renderBox = context.findRenderObject() as RenderBox;
+          final localPosition = renderBox.globalToLocal(details.globalPosition);
+          final size = renderBox.size; // Overall widget size (80x120)
+
+          if (_isDragging) {
             setState(() {
               _position += details.delta;
             });
             widget.onPositionChanged?.call(_position);
+          } else {
+            // Knob's visual center and size (same as in onPanStart)
+            final knobVisualCenterX = size.width / 2;
+            final knobVisualCenterY = 30.0;
+            final knobVisualCenter = Offset(knobVisualCenterX, knobVisualCenterY);
+            const double knobVisualRadius = 30.0;
+            final knobSize = Size(knobVisualRadius * 2, knobVisualRadius * 2);
+
+            // Convert current pan position to be relative to the knob's own top-left corner.
+            final positionRelativeToKnobTopLeft = localPosition - knobVisualCenter + Offset(knobVisualRadius, knobVisualRadius);
+            _updateKnobValue(positionRelativeToKnobTopLeft, knobSize);
           }
         },
         onPanEnd: (details) {
           _onInteractionEnd();
-          setState(() {
-            _isDragging = false;
-          });
+          // _isDragging state is managed by onPanStart.
         },
         child: AnimatedBuilder(
           animation: Listenable.merge([
@@ -295,24 +314,24 @@ class _DraggableKnobState extends State<DraggableKnob>
   }
 
   Widget _buildKnobBody() {
-    return Column(
-      children: [
-        // Main knob circle
-        Container(
-          width: 60,
-          height: 60,
-          child: ClipOval( // Added ClipOval for safety with translated chromatic circles
-            clipBehavior: Clip.antiAlias,
-            child: Stack(
-              children: [
-                // RGB separated circles for chromatic effect
-                if (_isInteracting) ...[
+    // Aligns the 60x60 knob within the 80x120 Stack area.
+    // Alignment(0.0, -0.5) positions the center of the child (knob)
+    // at the horizontal center of the parent, and vertically at Y = 30.
+    return Align(
+      alignment: Alignment(0.0, -0.5),
+      child: Container(
+        width: 60,
+        height: 60,
+        child: ClipOval(
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (_isInteracting) ...[
                 _buildChromaticCircle(Colors.red.withOpacity(0.6), Offset(2, 0)),
                 _buildChromaticCircle(Colors.cyan.withOpacity(0.6), Offset(-2, 0)),
                 _buildChromaticCircle(Colors.green.withOpacity(0.6), Offset(0, 2)),
               ],
-              
-              // Main knob circle
               Container(
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -330,6 +349,7 @@ class _DraggableKnobState extends State<DraggableKnob>
                   ],
                 ),
                 child: CustomPaint(
+                  size: Size(60, 60), // Explicitly pass size to painter
                   painter: KnobPainter(
                     value: widget.value,
                     min: widget.min,
@@ -341,17 +361,19 @@ class _DraggableKnobState extends State<DraggableKnob>
                 ),
               ),
             ],
-            ),
           ),
         ),
-      ],
+      ),
     );
   }
 
   Widget _buildChromaticCircle(Color color, Offset offset) {
+    // These circles are part of the 60x60 knob body.
     return Transform.translate(
       offset: offset * _chromaticOffset.value.dx * 0.1,
       child: Container(
+        width: 60, // Should match the knob's main circle size
+        height: 60,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
@@ -364,9 +386,10 @@ class _DraggableKnobState extends State<DraggableKnob>
   }
 
   Widget _buildGlitchOverlay() {
+    // This overlay covers the entire 80x120 widget area.
     return Positioned.fill(
       child: CustomPaint(
-        clipBehavior: Clip.hardEdge, // Added for safety
+        clipBehavior: Clip.hardEdge,
         painter: GlitchOverlayPainter(
           intensity: _glitchIntensity,
           time: _glitchController.value,
@@ -377,31 +400,38 @@ class _DraggableKnobState extends State<DraggableKnob>
 
   Widget _buildValueLabel() {
     final displayValue = ((widget.value - widget.min) / (widget.max - widget.min) * 100).round();
-    
+    // Positioned relative to the 80x120 container.
+    // The knob (60px high) is centered at Y=30 (top edge at Y=0, bottom edge at Y=60).
+    // So, top: 70 positions it 10px below the knob.
     return Positioned(
-      bottom: 25,
-      child: Container(
-        padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          color: widget.primaryColor.withOpacity(0.2),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: widget.primaryColor.withOpacity(0.6),
-            width: 1,
+      top: 70,
+      left: 0, // To center horizontally
+      right: 0,
+      child: Align(
+        alignment: Alignment.center,
+        child: Container(
+          padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: widget.primaryColor.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: widget.primaryColor.withOpacity(0.6),
+              width: 1,
+            ),
           ),
-        ),
-        child: Text(
-          '$displayValue',
-          style: TextStyle(
-            color: widget.primaryColor,
-            fontSize: 12,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(
-                color: widget.primaryColor.withOpacity(0.8),
-                blurRadius: 4.0,
-              ),
-            ],
+          child: Text(
+            '$displayValue',
+            style: TextStyle(
+              color: widget.primaryColor,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              shadows: [
+                Shadow(
+                  color: widget.primaryColor.withOpacity(0.8),
+                  blurRadius: 4.0,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -409,21 +439,27 @@ class _DraggableKnobState extends State<DraggableKnob>
   }
 
   Widget _buildParameterLabel() {
+    // Positioned relative to the 80x120 container, at the bottom.
     return Positioned(
       bottom: 4,
-      child: Text(
-        widget.label.toUpperCase(),
-        style: TextStyle(
-          color: widget.primaryColor.withOpacity(0.8),
-          fontSize: 10,
-          fontWeight: FontWeight.bold,
-          letterSpacing: 1.2,
-          shadows: [
-            Shadow(
-              color: widget.primaryColor.withOpacity(0.6),
-              blurRadius: 2.0,
-            ),
-          ],
+      left: 0, // To center horizontally
+      right: 0,
+      child: Align(
+        alignment: Alignment.center,
+        child: Text(
+          widget.label.toUpperCase(),
+          style: TextStyle(
+            color: widget.primaryColor.withOpacity(0.8),
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+            shadows: [
+              Shadow(
+                color: widget.primaryColor.withOpacity(0.6),
+                blurRadius: 2.0,
+              ),
+            ],
+          ),
         ),
       ),
     );

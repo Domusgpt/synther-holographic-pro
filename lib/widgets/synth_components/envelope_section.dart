@@ -41,6 +41,7 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
       'decay': 0.3,     // 0.01 to 10.0 seconds  
       'sustain': 0.7,   // 0.0 to 1.0 level
       'release': 0.5,   // 0.01 to 10.0 seconds
+      'hold': 0.5,      // Visual sustain hold time before release
       'velocity': 0.8,  // Velocity sensitivity 0-1
       'curve': 0.5,     // Curve shape 0-1 (linear to exponential)
       'enabled': 1.0,   // On/off
@@ -50,6 +51,7 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
       'decay': 0.2,
       'sustain': 0.5,
       'release': 0.8,
+      'hold': 0.5,
       'velocity': 0.6,
       'curve': 0.3,
       'enabled': 1.0,
@@ -59,6 +61,7 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
       'decay': 0.1,
       'sustain': 0.0,
       'release': 0.3,
+      'hold': 0.2,
       'velocity': 0.0,
       'curve': 0.7,
       'enabled': 0.0,
@@ -78,7 +81,10 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
   
   // Envelope editor interaction
   bool _isDraggingPoint = false;
-  int _draggedPoint = -1; // 0=attack, 1=decay, 2=sustain, 3=release
+  int _draggedPoint = -1; // 0: Attack Peak, 1: DecayEnd/SustainLevel, 2: SustainVisualEnd/HoldEnd
+  Size _painterSize = Size.zero;
+  final double _controlPointRadius = 20.0; // Increased for easier touch
+  final double _totalDisplayTime = 4.0; // Fixed total time for the X-axis of the painter in seconds
 
   @override
   void initState() {
@@ -373,11 +379,15 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
           onPanStart: _onPanStart,
           onPanUpdate: _onPanUpdate,
           onPanEnd: _onPanEnd,
-          child: AnimatedBuilder(
-            animation: Listenable.merge([_envelopeController, _pulseController]),
-            builder: (context, child) {
-              return LayoutBuilder(
-                builder: (context, constraints) {
+          child: LayoutBuilder( // Ensure LayoutBuilder is outside AnimatedBuilder if _painterSize is set here
+            builder: (context, constraints) {
+              // Capture painter size for drag calculations if not already set or if it can change
+              // However, it's better to get it dynamically in pan handlers if possible,
+              // or ensure it's stable. For now, let's assume it's relatively stable once laid out.
+              // _painterSize = Size(constraints.maxWidth, constraints.maxHeight);
+              return AnimatedBuilder(
+                animation: Listenable.merge([_envelopeController, _pulseController]),
+                builder: (context, child) {
                   return CustomPaint(
                     painter: EnvelopePainter(
                       envelopeParams: _envelopes[_selectedEnvelope],
@@ -387,12 +397,13 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
                       isTriggered: _isTriggered,
                       isDragging: _isDraggingPoint,
                       draggedPoint: _draggedPoint,
+                      totalDisplayTime: _totalDisplayTime, // Pass fixed display time
                     ),
                     size: Size(constraints.maxWidth, constraints.maxHeight),
                   );
                 },
               );
-            },
+            }
           ),
         ),
       ),
@@ -516,27 +527,99 @@ class _EnvelopeSectionState extends State<EnvelopeSection>
   }
 
   void _onPanStart(DragStartDetails details) {
-    // Determine which control point was clicked
+    final RenderBox renderBox = context.findRenderObject() as RenderBox;
+    _painterSize = renderBox.size;
     final localPosition = details.localPosition;
-    // Implementation would check proximity to ADSR control points
-    setState(() {
-      _isDraggingPoint = true;
-      // _draggedPoint would be set based on proximity detection
-    });
+
+    final currentParams = _envelopes[_selectedEnvelope];
+    final attackTime = currentParams['attack']!;
+    final decayTime = currentParams['decay']!;
+    final sustainLevel = currentParams['sustain']!;
+    final holdTime = currentParams['hold']!;
+
+    // Calculate control point screen coordinates based on _totalDisplayTime
+    // P0 (Attack Peak)
+    final p0x = (attackTime / _totalDisplayTime) * _painterSize.width;
+    final p0y = 0.0; // Peak is at the top
+    // P1 (Decay End / Sustain Level)
+    final p1x = ((attackTime + decayTime) / _totalDisplayTime) * _painterSize.width;
+    final p1y = (1.0 - sustainLevel) * _painterSize.height;
+    // P2 (Sustain Visual End / Hold End)
+    final p2x = ((attackTime + decayTime + holdTime) / _totalDisplayTime) * _painterSize.width;
+    final p2y = (1.0 - sustainLevel) * _painterSize.height; // Same Y as p1
+
+    final points = [Offset(p0x, p0y), Offset(p1x, p1y), Offset(p2x, p2y)];
+    int newDraggedPoint = -1;
+
+    for (int i = 0; i < points.length; i++) {
+      if ((localPosition - points[i]).distance < _controlPointRadius) {
+        newDraggedPoint = i;
+        break;
+      }
+    }
+
+    if (newDraggedPoint != -1) {
+      setState(() {
+        _isDraggingPoint = true;
+        _draggedPoint = newDraggedPoint;
+        // HapticFeedback.lightImpact(); // Re-enable if available
+      });
+      HapticFeedback.lightImpact(); // Consider adding haptics
+    }
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
-    if (!_isDraggingPoint) return;
+    if (!_isDraggingPoint || _draggedPoint == -1) return;
+
+    final localPosition = details.localPosition;
+    final currentParams = _envelopes[_selectedEnvelope];
     
-    // Update envelope parameter based on drag position
-    // Implementation would modify the appropriate ADSR value
+    // Normalize positions (clamp to painter bounds)
+    final normX = (localPosition.dx.clamp(0.0, _painterSize.width)) / _painterSize.width;
+    final normY = (localPosition.dy.clamp(0.0, _painterSize.height)) / _painterSize.height;
+
+    double newAttack, newDecay, newSustain, newHold;
+
+    switch (_draggedPoint) {
+      case 0: // Attack Peak
+        newAttack = normX * _totalDisplayTime;
+        // Ensure attack is not negative or excessively small, and respects other segment times
+        newAttack = newAttack.clamp(0.01, _totalDisplayTime - (currentParams['decay']! + currentParams['hold']! + 0.02));
+        _updateEnvelopeParam('attack', newAttack);
+        break;
+      case 1: // Decay End / Sustain Level
+        final currentAttack = currentParams['attack']!;
+        newDecay = (normX * _totalDisplayTime) - currentAttack;
+        newDecay = newDecay.clamp(0.01, _totalDisplayTime - currentAttack - currentParams['hold']! - 0.01);
+        _updateEnvelopeParam('decay', newDecay);
+
+        newSustain = 1.0 - normY;
+        newSustain = newSustain.clamp(0.0, 1.0);
+        _updateEnvelopeParam('sustain', newSustain);
+        break;
+      case 2: // Sustain Visual End / Hold End (also updates sustain level)
+        final currentAttack = currentParams['attack']!;
+        final currentDecay = currentParams['decay']!;
+        newHold = (normX * _totalDisplayTime) - (currentAttack + currentDecay);
+        newHold = newHold.clamp(0.01, _totalDisplayTime - currentAttack - currentDecay - 0.01);
+        _updateEnvelopeParam('hold', newHold);
+
+        newSustain = 1.0 - normY;
+        newSustain = newSustain.clamp(0.0, 1.0);
+        _updateEnvelopeParam('sustain', newSustain); // This point also drags sustain up/down
+        break;
+    }
+    // No need to call setState explicitly if _updateEnvelopeParam does it.
+    // _updateEnvelopeParam already calls setState.
   }
 
   void _onPanEnd(DragEndDetails details) {
-    setState(() {
-      _isDraggingPoint = false;
-      _draggedPoint = -1;
-    });
+    if (_isDraggingPoint) { // Only update if actively dragging
+      setState(() {
+        _isDraggingPoint = false;
+        _draggedPoint = -1;
+      });
+    }
   }
 
   void _toggleEnvelope(int envelopeIndex) {
@@ -572,6 +655,7 @@ class EnvelopePainter extends CustomPainter {
   final bool isTriggered;
   final bool isDragging;
   final int draggedPoint;
+  final double totalDisplayTime; // Added fixed total display time
 
   EnvelopePainter({
     required this.envelopeParams,
@@ -581,6 +665,7 @@ class EnvelopePainter extends CustomPainter {
     required this.isTriggered,
     required this.isDragging,
     required this.draggedPoint,
+    required this.totalDisplayTime, // Added
   });
 
   @override
@@ -624,15 +709,17 @@ class EnvelopePainter extends CustomPainter {
     final decay = envelopeParams['decay']!;
     final sustain = envelopeParams['sustain']!;
     final release = envelopeParams['release']!;
+    final hold = envelopeParams['hold'] ?? 0.5; // Use 'hold' from params, fallback to 0.5
     final curve = envelopeParams['curve']!;
     
-    // Calculate phase durations (normalized to total width)
-    final totalTime = attack + decay + 0.5 + release; // 0.5s sustain display
-    final attackWidth = (attack / totalTime) * size.width;
-    final decayWidth = (decay / totalTime) * size.width;
-    final sustainWidth = (0.5 / totalTime) * size.width;
-    final releaseWidth = (release / totalTime) * size.width;
-    
+    // Calculate X positions based on totalDisplayTime
+    // These are absolute X coordinates on the canvas
+    final attackX = (attack / totalDisplayTime) * size.width;
+    final decayX = ((attack + decay) / totalDisplayTime) * size.width;
+    final holdX = ((attack + decay + hold) / totalDisplayTime) * size.width;
+    // Release phase starts after holdX, its duration is 'release'
+    // The visual end of release might be outside totalDisplayTime, clip drawing at size.width.
+
     final path = Path();
     final paint = Paint()
       ..color = color.withOpacity(0.8)
@@ -644,24 +731,26 @@ class EnvelopePainter extends CustomPainter {
     path.moveTo(0, size.height);
     
     // Attack phase
-    final attackEndY = size.height * 0.1; // Near top
-    _addCurvedSegment(path, 0, size.height, attackWidth, attackEndY, curve);
+    final attackPeakY = 0.0; // Top of the painter
+    _addCurvedSegment(path, 0, size.height, attackX.clamp(0, size.width), attackPeakY, curve);
     
     // Decay phase
-    final sustainY = size.height * (1.0 - sustain);
-    _addCurvedSegment(path, attackWidth, attackEndY, attackWidth + decayWidth, sustainY, 1.0 - curve);
+    final sustainLineY = (1.0 - sustain) * size.height;
+    _addCurvedSegment(path, attackX.clamp(0, size.width), attackPeakY, decayX.clamp(0, size.width), sustainLineY, 1.0 - curve);
     
-    // Sustain phase (flat line)
-    path.lineTo(attackWidth + decayWidth + sustainWidth, sustainY);
+    // Sustain (hold) phase (flat line)
+    path.lineTo(holdX.clamp(0, size.width), sustainLineY);
     
     // Release phase
+    // Release starts at holdX, sustainLineY. Ends 'release' seconds later.
+    final releaseVisualEndX = ((attack + decay + hold + release) / totalDisplayTime) * size.width;
     _addCurvedSegment(
       path, 
-      attackWidth + decayWidth + sustainWidth, 
-      sustainY, 
-      attackWidth + decayWidth + sustainWidth + releaseWidth, 
-      size.height, 
-      curve
+      holdX.clamp(0, size.width),
+      sustainLineY,
+      releaseVisualEndX.clamp(0, size.width), // Clamp to ensure it's drawn within bounds
+      size.height, // Ends at bottom
+      curve // Use original curve for release, or specify another
     );
 
     // Draw glow effect
@@ -729,32 +818,36 @@ class EnvelopePainter extends CustomPainter {
     final decay = envelopeParams['decay']!;
     final sustain = envelopeParams['sustain']!;
     final release = envelopeParams['release']!;
+    final hold = envelopeParams['hold'] ?? 0.5;
     
-    final totalTime = attack + decay + 0.5 + release;
-    final currentTime = animationValue * totalTime;
+    // This totalTime is for the actual envelope duration, not necessarily totalDisplayTime
+    final envelopeActualTotalDuration = attack + decay + hold + release;
+    final currentTime = animationValue * envelopeActualTotalDuration; // animationValue is 0-1 over this duration
     
-    double x, y;
+    double xOnCanvas, yOnCanvas;
     
-    if (currentTime <= attack) {
-      // In attack phase
-      final progress = currentTime / attack;
-      x = (currentTime / totalTime) * size.width;
-      y = size.height * (1.0 - progress);
-    } else if (currentTime <= attack + decay) {
-      // In decay phase
-      final progress = (currentTime - attack) / decay;
-      x = ((attack + (currentTime - attack)) / totalTime) * size.width;
-      y = size.height * (1.0 - (1.0 - progress * (1.0 - sustain)));
-    } else if (currentTime <= attack + decay + 0.5) {
-      // In sustain phase
-      x = ((attack + decay + (currentTime - attack - decay)) / totalTime) * size.width;
-      y = size.height * (1.0 - sustain);
-    } else {
-      // In release phase
-      final progress = (currentTime - attack - decay - 0.5) / release;
-      x = ((attack + decay + 0.5 + (currentTime - attack - decay - 0.5)) / totalTime) * size.width;
-      y = size.height * (1.0 - sustain * (1.0 - progress));
+    if (currentTime <= attack) { // Attack phase
+      final phaseProgress = attack == 0 ? 1.0 : (currentTime / attack).clamp(0.0, 1.0);
+      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
+      yOnCanvas = size.height * (1.0 - phaseProgress); // Linear interpolation for Y for simplicity here
+    } else if (currentTime <= attack + decay) { // Decay phase
+      final phaseProgress = decay == 0 ? 1.0 : ((currentTime - attack) / decay).clamp(0.0, 1.0);
+      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
+      yOnCanvas = size.height * (1.0 - (1.0 - phaseProgress * (1.0 - sustain))); // From peak (1.0) towards sustain level
+    } else if (currentTime <= attack + decay + hold) { // Sustain (Hold) phase
+      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
+      yOnCanvas = size.height * (1.0 - sustain);
+    } else if (currentTime <= envelopeActualTotalDuration) { // Release phase
+      final phaseProgress = release == 0 ? 1.0 : ((currentTime - (attack + decay + hold)) / release).clamp(0.0, 1.0);
+      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
+      yOnCanvas = size.height * (1.0 - sustain * (1.0 - phaseProgress)); // From sustain level towards 0
+    } else { // Envelope finished
+      xOnCanvas = (envelopeActualTotalDuration / totalDisplayTime) * size.width;
+      yOnCanvas = size.height;
     }
+    xOnCanvas = xOnCanvas.clamp(0.0, size.width);
+    yOnCanvas = yOnCanvas.clamp(0.0, size.height);
+
 
     // Draw the progress dot
     final dotPaint = Paint()
@@ -776,17 +869,23 @@ class EnvelopePainter extends CustomPainter {
     final attack = envelopeParams['attack']!;
     final decay = envelopeParams['decay']!;
     final sustain = envelopeParams['sustain']!;
-    final release = envelopeParams['release']!;
+    final hold = envelopeParams['hold'] ?? 0.5;
+    // release is not used for control point positions here, but for total envelope duration
     
-    final totalTime = attack + decay + 0.5 + release;
-    final attackWidth = (attack / totalTime) * size.width;
-    final decayWidth = (decay / totalTime) * size.width;
-    final sustainWidth = (0.5 / totalTime) * size.width;
-    
+    // Points based on totalDisplayTime for consistent screen positions
+    final p0x = (attack / totalDisplayTime) * size.width;
+    final p0y = 0.0; // Attack peak is at the top
+
+    final p1x = ((attack + decay) / totalDisplayTime) * size.width;
+    final p1y = (1.0 - sustain) * size.height;
+
+    final p2x = ((attack + decay + hold) / totalDisplayTime) * size.width;
+    final p2y = (1.0 - sustain) * size.height; // Sustain level is the same Y
+
     final controlPoints = [
-      Offset(attackWidth, size.height * 0.1), // Attack peak
-      Offset(attackWidth + decayWidth, size.height * (1.0 - sustain)), // Sustain level
-      Offset(attackWidth + decayWidth + sustainWidth, size.height * (1.0 - sustain)), // Sustain end
+      Offset(p0x.clamp(0,size.width), p0y),
+      Offset(p1x.clamp(0,size.width), p1y.clamp(0,size.height)),
+      Offset(p2x.clamp(0,size.width), p2y.clamp(0,size.height)),
     ];
 
     final pointPaint = Paint()
@@ -822,17 +921,30 @@ class EnvelopePainter extends CustomPainter {
 
   void _drawLabels(Canvas canvas, Size size) {
     final textPainter = TextPainter(textDirection: TextDirection.ltr);
-    final labels = ['A', 'D', 'S', 'R'];
+    final labels = ['A', 'D', 'H', 'R']; // Hold instead of Sustain for clarity here
     final attack = envelopeParams['attack']!;
     final decay = envelopeParams['decay']!;
-    final totalTime = attack + decay + 0.5 + envelopeParams['release']!;
+    final hold = envelopeParams['hold'] ?? 0.5;
+    // Release time from params
+    final release = envelopeParams['release']!;
+
+    // Position labels based on proportions of totalDisplayTime or their actual time values
+    // These are approximate centers for the labels A, D, H(old), R(elease)
+    // Ensure these calculations use totalDisplayTime for consistency with the visual scale
+    final attackLabelX = (attack * 0.5 / totalDisplayTime) * size.width;
+    final decayLabelX = ((attack + decay * 0.5) / totalDisplayTime) * size.width;
+    final holdLabelX = ((attack + decay + hold * 0.5) / totalDisplayTime) * size.width;
+    final releaseLabelX = ((attack + decay + hold + release * 0.5) / totalDisplayTime) * size.width;
     
     final positions = [
-      size.width * 0.1,
-      size.width * (attack / totalTime + 0.05),
-      size.width * ((attack + decay + 0.25) / totalTime),
-      size.width * 0.9,
-    ];
+      attackLabelX,
+      decayLabelX,
+      holdLabelX,
+      // For Release, it's trickier as its segment might be partially off-screen.
+      // Let's place it somewhere reasonable within the visible part if possible.
+      (holdLabelX + size.width) / 2, // Midpoint of remaining space or fixed offset
+    ].map((x) => x.clamp(0.0, size.width - textPainter.width > 0 ? size.width - textPainter.width : 0.0 )).toList() ;
+
 
     for (int i = 0; i < labels.length; i++) {
       textPainter.text = TextSpan(
