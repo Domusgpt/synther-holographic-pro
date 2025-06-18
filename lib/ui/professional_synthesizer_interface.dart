@@ -101,16 +101,8 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
     final sections = _sectionTransforms.keys;
     for (int i = 0; i < sections.length; i++) {
       final section = sections.elementAt(i);
-      final matrix = vector.Matrix4.identity();
-      
-      // Apply 4D rotation based on pulse and section index
-      final rotationW = pulse * 2 * 3.14159 + (i * 0.5);
-      final rotationY = pulse * 1.5 * 3.14159 + (i * 0.3);
-      
-      matrix.rotateY(rotationY * 0.1);
-      matrix.translate(0.0, Math.sin(rotationW) * 2.0, Math.cos(rotationW) * 1.0);
-      
-      _sectionTransforms[section] = matrix;
+      // For diagnostics: Set to identity matrix to remove custom transforms
+      _sectionTransforms[section] = vector.Matrix4.identity();
     }
   }
 
