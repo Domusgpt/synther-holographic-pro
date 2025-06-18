@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperAV 4D Polytopal Visualizer</title>
+    <style>
+        :root {
+            --color-primary: #ff00ff;
+            --color-secondary: #00ffff;
+            --color-tertiary: #9933ff;
+            --color-dark: #0a1130;
+            --color-darker: #050a20;
+            --color-text: #e0e0ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            background: transparent;
+            font-family: 'Chakra Petch', 'Segoe UI', Tahoma, sans-serif;
+        }
+
+        #hypercube-canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            background: transparent;
+        }
+
+        .hidden-controls {
+            position: absolute;
+            top: -1000px;
+            left: -1000px;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Status indicator for debugging */
+        #status {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: var(--color-secondary);
+            font-size: 12px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+
+        .reactivity-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            color: var(--color-primary);
+            font-size: 10px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 4px 8px;
+            border: 1px solid var(--color-primary);
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: monospace;
+            transition: all 0.3s ease;
+        }
+
+        .reactivity-indicator:hover {
+            background: rgba(255, 0, 255, 0.1);
+            box-shadow: 0 0 10px rgba(255, 0, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="hypercube-canvas"></canvas>
+    
+    <div id="status">Initializing HyperAV...</div>
+    <div class="reactivity-indicator">STANDBY</div>
+
+    <!-- Hidden controls for parameter management -->
+    <div class="hidden-controls">
+        <input type="range" id="morphFactor" min="0" max="1" step="0.01" value="0.7">
+        <span id="morphFactor-value">0.70</span>
+        
+        <input type="number" id="dimension" min="3" max="5" step="1" value="4">
+        <span id="dimension-value">4</span>
+        
+        <input type="range" id="rotationSpeed" min="0" max="2" step="0.01" value="0.5">
+        <span id="rotationSpeed-value">0.50</span>
+        
+        <input type="range" id="gridDensity" min="1" max="25" step="0.5" value="8">
+        <span id="gridDensity-value">8.0</span>
+        
+        <input type="range" id="lineThickness" min="0.005" max="0.1" step="0.005" value="0.03">
+        <span id="lineThickness-value">0.030</span>
+        
+        <input type="range" id="patternIntensity" min="0" max="3" step="0.1" value="1.3">
+        <span id="patternIntensity-value">1.3</span>
+        
+        <input type="range" id="universeModifier" min="0.3" max="2.5" step="0.1" value="1.0">
+        <span id="universeModifier-value">1.0</span>
+        
+        <input type="range" id="colorShift" min="-1" max="1" step="0.01" value="0">
+        <span id="colorShift-value">0.00</span>
+        
+        <input type="range" id="glitchIntensity" min="0" max="0.2" step="0.01" value="0.02">
+        <span id="glitchIntensity-value">0.02</span>
+
+        <select id="geometryType">
+            <option value="hypercube">Hypercube</option>
+            <option value="hypersphere">Hypersphere</option>
+            <option value="hypertetrahedron">Hypertetrahedron</option>
+            <option value="duocylinder">Duocylinder</option>
+            <option value="fullscreenlattice">Full Screen Lattice</option>
+        </select>
+
+        <select id="projectionMethod">
+            <option value="perspective">Perspective</option>
+            <option value="orthographic">Orthographic</option>
+            <option value="stereographic">Stereographic</option>
+        </select>
+
+        <select id="dataSourceSelect">
+            <option value="microphone">Microphone</option>
+            <option value="procedural">Procedural</option>
+        </select>
+
+        <input type="text" id="pmkCommandInput" placeholder="PMK Command JSON">
+        <button id="sendPmkCommand">Send</button>
+    </div>
+
+    <script type="module" src="js/visualizer-main.js"></script>
+
+    <script>
+        // Flutter integration messaging
+        window.addEventListener('message', (event) => {
+            if (event.data && typeof event.data === 'object') {
+                const { type, ...params } = event.data;
+                
+                switch (type) {
+                    case 'setGeometry':
+                        if (params.geometry) {
+                            const geometrySelect = document.getElementById('geometryType');
+                            if (geometrySelect) {
+                                geometrySelect.value = params.geometry;
+                                geometrySelect.dispatchEvent(new Event('change'));
+                            }
+                        }
+                        break;
+                        
+                    case 'setProjection':
+                        if (params.projection) {
+                            const projectionSelect = document.getElementById('projectionMethod');
+                            if (projectionSelect) {
+                                projectionSelect.value = params.projection;
+                                projectionSelect.dispatchEvent(new Event('change'));
+                            }
+                        }
+                        break;
+                        
+                    case 'updateParameters':
+                        // Update slider values from Flutter
+                        for (const [key, value] of Object.entries(params)) {
+                            const slider = document.getElementById(key);
+                            if (slider) {
+                                slider.value = value;
+                                slider.dispatchEvent(new Event('input'));
+                            }
+                        }
+                        break;
+                        
+                    case 'setDataSource':
+                        if (params.source) {
+                            const dataSourceSelect = document.getElementById('dataSourceSelect');
+                            if (dataSourceSelect) {
+                                dataSourceSelect.value = params.source;
+                                dataSourceSelect.dispatchEvent(new Event('change'));
+                            }
+                        }
+                        break;
+                        
+                    case 'sendPMKCommand':
+                        if (params.command) {
+                            const commandInput = document.getElementById('pmkCommandInput');
+                            const sendButton = document.getElementById('sendPmkCommand');
+                            if (commandInput && sendButton) {
+                                commandInput.value = JSON.stringify(params.command);
+                                sendButton.click();
+                            }
+                        }
+                        break;
+                }
+            }
+        });
+
+        // Send status updates back to Flutter
+        function sendStatusToFlutter(status, data = {}) {
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'hyperav_status',
+                    status: status,
+                    data: data
+                }, '*');
+            }
+        }
+
+        // Monitor audio activity and send to Flutter
+        let lastAudioActivity = false;
+        setInterval(() => {
+            // This will be set by visualizer-main.js
+            const isAudioActive = window.isAudioActive || false;
+            if (isAudioActive !== lastAudioActivity) {
+                lastAudioActivity = isAudioActive;
+                sendStatusToFlutter('audioActivity', { active: isAudioActive });
+            }
+        }, 100);
+
+        // Initialization complete
+        document.addEventListener('DOMContentLoaded', () => {
+            sendStatusToFlutter('initialized');
+            
+            // Update status display periodically
+            setInterval(() => {
+                const statusDiv = document.getElementById('status');
+                if (statusDiv && window.mainVisualizerCore) {
+                    const state = window.mainVisualizerCore.state;
+                    if (state) {
+                        statusDiv.textContent = `HyperAV: ${state.geometryType} | ${state.projectionMethod} | ${state.isRendering ? 'Active' : 'Stopped'}`;
+                    }
+                }
+            }, 1000);
+        });
+
+        // Error handling
+        window.addEventListener('error', (event) => {
+            console.error('HyperAV Error:', event.error);
+            sendStatusToFlutter('error', { 
+                message: event.error?.message || 'Unknown error',
+                stack: event.error?.stack 
+            });
+        });
+
+        // Resize handling
+        function resizeCanvas() {
+            const canvas = document.getElementById('hypercube-canvas');
+            if (canvas) {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas(); // Initial resize
+    </script>
+</body>
+</html>

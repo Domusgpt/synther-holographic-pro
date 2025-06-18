@@ -2,7 +2,7 @@ import 'dart:ffi';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart'; // Assuming Provider is used for SynthParametersModel
 
-import '../../core/ffi/native_audio_ffi.dart';
+import '../../core/ffi/native_audio_ffi_factory.dart';
 import '../../core/synth_parameters.dart'; // Assuming this provides SynthParametersModel
 import '../../ui/holographic/holographic_theme.dart';
 
@@ -81,7 +81,7 @@ class _AutomationControlsWidgetState extends State<AutomationControlsWidget> {
   bool _isPlaying = false;
   bool _hasAutomation = false;
 
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib();
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
 
   @override
   void initState() {

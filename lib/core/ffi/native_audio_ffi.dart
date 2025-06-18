@@ -174,11 +174,9 @@ class NativeAudioLib {
     // These Callables must be kept alive. Static fields are a good way.
     _parameterChangeCallable = NativeCallable<ParameterChangeCallbackNative>.isolateLocal(
       _staticParameterChangeHandler,
-      exceptionalReturn: Void(), // Or some other way to signal error if needed
     );
     _midiMessageCallable = NativeCallable<MidiMessageCallbackNative>.isolateLocal(
       _staticMidiMessageHandler,
-      exceptionalReturn: Void(),
     );
 
     // Automatically register them if the native functions are available

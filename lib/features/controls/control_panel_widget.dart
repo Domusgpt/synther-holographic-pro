@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'dart:math' as math;
 
-import '../../core/ffi/native_audio_ffi.dart'; // FFI
+import '../../core/ffi/native_audio_ffi_factory.dart'; // FFI factory
 import '../../ui/holographic/holographic_theme.dart';
 
 // --- Placeholder Definitions ---
@@ -80,7 +80,7 @@ class _ControlPanelWidgetState extends State<ControlPanelWidget> {
   late bool _isCollapsed;
   late Size _currentSize;
   String? _currentlyLearningControlId;
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib();
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
 
   final List<ControlConfig> _controls = [
     ControlConfig(id: 'knob1', assignedParameter: SynthParameter.filterCutoff, currentValue: 0.75, isKnob: true),

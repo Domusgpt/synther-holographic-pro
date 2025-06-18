@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:async'; // For Timer, if needed for animation fallback
-import '../../core/ffi/native_audio_ffi.dart'; // FFI
+import '../../core/ffi/native_audio_ffi_factory.dart'; // FFI factory
 import '../../ui/holographic/holographic_theme.dart'; // For styling (optional for now)
 
 class PitchBendWheelWidget extends StatefulWidget {
@@ -19,7 +19,7 @@ class _PitchBendWheelWidgetState extends State<PitchBendWheelWidget>
     with SingleTickerProviderStateMixin {
   double _currentValue = 0.0; // -1.0 to 1.0
   bool _isInteracting = false;
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib();
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
   late AnimationController _returnToCenterController;
   Animation<double>? _returnAnimation;
 

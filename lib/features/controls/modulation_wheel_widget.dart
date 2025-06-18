@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../core/ffi/native_audio_ffi.dart'; // FFI
+import '../../core/ffi/native_audio_ffi_factory.dart'; // FFI factory
 import '../../ui/holographic/holographic_theme.dart'; // For styling
 
 class ModulationWheelWidget extends StatefulWidget {
@@ -19,7 +19,7 @@ class ModulationWheelWidget extends StatefulWidget {
 class _ModulationWheelWidgetState extends State<ModulationWheelWidget> {
   double _currentValue = 0.0; // 0.0 to 1.0
   bool _isInteracting = false;
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib();
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
 
   @override
   void initState() {

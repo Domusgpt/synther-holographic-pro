@@ -4,7 +4,7 @@ import 'package:ffi/ffi.dart'; // For Utf8, calloc
 import 'dart:convert'; // For jsonEncode, jsonDecode (if Dart handles more JSON work)
 
 // Assuming these are correctly set up and accessible
-import '../../core/ffi/native_audio_ffi.dart';
+import '../../core/ffi/native_audio_ffi_factory.dart';
 import '../../ui/holographic/holographic_theme.dart';
 // import '../../core/synth_parameters.dart'; // If needed for model updates directly here
 
@@ -44,7 +44,7 @@ class _PresetManagerWidgetState extends State<PresetManagerWidget> {
   bool _isLoading = false;
   String _statusMessage = "";
 
-  final NativeAudioLib _nativeAudioLib = NativeAudioLib();
+  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
   final TextEditingController _presetNameController = TextEditingController();
 
   @override
