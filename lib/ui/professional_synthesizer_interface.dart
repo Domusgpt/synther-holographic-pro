@@ -204,10 +204,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                       child: _buildSectionSafe(
                         'oscillators',
                         'OSCILLATOR BANK',
-                        () => OscillatorBank(
-                          transform: _sectionTransforms['oscillators']!,
-                          onParameterChange: _onParameterChange,
-                        ),
+                        () => Container(width: 200, height: 150, color: Colors.red.withOpacity(0.5), child: Center(child: Text('OSCILLATOR BANK Placeholder', style: TextStyle(color: Colors.white))))
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -217,10 +214,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                       child: _buildSectionSafe(
                         'filters',
                         'FILTER SECTION',
-                        () => FilterSection(
-                          transform: _sectionTransforms['filters']!,
-                          onParameterChange: _onParameterChange,
-                        ),
+                        () => Container(width: 150, height: 150, color: Colors.blue.withOpacity(0.5), child: Center(child: Text('FILTER SECTION Placeholder', style: TextStyle(color: Colors.white))))
                       ),
                     ),
                   ],
@@ -238,10 +232,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                       child: _buildSectionSafe(
                         'envelopes',
                         'ENVELOPE GENERATORS',
-                        () => EnvelopeSection(
-                          transform: _sectionTransforms['envelopes']!,
-                          onParameterChange: _onParameterChange,
-                        ),
+                        () => Container(width: 200, height: 150, color: Colors.green.withOpacity(0.5), child: Center(child: Text('ENVELOPE GENERATORS Placeholder', style: TextStyle(color: Colors.white))))
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -250,10 +241,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                       child: _buildSectionSafe(
                         'lfos',
                         'LFO SECTION',
-                        () => LFOSection(
-                          transform: _sectionTransforms['lfos']!,
-                          onParameterChange: _onParameterChange,
-                        ),
+                        () => Container(width: 150, height: 150, color: Colors.yellow.withOpacity(0.5), child: Center(child: Text('LFO SECTION Placeholder', style: TextStyle(color: Colors.white))))
                       ),
                     ),
                   ],
@@ -265,10 +253,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                 _buildSectionSafe(
                   'effects',
                   'EFFECTS CHAIN',
-                  () => EffectsChain(
-                    transform: _sectionTransforms['effects']!,
-                    onParameterChange: _onParameterChange,
-                  ),
+                  () => Container(width: 300, height: 100, color: Colors.purple.withOpacity(0.5), child: Center(child: Text('EFFECTS CHAIN Placeholder', style: TextStyle(color: Colors.white))))
                 ),
                 
                 const SizedBox(height: 16),
@@ -277,10 +262,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                 _buildSectionSafe(
                   'modulation',
                   'MODULATION MATRIX',
-                  () => ModulationMatrix(
-                    transform: _sectionTransforms['modulation']!,
-                    onParameterChange: _onParameterChange,
-                  ),
+                  () => Container(width: 300, height: 100, color: Colors.orange.withOpacity(0.5), child: Center(child: Text('MODULATION MATRIX Placeholder', style: TextStyle(color: Colors.white))))
                 ),
               ],
             ),
