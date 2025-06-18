@@ -126,20 +126,22 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: HolographicTheme.deepSpaceBlack,
-      body: Stack(
-        children: [
-          // Background holographic grid
-          _buildHolographicBackground(),
-          
-          // Main synthesizer interface
-          _buildSynthesizerLayout(),
-          
-          // Floating spectrum analyzer overlay
-          _buildFloatingSpectrumAnalyzer(),
-          
-          // Chromatic aberration overlay
-          _buildChromaticAberrationOverlay(),
-        ],
+      body: SafeArea(
+        child: Stack(
+          children: [
+            // Background holographic grid
+            _buildHolographicBackground(),
+            
+            // Main synthesizer interface with error handling
+            _buildSynthesizerLayoutSafe(),
+            
+            // Floating spectrum analyzer overlay
+            _buildFloatingSpectrumAnalyzer(),
+            
+            // Chromatic aberration overlay
+            _buildChromaticAberrationOverlay(),
+          ],
+        ),
       ),
     );
   }
@@ -175,17 +177,24 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
     );
   }
 
+  Widget _buildSynthesizerLayoutSafe() {
+    try {
+      return _buildSynthesizerLayout();
+    } catch (e) {
+      print('Error in synthesizer layout: $e');
+      return _buildFallbackLayout();
+    }
+  }
+
   Widget _buildSynthesizerLayout() {
-    return CustomScrollView(
-      slivers: [
-        // Header with master controls
-        SliverToBoxAdapter(
-          child: _buildMasterHeader(),
-        ),
-        
-        // Main synthesizer sections
-        SliverToBoxAdapter(
-          child: Padding(
+    return SingleChildScrollView(
+      child: Column(
+        children: [
+          // Header with master controls
+          _buildMasterHeader(),
+          
+          // Main synthesizer sections
+          Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               children: [
@@ -195,10 +204,10 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                   children: [
                     Expanded(
                       flex: 3,
-                      child: _buildSection(
+                      child: _buildSectionSafe(
                         'oscillators',
                         'OSCILLATOR BANK',
-                        OscillatorBank(
+                        () => OscillatorBank(
                           transform: _sectionTransforms['oscillators']!,
                           onParameterChange: _onParameterChange,
                         ),
@@ -207,10 +216,10 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                     const SizedBox(width: 16),
                     Expanded(
                       flex: 2,
-                      child: _buildSection(
+                      child: _buildSectionSafe(
                         'filters',
                         'FILTER SECTION',
-                        FilterSection(
+                        () => FilterSection(
                           transform: _sectionTransforms['filters']!,
                           onParameterChange: _onParameterChange,
                         ),
@@ -226,10 +235,10 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: _buildSection(
+                      child: _buildSectionSafe(
                         'envelopes',
                         'ENVELOPE GENERATORS',
-                        EnvelopeSection(
+                        () => EnvelopeSection(
                           transform: _sectionTransforms['envelopes']!,
                           onParameterChange: _onParameterChange,
                         ),
@@ -237,10 +246,10 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                     ),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: _buildSection(
+                      child: _buildSectionSafe(
                         'lfos',
                         'LFO SECTION',
-                        LFOSection(
+                        () => LFOSection(
                           transform: _sectionTransforms['lfos']!,
                           onParameterChange: _onParameterChange,
                         ),
@@ -252,10 +261,10 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                 const SizedBox(height: 16),
                 
                 // Bottom row: Effects Chain
-                _buildSection(
+                _buildSectionSafe(
                   'effects',
                   'EFFECTS CHAIN',
-                  EffectsChain(
+                  () => EffectsChain(
                     transform: _sectionTransforms['effects']!,
                     onParameterChange: _onParameterChange,
                   ),
@@ -264,10 +273,10 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                 const SizedBox(height: 16),
                 
                 // Modulation Matrix
-                _buildSection(
+                _buildSectionSafe(
                   'modulation',
                   'MODULATION MATRIX',
-                  ModulationMatrix(
+                  () => ModulationMatrix(
                     transform: _sectionTransforms['modulation']!,
                     onParameterChange: _onParameterChange,
                   ),
@@ -275,8 +284,33 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
               ],
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFallbackLayout() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            'SYNTHER PROFESSIONAL',
+            style: HolographicTheme.createHolographicText(
+              energyColor: HolographicTheme.primaryEnergy,
+              fontSize: 32,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'INITIALIZING COMPLEX INTERFACE...',
+            style: HolographicTheme.createHolographicText(
+              energyColor: HolographicTheme.secondaryEnergy,
+              fontSize: 16,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -343,6 +377,48 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
             MasterSection(
               transform: _sectionTransforms['master']!,
               onParameterChange: _onParameterChange,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionSafe(String sectionId, String title, Widget Function() contentBuilder) {
+    try {
+      final content = contentBuilder();
+      return _buildSection(sectionId, title, content);
+    } catch (e) {
+      print('Error building section $sectionId: $e');
+      return _buildErrorSection(sectionId, title, e.toString());
+    }
+  }
+
+  Widget _buildErrorSection(String sectionId, String title, String error) {
+    return Container(
+      height: 200,
+      decoration: HolographicTheme.createHolographicContainer(
+        energyColor: HolographicTheme.secondaryEnergy,
+        intensity: 0.5,
+      ),
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              title,
+              style: HolographicTheme.createHolographicText(
+                energyColor: HolographicTheme.secondaryEnergy,
+                fontSize: 16,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'COMPONENT LOADING...',
+              style: HolographicTheme.createHolographicText(
+                energyColor: HolographicTheme.primaryEnergy,
+                fontSize: 12,
+              ),
             ),
           ],
         ),
