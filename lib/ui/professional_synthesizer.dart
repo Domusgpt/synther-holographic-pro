@@ -988,9 +988,7 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                     dropdownColor: Colors.grey[850],
                     style: TextStyle(color: Colors.white),
                     underline: Container(height: 1, color: Colors.greenAccent.withOpacity(0.5)),
-                    items: availableParameters
-                        .where((p) => p.id != XYParameter.pitch)
-                        .map((ParameterChoice choice) {
+                    items: _subPadSelectableParameters.map((ParameterChoice choice) { // Corrected to use _subPadSelectableParameters
                       return DropdownMenuItem<XYParameter>(
                         value: choice.id,
                         child: Text(choice.name, style: TextStyle(color: Colors.white)),
@@ -1076,10 +1074,37 @@ class _XYPadTabViewState extends State<XYPadTabView> {
 }
 
 // KeyboardTabView Widget
-class KeyboardTabView extends StatelessWidget {
+class KeyboardTabView extends StatefulWidget {
   final AudioEngine audioEngine;
 
   const KeyboardTabView({super.key, required this.audioEngine});
+
+  @override
+  State<KeyboardTabView> createState() => _KeyboardTabViewState();
+}
+
+class _KeyboardTabViewState extends State<KeyboardTabView> {
+  static const int _minOctaveOffset = -2;
+  static const int _maxOctaveOffset = 2;
+  int _currentOctaveOffset = 0;
+
+  bool _isThumbModeEnabled = false; // Added for Thumb Mode
+
+  static const double _minKeyboardWidthFactor = 0.5;
+  static const double _maxKeyboardWidthFactor = 1.5;
+  double _keyboardWidthFactor = 1.0;
+
+  void _octaveDown() {
+    setState(() {
+      if (_currentOctaveOffset > _minOctaveOffset) _currentOctaveOffset--;
+    });
+  }
+
+  void _octaveUp() {
+    setState(() {
+      if (_currentOctaveOffset < _maxOctaveOffset) _currentOctaveOffset++;
+    });
+  }
 
   static String _getNoteLabel(int index) {
     const notes = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -1093,13 +1118,13 @@ class KeyboardTabView extends StatelessWidget {
         child: Row(
           children: List.generate(12, (index) {
             final isBlackKey = [1, 3, 6, 8, 10].contains(index % 12);
-            final note = 60 + index; // C4 to B4
+            final note = 60 + index + (_currentOctaveOffset * 12);
 
             return Expanded(
               child: GestureDetector(
-                onTapDown: (_) => audioEngine.playNote(note, 0.8),
-                onTapUp: (_) => audioEngine.stopNote(note),
-                onTapCancel: () => audioEngine.stopNote(note),
+                onTapDown: (_) => widget.audioEngine.playNote(note, 0.8),
+                onTapUp: (_) => widget.audioEngine.stopNote(note),
+                onTapCancel: () => widget.audioEngine.stopNote(note),
                 child: Container(
                   margin: const EdgeInsets.symmetric(horizontal: 1),
                   decoration: BoxDecoration(
@@ -1126,6 +1151,67 @@ class KeyboardTabView extends StatelessWidget {
     );
   }
 
+  Widget _buildThumbKeyboard(BuildContext context, AudioEngine audioEngine) {
+    final int baseNote = 60 + (_currentOctaveOffset * 12);
+    final List<String> noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    // For a 2x6 grid, we only need the first 12 notes of an octave.
+    // isBlackKeyPattern should correspond to these 12 notes.
+    final List<bool> isBlackKeyPattern = [
+      false, true, false, true, false, false, true, false, true, false, true, false
+    ];
+
+    List<Widget> keyRows = [];
+    for (int rowIndex = 0; rowIndex < 6; rowIndex++) { // 6 rows
+      List<Widget> rowKeys = [];
+      for (int colIndex = 0; colIndex < 2; colIndex++) { // 2 keys per row
+        int noteSequenceIndex = rowIndex * 2 + colIndex; // 0 to 11
+        if (noteSequenceIndex >= 12) break; // Should not happen with 2x6 grid
+
+        int midiNote = baseNote + noteSequenceIndex;
+        String noteName = noteNames[noteSequenceIndex % 12]; // Use modulo for safety, though direct index is fine
+        bool isBlack = isBlackKeyPattern[noteSequenceIndex % 12];
+
+        rowKeys.add(
+          Expanded(
+            child: GestureDetector(
+              onTapDown: (_) => widget.audioEngine.playNote(midiNote, 0.8),
+              onTapUp: (_) => widget.audioEngine.stopNote(midiNote),
+              onTapCancel: () => widget.audioEngine.stopNote(midiNote),
+              child: Container(
+                height: 50, // Fixed height for thumb keys for now
+                margin: const EdgeInsets.all(2),
+                decoration: BoxDecoration(
+                  color: isBlack ? Colors.black.withOpacity(0.8) : Colors.white.withOpacity(0.8),
+                  border: Border.all(color: Colors.grey[700]!),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Center(
+                  child: Text(
+                    noteName,
+                    style: TextStyle(
+                      color: isBlack ? Colors.white : Colors.black,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      }
+      keyRows.add(Row(children: rowKeys));
+    }
+
+    return SizedBox(
+      width: 220, // Fixed width for the thumb keyboard
+      child: Column(
+        mainAxisSize: MainAxisSize.min, // To make the column wrap its content
+        children: keyRows,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -1139,18 +1225,94 @@ class KeyboardTabView extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Text(
-              'KEYBOARD INPUT',
-              style: TextStyle(
-                color: Color(0xFFFFFF00),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 2,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'KEYBOARD INPUT',
+                  style: TextStyle(
+                    color: Color(0xFFFFFF00),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 2,
+                  ),
+                ),
+                Row(
+                  children: [
+                    IconButton(
+                      icon: Icon(Icons.remove_circle_outline, color: _currentOctaveOffset > _minOctaveOffset ? Colors.white : Colors.grey[700]),
+                      onPressed: _currentOctaveOffset > _minOctaveOffset ? _octaveDown : null,
+                      tooltip: 'Octave Down',
+                    ),
+                    Text(
+                      'Oct: ${_currentOctaveOffset >= 0 ? "+" : ""}$_currentOctaveOffset',
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.add_circle_outline, color: _currentOctaveOffset < _maxOctaveOffset ? Colors.white : Colors.grey[700]),
+                      onPressed: _currentOctaveOffset < _maxOctaveOffset ? _octaveUp : null,
+                      tooltip: 'Octave Up',
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ),
+          // Keyboard Width Slider & Thumb Mode Toggle
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 0.0),
+            child: Row(
+              children: [
+                if (!_isThumbModeEnabled) ...[
+                  Text("Width: ", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderTheme.of(context).copyWith(
+                        activeTrackColor: Colors.amberAccent.withOpacity(0.7),
+                        inactiveTrackColor: Colors.amberAccent.withOpacity(0.3),
+                        thumbColor: Colors.amberAccent,
+                        overlayColor: Colors.amberAccent.withAlpha(0x29),
+                        trackHeight: 2.0,
+                        thumbShape: RoundSliderThumbShape(enabledThumbRadius: 6.0),
+                        overlayShape: RoundSliderOverlayShape(overlayRadius: 12.0),
+                      ),
+                      child: Slider(
+                        value: _keyboardWidthFactor,
+                        min: _minKeyboardWidthFactor,
+                        max: _maxKeyboardWidthFactor,
+                        divisions: 20, // (1.5 - 0.5) / 0.05 = 20
+                        label: _keyboardWidthFactor.toStringAsFixed(2),
+                        onChanged: (double newValue) {
+                          setState(() {
+                            _keyboardWidthFactor = newValue;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+                if (_isThumbModeEnabled) Expanded(child: Container()), // Takes up space if width slider is hidden, to keep toggle right
+                IconButton(
+                  icon: Icon(_isThumbModeEnabled ? Icons.view_agenda_outlined : Icons.view_column_outlined, color: Colors.white),
+                  tooltip: "Toggle Thumb Mode",
+                  onPressed: () {
+                    setState(() {
+                      _isThumbModeEnabled = !_isThumbModeEnabled;
+                    });
+                  },
+                ),
+              ],
             ),
           ),
           Expanded( // Ensure piano keyboard section takes available space
-            child: _buildPianoKeyboard(context, audioEngine),
+            child: Center(
+              child: _isThumbModeEnabled
+                  ? _buildThumbKeyboard(context, widget.audioEngine)
+                  : FractionallySizedBox(
+                      widthFactor: _keyboardWidthFactor.clamp(_minKeyboardWidthFactor, _maxKeyboardWidthFactor),
+                      child: _buildPianoKeyboard(context, widget.audioEngine),
+                    ),
+            ),
           ),
           // Placeholders for advanced features
           SizedBox(height: 10),
