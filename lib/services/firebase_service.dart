@@ -12,15 +12,26 @@ import '../core/synth_parameters.dart';
 /// Handles authentication, presets, AI generation, and social features
 class FirebaseService {
   static FirebaseService? _instance;
-  static FirebaseService get instance => _instance ??= FirebaseService._();
+  static FirebaseService get instance {
+    _instance ??= FirebaseService._internal(
+      FirebaseAuth.instance,
+      FirebaseFirestore.instance,
+      FirebaseFunctions.instance,
+      FirebaseStorage.instance,
+    );
+    return _instance!;
+  }
+
+  // Add a constructor for testing
+  @visibleForTesting
+  FirebaseService.testable(this._auth, this._firestore, this._functions, this._storage);
+
+  FirebaseService._internal(this._auth, this._firestore, this._functions, this._storage);
   
-  FirebaseService._();
-  
-  // Firebase services
-  final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
-  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+  final FirebaseFunctions _functions;
+  final FirebaseStorage _storage;
   
   // Current user stream
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -339,6 +350,11 @@ class FirebaseService {
   
   /// Upload audio recording
   Future<String?> uploadRecording(String filePath, String fileName) async {
+    // Add this check for kIsWeb
+    if (kIsWeb) {
+      print('Warning: File uploading is not supported on the web in this version.');
+      return null;
+    }
     try {
       if (_auth.currentUser == null) return null;
       

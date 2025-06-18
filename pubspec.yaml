@@ -5,7 +5,7 @@ publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: ^3.8.0
+  sdk: ^3.5.0 # Downgraded to be compatible with Flutter 3.24.0
   flutter: ">=3.19.0"
 
 dependencies:
@@ -53,6 +53,8 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  mockito: ^5.4.4 # Added mockito
+  build_runner: ^2.4.11 # Added build_runner
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
