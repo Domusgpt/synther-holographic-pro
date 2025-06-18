@@ -16,8 +16,8 @@ import 'core/synth_parameters.dart';
 // Firebase Services
 import 'services/firebase_service.dart';
 
-// Professional Synthesizer Interface (Complete)
-import 'ui/professional_synthesizer_interface.dart';
+// Working Synthesizer Interface (Simplified but functional)
+import 'ui/working_synthesizer_interface.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -113,7 +113,7 @@ class SyntherApp extends StatelessWidget {
         primarySwatch: Colors.cyan,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const ProfessionalSynthesizerInterface(),
+      home: const WorkingSynthesizerInterface(),
     );
   }
 }
