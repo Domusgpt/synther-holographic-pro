@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:vector_math/vector_math_64.dart' as vector;
 import 'dart:math' as math;
 import '../../core/holographic_theme.dart';
@@ -813,43 +814,46 @@ class EnvelopePainter extends CustomPainter {
   void _drawProgressIndicator(Canvas canvas, Size size) {
     if (!isTriggered || animationValue == 0) return;
 
-    // Draw a moving dot along the envelope curve
     final attack = envelopeParams['attack']!;
     final decay = envelopeParams['decay']!;
     final sustain = envelopeParams['sustain']!;
     final release = envelopeParams['release']!;
     final hold = envelopeParams['hold'] ?? 0.5;
-    
-    // This totalTime is for the actual envelope duration, not necessarily totalDisplayTime
-    final envelopeActualTotalDuration = attack + decay + hold + release;
-    final currentTime = animationValue * envelopeActualTotalDuration; // animationValue is 0-1 over this duration
-    
-    double xOnCanvas, yOnCanvas;
-    
-    if (currentTime <= attack) { // Attack phase
-      final phaseProgress = attack == 0 ? 1.0 : (currentTime / attack).clamp(0.0, 1.0);
-      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
-      yOnCanvas = size.height * (1.0 - phaseProgress); // Linear interpolation for Y for simplicity here
-    } else if (currentTime <= attack + decay) { // Decay phase
-      final phaseProgress = decay == 0 ? 1.0 : ((currentTime - attack) / decay).clamp(0.0, 1.0);
-      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
-      yOnCanvas = size.height * (1.0 - (1.0 - phaseProgress * (1.0 - sustain))); // From peak (1.0) towards sustain level
-    } else if (currentTime <= attack + decay + hold) { // Sustain (Hold) phase
-      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
-      yOnCanvas = size.height * (1.0 - sustain);
-    } else if (currentTime <= envelopeActualTotalDuration) { // Release phase
-      final phaseProgress = release == 0 ? 1.0 : ((currentTime - (attack + decay + hold)) / release).clamp(0.0, 1.0);
-      xOnCanvas = (currentTime / totalDisplayTime) * size.width;
-      yOnCanvas = size.height * (1.0 - sustain * (1.0 - phaseProgress)); // From sustain level towards 0
-    } else { // Envelope finished
-      xOnCanvas = (envelopeActualTotalDuration / totalDisplayTime) * size.width;
-      yOnCanvas = size.height;
+
+    final double actualTotalEnvelopeTime = attack + decay + hold + release;
+
+    if (actualTotalEnvelopeTime <= 0.00001) return; // Avoid division by zero and handle negligible times
+
+    final double currentTime = animationValue * actualTotalEnvelopeTime;
+
+    double x, y;
+
+    if (currentTime <= attack) {
+      final phaseProgress = (attack == 0) ? 1.0 : (currentTime / attack).clamp(0.0, 1.0);
+      x = (currentTime / totalDisplayTime) * size.width;
+      y = size.height * (1.0 - phaseProgress * (envelopeParams['velocity'] ?? 1.0));
+    } else if (currentTime <= attack + decay) {
+      final phaseProgress = (decay == 0) ? 1.0 : ((currentTime - attack) / decay).clamp(0.0, 1.0);
+      x = (currentTime / totalDisplayTime) * size.width;
+      final peakY = size.height * (1.0 - (envelopeParams['velocity'] ?? 1.0));
+      final sustainY = size.height * (1.0 - sustain);
+      y = peakY + (sustainY - peakY) * phaseProgress;
+    } else if (currentTime <= attack + decay + hold) {
+      x = (currentTime / totalDisplayTime) * size.width;
+      y = size.height * (1.0 - sustain);
+    } else if (currentTime <= actualTotalEnvelopeTime) {
+      final phaseProgress = (release == 0) ? 1.0 : ((currentTime - attack - decay - hold) / release).clamp(0.0, 1.0);
+      x = (currentTime / totalDisplayTime) * size.width;
+      final sustainY = size.height * (1.0 - sustain);
+      y = sustainY + (size.height - sustainY) * phaseProgress;
+    } else {
+      x = (actualTotalEnvelopeTime / totalDisplayTime) * size.width;
+      y = size.height;
     }
-    xOnCanvas = xOnCanvas.clamp(0.0, size.width);
-    yOnCanvas = yOnCanvas.clamp(0.0, size.height);
 
+    x = x.clamp(0.0, size.width);
+    y = y.clamp(0.0, size.height);
 
-    // Draw the progress dot
     final dotPaint = Paint()
       ..color = HolographicTheme.accentEnergy
       ..style = PaintingStyle.fill;
