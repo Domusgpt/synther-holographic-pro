@@ -253,7 +253,6 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
       ),
       child: Column(
         children: [
-          // Existing Keyboard Content
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
@@ -373,12 +372,6 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
               ),
             ),
           ),
-          // Add these placeholders:
-          Text('X-Axis Parameter: [Pitch] (selectable TBD)', style: TextStyle(color: Colors.white70)),
-          Text('Y-Axis Parameter: [Effect] (selectable TBD)', style: TextStyle(color: Colors.white70)),
-          SizedBox(height: 10),
-          Text('Sub-pad / Mini-Keyboard / Mini-Effect Pad Area:', style: TextStyle(color: Colors.white70)),
-          Placeholder(fallbackHeight: 50),
         ],
       ),
     );
@@ -481,30 +474,31 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
 class XYPadPainter extends CustomPainter {
   final double x;
   final double y;
-  
-  XYPadPainter(this.x, this.y);
-  
+  final Color accentColor;
+
+  XYPadPainter(this.x, this.y, {this.accentColor = const Color(0xFF00FFFF)});
+
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Color(0xFF00FFFF).withOpacity(0.2)
+      ..color = this.accentColor.withOpacity(0.2)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1;
-    
+
     // Draw grid
     for (int i = 0; i <= 10; i++) {
       final dx = size.width * i / 10;
       final dy = size.height * i / 10;
-      
+
       canvas.drawLine(Offset(dx, 0), Offset(dx, size.height), paint);
       canvas.drawLine(Offset(0, dy), Offset(size.width, dy), paint);
     }
-    
+
     // Draw cursor
     final cursorPaint = Paint()
-      ..color = Color(0xFF00FFFF)
+      ..color = this.accentColor
       ..style = PaintingStyle.fill;
-    
+
     final cursorX = x * size.width;
     final cursorY = (1 - y) * size.height;
     
@@ -514,6 +508,36 @@ class XYPadPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
+
+// --- XY Pad Parameter Selection Data Structures ---
+enum XYParameter { cutoff, resonance, attack, decay, reverb, volume, pitch }
+
+class ParameterChoice {
+  final XYParameter id;
+  final String name;
+  final double minValue;
+  final double maxValue;
+  final bool isLogScale;
+
+  const ParameterChoice({
+    required this.id,
+    required this.name,
+    required this.minValue,
+    required this.maxValue,
+    this.isLogScale = false,
+  });
+}
+
+final List<ParameterChoice> availableParameters = [
+  const ParameterChoice(id: XYParameter.pitch, name: 'Pitch (Note)', minValue: 36, maxValue: 84), // C2 to C6 MIDI notes
+  const ParameterChoice(id: XYParameter.cutoff, name: 'Filter Cutoff', minValue: 20, maxValue: 20000, isLogScale: true),
+  const ParameterChoice(id: XYParameter.resonance, name: 'Filter Resonance', minValue: 0.0, maxValue: 1.0),
+  const ParameterChoice(id: XYParameter.attack, name: 'Envelope Attack', minValue: 0.001, maxValue: 5.0, isLogScale: true),
+  const ParameterChoice(id: XYParameter.decay, name: 'Envelope Decay', minValue: 0.001, maxValue: 5.0, isLogScale: true),
+  const ParameterChoice(id: XYParameter.reverb, name: 'Reverb Amount', minValue: 0.0, maxValue: 1.0),
+  const ParameterChoice(id: XYParameter.volume, name: 'Overall Volume', minValue: 0.0, maxValue: 1.0),
+];
+// --- End XY Pad Parameter Selection Data Structures ---
 
 // TabView Widgets
 
@@ -530,6 +554,44 @@ class XYPadTabView extends StatefulWidget {
 class _XYPadTabViewState extends State<XYPadTabView> {
   double _xyX = 0.5;
   double _xyY = 0.5;
+  XYParameter? _selectedXParameter;
+  XYParameter? _selectedYParameter;
+  int? _currentNote;
+
+  // Sub-pad state
+  XYParameter? _selectedSubPadXParameter;
+  XYParameter? _selectedSubPadYParameter;
+  double _subPadX = 0.5;
+  double _subPadY = 0.5;
+
+  @override
+  void initState() {
+    super.initState();
+    if (availableParameters.isNotEmpty) {
+      _selectedXParameter = XYParameter.pitch; // Default X to Pitch
+      _selectedYParameter = XYParameter.cutoff; // Default Y to Cutoff
+
+      // Initialize sub-pad parameters (excluding pitch)
+      final nonPitchParams = availableParameters.where((p) => p.id != XYParameter.pitch).toList();
+      if (nonPitchParams.isNotEmpty) {
+        _selectedSubPadXParameter = nonPitchParams[0].id; // Default to first non-pitch
+        if (nonPitchParams.length > 1) {
+          _selectedSubPadYParameter = nonPitchParams[1].id; // Default to second non-pitch
+        } else {
+          _selectedSubPadYParameter = nonPitchParams[0].id;
+        }
+      }
+    }
+  }
+
+  double _mapValue(double normalizedValue, double min, double max, bool isLog) {
+    if (isLog) {
+      if (min <= 0) return min; // Avoid log(0) or log(negative)
+      return min * exp(normalizedValue * log(max / min));
+    } else {
+      return min + normalizedValue * (max - min);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -545,7 +607,7 @@ class _XYPadTabViewState extends State<XYPadTabView> {
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(
-              'XY PAD - PITCH/NOTE CONTROL',
+              'XY PAD', // Simplified title
               style: TextStyle(
                 color: Color(0xFF00FFFF),
                 fontSize: 14,
@@ -554,6 +616,71 @@ class _XYPadTabViewState extends State<XYPadTabView> {
               ),
             ),
           ),
+          // X-Axis Dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Row(
+              children: [
+                Text('X-Axis: ', style: TextStyle(color: Colors.white70)),
+                Expanded(
+                  child: DropdownButton<XYParameter>(
+                    value: _selectedXParameter,
+                    isExpanded: true,
+                    dropdownColor: Colors.grey[850],
+                    style: TextStyle(color: Colors.white),
+                    underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
+                    items: availableParameters.map((ParameterChoice choice) {
+                      return DropdownMenuItem<XYParameter>(
+                        value: choice.id,
+                        child: Text(choice.name, style: TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (XYParameter? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedXParameter = newValue;
+                          // TODO: Add logic to update AudioEngine or internal mapping if needed
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Y-Axis Dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Row(
+              children: [
+                Text('Y-Axis: ', style: TextStyle(color: Colors.white70)),
+                Expanded(
+                  child: DropdownButton<XYParameter>(
+                    value: _selectedYParameter,
+                    isExpanded: true,
+                    dropdownColor: Colors.grey[850],
+                    style: TextStyle(color: Colors.white),
+                    underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
+                    items: availableParameters.map((ParameterChoice choice) {
+                      return DropdownMenuItem<XYParameter>(
+                        value: choice.id,
+                        child: Text(choice.name, style: TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (XYParameter? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedYParameter = newValue;
+                          // TODO: Add logic to update AudioEngine or internal mapping if needed
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 10), // Spacer before the pad
           Expanded(
             child: GestureDetector(
               onPanUpdate: (details) {
@@ -566,14 +693,86 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                   _xyY = 1.0 - (localPosition.dy / size.height).clamp(0.0, 1.0);
                 });
 
-                // Map XY to musical parameters
-                final note = 48 + (_xyX * 36).round(); // C3 to C6
-                final velocity = _xyY * 0.8 + 0.2; // 0.2 to 1.0
+                ParameterChoice? xChoice;
+                ParameterChoice? yChoice;
 
-                widget.audioEngine.playNote(note, velocity);
+                if (_selectedXParameter != null) {
+                  xChoice = availableParameters.firstWhere((p) => p.id == _selectedXParameter);
+                }
+                if (_selectedYParameter != null) {
+                  yChoice = availableParameters.firstWhere((p) => p.id == _selectedYParameter);
+                }
+
+                int? noteToPlay;
+                double velocity = 0.8; // Default velocity
+
+                // Determine note and velocity based on selections
+                if (xChoice?.id == XYParameter.pitch) {
+                  noteToPlay = _mapValue(_xyX, xChoice!.minValue, xChoice!.maxValue, xChoice.isLogScale).round();
+                  if (yChoice?.id != XYParameter.pitch) { // Y is some other param or unassigned
+                    velocity = _xyY; // Use _xyY directly as normalized velocity 0-1
+                  } else {
+                    // Both X and Y are pitch - this case should ideally be prevented by UI logic
+                    // For now, let X be pitch, Y be fixed velocity
+                  }
+                } else if (yChoice?.id == XYParameter.pitch) {
+                  noteToPlay = _mapValue(_xyY, yChoice!.minValue, yChoice!.maxValue, yChoice.isLogScale).round();
+                  // X is some other param or unassigned
+                  velocity = _xyX; // Use _xyX directly as normalized velocity 0-1
+                }
+
+                // Play note if applicable
+                if (noteToPlay != null) {
+                  if (noteToPlay != _currentNote) {
+                    if (_currentNote != null) {
+                       // Using stopAllNotes before playing new for simplicity
+                       // Ideally, would be widget.audioEngine.stopNote(_currentNote!);
+                       widget.audioEngine.stopAllNotes();
+                    }
+                    _currentNote = noteToPlay;
+                    widget.audioEngine.playNote(_currentNote!, velocity.clamp(0.0, 1.0));
+                  } else {
+                    // Note is the same, could potentially update velocity if it's mapped and changed
+                    // widget.audioEngine.updateNoteVelocity(_currentNote!, velocity.clamp(0.0,1.0)); (if exists)
+                  }
+                }
+
+                // Handle other parameters
+                if (xChoice != null && xChoice.id != XYParameter.pitch) {
+                  final value = _mapValue(_xyX, xChoice.minValue, xChoice.maxValue, xChoice.isLogScale);
+                  switch (xChoice.id) {
+                    case XYParameter.cutoff: widget.audioEngine.setFilterCutoff(value); break;
+                    case XYParameter.resonance: widget.audioEngine.setFilterResonance(value); break;
+                    case XYParameter.attack: widget.audioEngine.setAttack(value); break;
+                    case XYParameter.decay: widget.audioEngine.setDecay(value); break;
+                    case XYParameter.reverb: widget.audioEngine.setReverb(value); break;
+                    case XYParameter.volume: widget.audioEngine.setVolume(value); break;
+                    case XYParameter.pitch: break; // Already handled
+                  }
+                }
+                if (yChoice != null && yChoice.id != XYParameter.pitch) {
+                  final value = _mapValue(_xyY, yChoice.minValue, yChoice.maxValue, yChoice.isLogScale);
+                  switch (yChoice.id) {
+                    case XYParameter.cutoff: widget.audioEngine.setFilterCutoff(value); break;
+                    case XYParameter.resonance: widget.audioEngine.setFilterResonance(value); break;
+                    case XYParameter.attack: widget.audioEngine.setAttack(value); break;
+                    case XYParameter.decay: widget.audioEngine.setDecay(value); break;
+                    case XYParameter.reverb: widget.audioEngine.setReverb(value); break;
+                    case XYParameter.volume: widget.audioEngine.setVolume(value); break;
+                    case XYParameter.pitch: break; // Already handled
+                  }
+                }
               },
               onPanEnd: (details) {
-                widget.audioEngine.stopAllNotes();
+                // if (_currentNote != null) {
+                //   widget.audioEngine.stopNote(_currentNote!);
+                //  _currentNote = null;
+                // }
+                // Simpler: stop all notes on pan end if a note was potentially being controlled by the pad.
+                if (_selectedXParameter == XYParameter.pitch || _selectedYParameter == XYParameter.pitch) {
+                   widget.audioEngine.stopAllNotes();
+                  _currentNote = null;
+                }
               },
               child: Container(
                 margin: const EdgeInsets.all(16),
@@ -596,6 +795,139 @@ class _XYPadTabViewState extends State<XYPadTabView> {
               ),
             ),
           ),
+          // Other placeholders (Sub-pad area)
+          Divider(color: Colors.grey[700]),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8.0),
+            child: Text('Sub XY Pad', style: TextStyle(color: Colors.white, fontSize: 16))
+          ),
+          // Sub-Pad X-Axis Dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Row(
+              children: [
+                Text('X-Sub: ', style: TextStyle(color: Colors.white70)),
+                Expanded(
+                  child: DropdownButton<XYParameter>(
+                    value: _selectedSubPadXParameter,
+                    isExpanded: true,
+                    dropdownColor: Colors.grey[850],
+                    style: TextStyle(color: Colors.white),
+                    underline: Container(height: 1, color: Colors.greenAccent.withOpacity(0.5)),
+                    items: availableParameters
+                        .where((p) => p.id != XYParameter.pitch)
+                        .map((ParameterChoice choice) {
+                      return DropdownMenuItem<XYParameter>(
+                        value: choice.id,
+                        child: Text(choice.name, style: TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (XYParameter? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedSubPadXParameter = newValue;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Sub-Pad Y-Axis Dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Row(
+              children: [
+                Text('Y-Sub: ', style: TextStyle(color: Colors.white70)),
+                Expanded(
+                  child: DropdownButton<XYParameter>(
+                    value: _selectedSubPadYParameter,
+                    isExpanded: true,
+                    dropdownColor: Colors.grey[850],
+                    style: TextStyle(color: Colors.white),
+                    underline: Container(height: 1, color: Colors.greenAccent.withOpacity(0.5)),
+                    items: availableParameters
+                        .where((p) => p.id != XYParameter.pitch)
+                        .map((ParameterChoice choice) {
+                      return DropdownMenuItem<XYParameter>(
+                        value: choice.id,
+                        child: Text(choice.name, style: TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (XYParameter? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedSubPadYParameter = newValue;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 10),
+          SizedBox(
+            height: 120, // Or other desired height
+            width: 200,  // Or other desired width, or make it expand
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                final RenderBox box = context.findRenderObject() as RenderBox;
+                final localPosition = box.globalToLocal(details.globalPosition);
+                final size = box.size;
+
+                setState(() {
+                  _subPadX = (localPosition.dx / size.width).clamp(0.0, 1.0);
+                  _subPadY = 1.0 - (localPosition.dy / size.height).clamp(0.0, 1.0);
+                });
+
+                ParameterChoice? subXChoice;
+                ParameterChoice? subYChoice;
+
+                if (_selectedSubPadXParameter != null) {
+                  subXChoice = availableParameters.firstWhere((p) => p.id == _selectedSubPadXParameter);
+                }
+                if (_selectedSubPadYParameter != null) {
+                  subYChoice = availableParameters.firstWhere((p) => p.id == _selectedSubPadYParameter);
+                }
+
+                if (subXChoice != null) {
+                  final value = _mapValue(_subPadX, subXChoice.minValue, subXChoice.maxValue, subXChoice.isLogScale);
+                  // Apply to audio engine (no pitch)
+                  switch (subXChoice.id) {
+                    case XYParameter.cutoff: widget.audioEngine.setFilterCutoff(value); break;
+                    case XYParameter.resonance: widget.audioEngine.setFilterResonance(value); break;
+                    case XYParameter.attack: widget.audioEngine.setAttack(value); break;
+                    case XYParameter.decay: widget.audioEngine.setDecay(value); break;
+                    case XYParameter.reverb: widget.audioEngine.setReverb(value); break;
+                    case XYParameter.volume: widget.audioEngine.setVolume(value); break;
+                    case XYParameter.pitch: break; // Should not happen due to filtering
+                  }
+                }
+                if (subYChoice != null) {
+                  final value = _mapValue(_subPadY, subYChoice.minValue, subYChoice.maxValue, subYChoice.isLogScale);
+                  // Apply to audio engine (no pitch)
+                   switch (subYChoice.id) {
+                    case XYParameter.cutoff: widget.audioEngine.setFilterCutoff(value); break;
+                    case XYParameter.resonance: widget.audioEngine.setFilterResonance(value); break;
+                    case XYParameter.attack: widget.audioEngine.setAttack(value); break;
+                    case XYParameter.decay: widget.audioEngine.setDecay(value); break;
+                    case XYParameter.reverb: widget.audioEngine.setReverb(value); break;
+                    case XYParameter.volume: widget.audioEngine.setVolume(value); break;
+                    case XYParameter.pitch: break; // Should not happen
+                  }
+                }
+              },
+              child: LayoutBuilder(builder: (context, constraints) {
+                return CustomPaint(
+                  painter: XYPadPainter(_subPadX, _subPadY, accentColor: Colors.greenAccent),
+                  size: constraints.biggest,
+                );
+              }),
+            ),
+          ),
+          SizedBox(height: 10), // Final spacing if needed
         ],
       ),
     );
