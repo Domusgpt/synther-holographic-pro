@@ -512,6 +512,48 @@ class XYPadPainter extends CustomPainter {
 // --- XY Pad Parameter Selection Data Structures ---
 enum XYParameter { cutoff, resonance, attack, decay, reverb, volume, pitch }
 
+// --- Key/Scale Definitions ---
+enum MusicalKey { C, Csharp, D, Dsharp, E, F, Fsharp, G, Gsharp, A, Asharp, B }
+
+class KeyDefinition {
+  final MusicalKey id;
+  final String name;
+  final int rootMidiOffset; // Offset from C
+  const KeyDefinition(this.id, this.name, this.rootMidiOffset);
+}
+
+final List<KeyDefinition> availableKeys = [
+  const KeyDefinition(MusicalKey.C, "C", 0),
+  const KeyDefinition(MusicalKey.Csharp, "C#", 1),
+  const KeyDefinition(MusicalKey.D, "D", 2),
+  const KeyDefinition(MusicalKey.Dsharp, "D#", 3),
+  const KeyDefinition(MusicalKey.E, "E", 4),
+  const KeyDefinition(MusicalKey.F, "F", 5),
+  const KeyDefinition(MusicalKey.Fsharp, "F#", 6),
+  const KeyDefinition(MusicalKey.G, "G", 7),
+  const KeyDefinition(MusicalKey.Gsharp, "G#", 8),
+  const KeyDefinition(MusicalKey.A, "A", 9),
+  const KeyDefinition(MusicalKey.Asharp, "A#", 10),
+  const KeyDefinition(MusicalKey.B, "B", 11),
+];
+
+enum MusicalScaleType { Chromatic, Major, MinorNatural, PentatonicMajor }
+
+class ScaleDefinition {
+  final MusicalScaleType id;
+  final String name;
+  final List<int> intervals; // Semitones from the root
+  const ScaleDefinition(this.id, this.name, this.intervals);
+}
+
+final List<ScaleDefinition> availableScales = [
+  const ScaleDefinition(MusicalScaleType.Chromatic, "Chromatic", [0,1,2,3,4,5,6,7,8,9,10,11]),
+  const ScaleDefinition(MusicalScaleType.Major, "Major", [0,2,4,5,7,9,11]),
+  const ScaleDefinition(MusicalScaleType.MinorNatural, "Natural Minor", [0,2,3,5,7,8,10]),
+  const ScaleDefinition(MusicalScaleType.PentatonicMajor, "Pentatonic Major", [0,2,4,7,9]),
+];
+// --- End Key/Scale Definitions ---
+
 class ParameterChoice {
   final XYParameter id;
   final String name;
@@ -554,11 +596,17 @@ class XYPadTabView extends StatefulWidget {
 class _XYPadTabViewState extends State<XYPadTabView> {
   double _xyX = 0.5;
   double _xyY = 0.5;
-  XYParameter? _selectedXParameter;
+  // XYParameter? _selectedXParameter; // Removed, X-axis is now fixed to Pitch
   XYParameter? _selectedYParameter;
   int? _currentNote;
 
+  MusicalKey? _selectedKeyId;
+  MusicalScaleType? _selectedScaleId;
+
+  late final List<ParameterChoice> _complimentaryYParameters; // For Smart Y-Axis
+
   // Sub-pad state
+  late final List<ParameterChoice> _subPadSelectableParameters;
   XYParameter? _selectedSubPadXParameter;
   XYParameter? _selectedSubPadYParameter;
   double _subPadX = 0.5;
@@ -568,18 +616,57 @@ class _XYPadTabViewState extends State<XYPadTabView> {
   void initState() {
     super.initState();
     if (availableParameters.isNotEmpty) {
-      _selectedXParameter = XYParameter.pitch; // Default X to Pitch
-      _selectedYParameter = XYParameter.cutoff; // Default Y to Cutoff
+      // Define complimentary Y parameters
+      List<XYParameter> complimentaryIds = [
+        XYParameter.volume, XYParameter.cutoff, XYParameter.resonance,
+        XYParameter.reverb, XYParameter.attack, XYParameter.decay
+      ];
+      _complimentaryYParameters = availableParameters.where((p) => complimentaryIds.contains(p.id)).toList();
 
-      // Initialize sub-pad parameters (excluding pitch)
-      final nonPitchParams = availableParameters.where((p) => p.id != XYParameter.pitch).toList();
-      if (nonPitchParams.isNotEmpty) {
-        _selectedSubPadXParameter = nonPitchParams[0].id; // Default to first non-pitch
-        if (nonPitchParams.length > 1) {
-          _selectedSubPadYParameter = nonPitchParams[1].id; // Default to second non-pitch
+      // Set default for _selectedYParameter using the complimentary list
+      if (_complimentaryYParameters.isNotEmpty) {
+        var defaultYChoice = _complimentaryYParameters.firstWhere(
+          (p) => p.id == XYParameter.volume,
+          orElse: () => _complimentaryYParameters[0]
+        );
+        _selectedYParameter = defaultYChoice.id;
+      } else {
+        // Fallback if complimentary list is somehow empty (e.g. volume not in availableParameters)
+        // Try to find volume directly, or fallback to cutoff, or null.
+        var volParam = availableParameters.firstWhere((p) => p.id == XYParameter.volume, orElse: () => null);
+        if (volParam != null) {
+            _selectedYParameter = XYParameter.volume;
+        } else if (availableParameters.where((p) => p.id != XYParameter.pitch).isNotEmpty) {
+            _selectedYParameter = availableParameters.where((p) => p.id != XYParameter.pitch).first.id;
         } else {
-          _selectedSubPadYParameter = nonPitchParams[0].id;
+            _selectedYParameter = null;
         }
+      }
+
+      _selectedKeyId = MusicalKey.C;
+      _selectedScaleId = MusicalScaleType.Chromatic;
+
+      // Initialize curated list for sub-pad parameters
+      List<XYParameter> effectParameterIds = [
+        XYParameter.reverb,
+        XYParameter.cutoff,
+        XYParameter.resonance,
+        XYParameter.decay,
+        XYParameter.volume,
+      ];
+      _subPadSelectableParameters = availableParameters.where((p) => effectParameterIds.contains(p.id)).toList();
+
+      // Initialize sub-pad parameters using the curated list
+      if (_subPadSelectableParameters.isNotEmpty) {
+        _selectedSubPadXParameter = _subPadSelectableParameters[0].id;
+        if (_subPadSelectableParameters.length > 1) {
+          _selectedSubPadYParameter = _subPadSelectableParameters[1].id;
+        } else {
+          _selectedSubPadYParameter = _subPadSelectableParameters[0].id;
+        }
+      } else {
+        _selectedSubPadXParameter = null;
+        _selectedSubPadYParameter = null;
       }
     }
   }
@@ -591,6 +678,31 @@ class _XYPadTabViewState extends State<XYPadTabView> {
     } else {
       return min + normalizedValue * (max - min);
     }
+  }
+
+  List<int> _generateScaleNotes(KeyDefinition keyDef, ScaleDefinition scaleDef, double minPitchRange, double maxPitchRange) {
+    List<int> notesInScale = [];
+    int minNote = minPitchRange.round();
+    int maxNote = maxPitchRange.round();
+
+    if (scaleDef.id == MusicalScaleType.Chromatic) {
+      for (int note = minNote; note <= maxNote; note++) {
+        notesInScale.add(note);
+      }
+      return notesInScale;
+    }
+
+    for (int octave = 0; octave < 10; octave++) { // Iterate through octaves
+      int currentOctaveRootNote = keyDef.rootMidiOffset + (12 * octave);
+      for (int interval in scaleDef.intervals) {
+        int note = currentOctaveRootNote + interval;
+        if (note >= minNote && note <= maxNote && !notesInScale.contains(note)) {
+          notesInScale.add(note);
+        }
+      }
+    }
+    notesInScale.sort();
+    return notesInScale;
   }
 
   @override
@@ -616,30 +728,60 @@ class _XYPadTabViewState extends State<XYPadTabView> {
               ),
             ),
           ),
-          // X-Axis Dropdown
+          // Key Selection Dropdown
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
             child: Row(
               children: [
-                Text('X-Axis: ', style: TextStyle(color: Colors.white70)),
+                Text('Key: ', style: TextStyle(color: Colors.white70)),
                 Expanded(
-                  child: DropdownButton<XYParameter>(
-                    value: _selectedXParameter,
+                  child: DropdownButton<MusicalKey>(
+                    value: _selectedKeyId,
                     isExpanded: true,
                     dropdownColor: Colors.grey[850],
                     style: TextStyle(color: Colors.white),
                     underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
-                    items: availableParameters.map((ParameterChoice choice) {
-                      return DropdownMenuItem<XYParameter>(
-                        value: choice.id,
-                        child: Text(choice.name, style: TextStyle(color: Colors.white)),
+                    items: availableKeys.map((KeyDefinition keyDef) {
+                      return DropdownMenuItem<MusicalKey>(
+                        value: keyDef.id,
+                        child: Text(keyDef.name, style: TextStyle(color: Colors.white)),
                       );
                     }).toList(),
-                    onChanged: (XYParameter? newValue) {
+                    onChanged: (MusicalKey? newValue) {
                       if (newValue != null) {
                         setState(() {
-                          _selectedXParameter = newValue;
-                          // TODO: Add logic to update AudioEngine or internal mapping if needed
+                          _selectedKeyId = newValue;
+                        });
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          // Scale Selection Dropdown
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+            child: Row(
+              children: [
+                Text('Scale: ', style: TextStyle(color: Colors.white70)),
+                Expanded(
+                  child: DropdownButton<MusicalScaleType>(
+                    value: _selectedScaleId,
+                    isExpanded: true,
+                    dropdownColor: Colors.grey[850],
+                    style: TextStyle(color: Colors.white),
+                    underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
+                    items: availableScales.map((ScaleDefinition scaleDef) {
+                      return DropdownMenuItem<MusicalScaleType>(
+                        value: scaleDef.id,
+                        child: Text(scaleDef.name, style: TextStyle(color: Colors.white)),
+                      );
+                    }).toList(),
+                    onChanged: (MusicalScaleType? newValue) {
+                      if (newValue != null) {
+                        setState(() {
+                          _selectedScaleId = newValue;
                         });
                       }
                     },
@@ -661,7 +803,7 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                     dropdownColor: Colors.grey[850],
                     style: TextStyle(color: Colors.white),
                     underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
-                    items: availableParameters.map((ParameterChoice choice) {
+                    items: _complimentaryYParameters.map((ParameterChoice choice) { // Use complimentary list
                       return DropdownMenuItem<XYParameter>(
                         value: choice.id,
                         child: Text(choice.name, style: TextStyle(color: Colors.white)),
@@ -693,12 +835,11 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                   _xyY = 1.0 - (localPosition.dy / size.height).clamp(0.0, 1.0);
                 });
 
-                ParameterChoice? xChoice;
-                ParameterChoice? yChoice;
+                ParameterChoice? yChoice; // xChoice is no longer needed here as X is always pitch
 
-                if (_selectedXParameter != null) {
-                  xChoice = availableParameters.firstWhere((p) => p.id == _selectedXParameter);
-                }
+                // X-axis is always pitch. Find its definition.
+                final pitchParameterChoice = availableParameters.firstWhere((p) => p.id == XYParameter.pitch);
+
                 if (_selectedYParameter != null) {
                   yChoice = availableParameters.firstWhere((p) => p.id == _selectedYParameter);
                 }
@@ -707,18 +848,31 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                 double velocity = 0.8; // Default velocity
 
                 // Determine note and velocity based on selections
-                if (xChoice?.id == XYParameter.pitch) {
-                  noteToPlay = _mapValue(_xyX, xChoice!.minValue, xChoice!.maxValue, xChoice.isLogScale).round();
-                  if (yChoice?.id != XYParameter.pitch) { // Y is some other param or unassigned
-                    velocity = _xyY; // Use _xyY directly as normalized velocity 0-1
+                // X-axis (_xyX) is for pitch
+
+                KeyDefinition? currentKey = _selectedKeyId != null ? availableKeys.firstWhere((k) => k.id == _selectedKeyId, orElse: () => availableKeys[0]) : availableKeys[0];
+                ScaleDefinition? currentScale = _selectedScaleId != null ? availableScales.firstWhere((s) => s.id == _selectedScaleId, orElse: () => availableScales[0]) : availableScales[0];
+
+                if (currentKey == null || currentScale == null) {
+                  // Fallback or do nothing if key/scale not selected (should not happen due to initState)
+                  noteToPlay = _mapValue(_xyX, pitchParameterChoice.minValue, pitchParameterChoice.maxValue, pitchParameterChoice.isLogScale).round();
+                } else {
+                  List<int> scaleNotes = _generateScaleNotes(currentKey, currentScale, pitchParameterChoice.minValue, pitchParameterChoice.maxValue);
+                  if (scaleNotes.isNotEmpty) {
+                    int noteIndex = (_xyX * (scaleNotes.length - 1)).round().clamp(0, scaleNotes.length - 1);
+                    noteToPlay = scaleNotes[noteIndex];
                   } else {
-                    // Both X and Y are pitch - this case should ideally be prevented by UI logic
-                    // For now, let X be pitch, Y be fixed velocity
+                    // Fallback if scaleNotes is empty (e.g. range too small for any scale notes)
+                    noteToPlay = pitchParameterChoice.minValue.round();
                   }
-                } else if (yChoice?.id == XYParameter.pitch) {
-                  noteToPlay = _mapValue(_xyY, yChoice!.minValue, yChoice!.maxValue, yChoice.isLogScale).round();
-                  // X is some other param or unassigned
-                  velocity = _xyX; // Use _xyX directly as normalized velocity 0-1
+                }
+
+                // Y-axis velocity logic for main pad
+                if (yChoice?.id == XYParameter.volume) {
+                  velocity = _mapValue(_xyY, yChoice!.minValue, yChoice!.maxValue, yChoice.isLogScale).clamp(0.0, 1.0);
+                } else {
+                  // For other Y-axis parameters, use a fixed default velocity
+                  velocity = 0.8;
                 }
 
                 // Play note if applicable
@@ -737,19 +891,7 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                   }
                 }
 
-                // Handle other parameters
-                if (xChoice != null && xChoice.id != XYParameter.pitch) {
-                  final value = _mapValue(_xyX, xChoice.minValue, xChoice.maxValue, xChoice.isLogScale);
-                  switch (xChoice.id) {
-                    case XYParameter.cutoff: widget.audioEngine.setFilterCutoff(value); break;
-                    case XYParameter.resonance: widget.audioEngine.setFilterResonance(value); break;
-                    case XYParameter.attack: widget.audioEngine.setAttack(value); break;
-                    case XYParameter.decay: widget.audioEngine.setDecay(value); break;
-                    case XYParameter.reverb: widget.audioEngine.setReverb(value); break;
-                    case XYParameter.volume: widget.audioEngine.setVolume(value); break;
-                    case XYParameter.pitch: break; // Already handled
-                  }
-                }
+                // Handle other parameters (only Y-axis can be non-pitch now for the main pad)
                 if (yChoice != null && yChoice.id != XYParameter.pitch) {
                   final value = _mapValue(_xyY, yChoice.minValue, yChoice.maxValue, yChoice.isLogScale);
                   switch (yChoice.id) {
@@ -769,7 +911,8 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                 //  _currentNote = null;
                 // }
                 // Simpler: stop all notes on pan end if a note was potentially being controlled by the pad.
-                if (_selectedXParameter == XYParameter.pitch || _selectedYParameter == XYParameter.pitch) {
+                // X-axis of main pad is always pitch.
+                if (true || _selectedYParameter == XYParameter.pitch) { // Condition simplifies to true
                    widget.audioEngine.stopAllNotes();
                   _currentNote = null;
                 }
@@ -814,9 +957,7 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                     dropdownColor: Colors.grey[850],
                     style: TextStyle(color: Colors.white),
                     underline: Container(height: 1, color: Colors.greenAccent.withOpacity(0.5)),
-                    items: availableParameters
-                        .where((p) => p.id != XYParameter.pitch)
-                        .map((ParameterChoice choice) {
+                    items: _subPadSelectableParameters.map((ParameterChoice choice) {
                       return DropdownMenuItem<XYParameter>(
                         value: choice.id,
                         child: Text(choice.name, style: TextStyle(color: Colors.white)),
