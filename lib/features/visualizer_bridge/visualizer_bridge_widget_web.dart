@@ -41,7 +41,7 @@ class _VisualizerBridgeWidgetState extends State<VisualizerBridgeWidget> {
       // If assets are in 'web/assets/visualizer', then 'assets/visualizer/index-hyperav.html'
       // If assets are in 'assets/visualizer' (Flutter standard), then path might be different after build.
       // For flutter build web, assets in 'assets/' are typically served from 'assets/' path.
-      ..src = 'assets/visualizer/index-hyperav.html'
+      ..src = 'assets/visualizer/index-enhanced.html'
       ..onLoad.listen((_) {
         debugPrint('Visualizer IFrame loaded.');
         setState(() {
@@ -160,42 +160,106 @@ class _VisualizerBridgeWidgetState extends State<VisualizerBridgeWidget> {
   }
   
   void _syncParametersToVisualizer(SynthParametersModel model) {
-    // TODO: Parameter Scaling Consolidation
-    // Currently, parameter scaling logic (e.g., mapping a 0-1 range from the synth
-    // to a different range expected by the visualizer) is present in this Dart code
-    // (e.g., for filterCutoff normalization) AND in the JavaScript `flutter-bridge.js`
-    // (within its `_parameterMap`).
-    // For future refinement, it would be better to consolidate this scaling logic
-    // primarily in `flutter-bridge.js`. Flutter would then aim to send more
-    // direct or normalized (0.0-1.0) values, and the JS bridge would be solely
-    // responsible for mapping and scaling them to the visualizer's specific needs.
-    // This would make the Dart side simpler and centralize visualizer-specific transformations
-    // in its own JavaScript environment.
-
     if (!_isLoaded || !_bridgeReadyNotified) return; // Don't sync if not ready
     
+    // Enhanced synth parameter mapping for the new visualizer
     _updateVisualizerParameter('filterCutoff', (model.filterCutoff / 20000).clamp(0.0, 1.0));
     _updateVisualizerParameter('filterResonance', model.filterResonance);
     _updateVisualizerParameter('reverbMix', model.reverbMix);
     _updateVisualizerParameter('masterVolume', model.masterVolume);
-    _updateVisualizerParameter('rotationX', model.xyPadX);
-    _updateVisualizerParameter('rotationY', model.xyPadY);
+    
+    // XY Pad mapped to mouse interaction for real-time control
+    _updateVisualizerParameter('mouseX', model.xyPadX);
+    _updateVisualizerParameter('mouseY', model.xyPadY);
+    
+    // Envelope parameters for temporal effects
     _updateVisualizerParameter('attackTime', model.attackTime);
     _updateVisualizerParameter('releaseTime', model.releaseTime);
     
+    // Enhanced oscillator parameters
     if (model.oscillators.isNotEmpty) {
       final osc = model.oscillators[0];
-      // Assuming osc.type is an enum like `enum OscillatorWaveform { sine, square, ... }`
-      // The JS side's _parameterMap for 'waveformType' expects a number (e.g., v / 5).
-      // So, sending the enum index is appropriate.
       _updateVisualizerParameter('waveformType', osc.type.index.toDouble());
       _updateVisualizerParameter('oscillatorVolume', osc.volume);
       
       if (osc.frequency > 0) {
-        final normalizedFreq = (osc.frequency / 2000).clamp(0.0, 1.0); // Max 2kHz for this mapping
+        final normalizedFreq = (osc.frequency / 2000).clamp(0.0, 1.0);
         _updateVisualizerParameter('oscillatorFrequency', normalizedFreq);
       }
     }
+    
+    // Enhanced synthesis-specific parameters
+    if (model.synthType != null) {
+      _sendSynthModeChange(model.synthType!);
+    }
+    
+    // Send wavetable parameters
+    if (model.wavetablePosition > 0) {
+      _updateVisualizerParameter('wavetablePosition', model.wavetablePosition);
+    }
+    
+    // Send FM synthesis parameters
+    if (model.fmRatio > 0) {
+      _updateVisualizerParameter('fmRatio', model.fmRatio);
+    }
+    
+    // Send granular synthesis parameters
+    if (model.grainDensity > 0) {
+      _updateVisualizerParameter('grainDensity', model.grainDensity);
+    }
+    
+    // Send additive synthesis parameters
+    if (model.harmonicContent > 0) {
+      _updateVisualizerParameter('harmonicContent', model.harmonicContent);
+    }
+  }
+  
+  void _sendSynthModeChange(String synthType) {
+    if (!_isLoaded || !_bridgeReadyNotified) return;
+    if (_iFrameElement.contentWindow == null) return;
+    
+    // Map Flutter synth types to visualizer modes
+    String visualizerMode = synthType.toLowerCase();
+    if (visualizerMode.contains('wavetable')) visualizerMode = 'wavetable';
+    else if (visualizerMode.contains('fm')) visualizerMode = 'fm';
+    else if (visualizerMode.contains('granular')) visualizerMode = 'granular';
+    else if (visualizerMode.contains('additive')) visualizerMode = 'additive';
+    
+    _iFrameElement.contentWindow?.postMessage({
+      'type': 'synthModeChange',
+      'mode': visualizerMode,
+    }, '*');
+  }
+  
+  void _sendFFTData(List<double> fftData) {
+    if (!_isLoaded || !_bridgeReadyNotified) return;
+    if (_iFrameElement.contentWindow == null) return;
+    
+    _iFrameElement.contentWindow?.postMessage({
+      'type': 'fftDataUpdate',
+      'fftData': fftData,
+    }, '*');
+  }
+  
+  void _sendAudioStateUpdate(Map<String, dynamic> audioState) {
+    if (!_isLoaded || !_bridgeReadyNotified) return;
+    if (_iFrameElement.contentWindow == null) return;
+    
+    _iFrameElement.contentWindow?.postMessage({
+      'type': 'audioStateUpdate',
+      'state': audioState,
+    }, '*');
+  }
+  
+  void _togglePerformanceMode(bool enabled) {
+    if (!_isLoaded || !_bridgeReadyNotified) return;
+    if (_iFrameElement.contentWindow == null) return;
+    
+    _iFrameElement.contentWindow?.postMessage({
+      'type': 'performanceMode',
+      'enabled': enabled,
+    }, '*');
+  }
     
     // Granular parameters - check if they exist to avoid errors if model changes
     // This assumes granularParameters is a getter that might throw if not applicable.

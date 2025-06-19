@@ -367,7 +367,7 @@ class _ProfessionalSynthesizerInterfaceState extends State<ProfessionalSynthesiz
                         ),
                       ),
                     ],
-                  ),
+                  )),
                 ],
               ),
             ),
@@ -602,6 +602,9 @@ class _XYPadTabViewState extends State<XYPadTabView> {
 
   MusicalKey? _selectedKeyId;
   MusicalScaleType? _selectedScaleId;
+  
+  // Control panel state
+  bool _isSettingsExpanded = false;
 
   late final List<ParameterChoice> _complimentaryYParameters; // For Smart Y-Axis
 
@@ -633,7 +636,12 @@ class _XYPadTabViewState extends State<XYPadTabView> {
       } else {
         // Fallback if complimentary list is somehow empty (e.g. volume not in availableParameters)
         // Try to find volume directly, or fallback to cutoff, or null.
-        var volParam = availableParameters.firstWhere((p) => p.id == XYParameter.volume, orElse: () => null);
+        ParameterChoice? volParam;
+        try {
+          volParam = availableParameters.firstWhere((p) => p.id == XYParameter.volume);
+        } catch (e) {
+          volParam = null;
+        }
         if (volParam != null) {
             _selectedYParameter = XYParameter.volume;
         } else if (availableParameters.where((p) => p.id != XYParameter.pitch).isNotEmpty) {
@@ -680,6 +688,108 @@ class _XYPadTabViewState extends State<XYPadTabView> {
     }
   }
 
+  Widget _buildSettingsPanel() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Color(0xFF00FFFF).withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          // Key Selection
+          Row(
+            children: [
+              Text('Key: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              Expanded(
+                child: DropdownButton<MusicalKey>(
+                  value: _selectedKeyId,
+                  isExpanded: true,
+                  dropdownColor: Colors.grey[850],
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                  underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.3)),
+                  items: availableKeys.map((KeyDefinition keyDef) {
+                    return DropdownMenuItem<MusicalKey>(
+                      value: keyDef.id,
+                      child: Text(keyDef.name, style: TextStyle(color: Colors.white)),
+                    );
+                  }).toList(),
+                  onChanged: (MusicalKey? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedKeyId = newValue;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          // Scale Selection
+          Row(
+            children: [
+              Text('Scale: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              Expanded(
+                child: DropdownButton<MusicalScaleType>(
+                  value: _selectedScaleId,
+                  isExpanded: true,
+                  dropdownColor: Colors.grey[850],
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                  underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.3)),
+                  items: availableScales.map((ScaleDefinition scaleDef) {
+                    return DropdownMenuItem<MusicalScaleType>(
+                      value: scaleDef.id,
+                      child: Text(scaleDef.name, style: TextStyle(color: Colors.white)),
+                    );
+                  }).toList(),
+                  onChanged: (MusicalScaleType? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedScaleId = newValue;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 8),
+          // Y-Axis Parameter Selection
+          Row(
+            children: [
+              Text('Y-Axis: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
+              Expanded(
+                child: DropdownButton<XYParameter>(
+                  value: _selectedYParameter,
+                  isExpanded: true,
+                  dropdownColor: Colors.grey[850],
+                  style: TextStyle(color: Colors.white, fontSize: 12),
+                  underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.3)),
+                  items: _complimentaryYParameters.map((ParameterChoice choice) {
+                    return DropdownMenuItem<XYParameter>(
+                      value: choice.id,
+                      child: Text(choice.name, style: TextStyle(color: Colors.white)),
+                    );
+                  }).toList(),
+                  onChanged: (XYParameter? newValue) {
+                    if (newValue != null) {
+                      setState(() {
+                        _selectedYParameter = newValue;
+                      });
+                    }
+                  },
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   List<int> _generateScaleNotes(KeyDefinition keyDef, ScaleDefinition scaleDef, double minPitchRange, double maxPitchRange) {
     List<int> notesInScale = [];
     int minNote = minPitchRange.round();
@@ -716,18 +826,39 @@ class _XYPadTabViewState extends State<XYPadTabView> {
       ),
       child: Column(
         children: [
+          // Header with collapsible settings button
           Padding(
             padding: const EdgeInsets.all(12),
-            child: Text(
-              'XY PAD', // Simplified title
-              style: TextStyle(
-                color: Color(0xFF00FFFF),
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                letterSpacing: 2,
-              ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'XY PAD',
+                  style: TextStyle(
+                    color: Color(0xFF00FFFF),
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 2,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    _isSettingsExpanded ? Icons.settings : Icons.settings_outlined,
+                    color: Color(0xFF00FFFF),
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _isSettingsExpanded = !_isSettingsExpanded;
+                    });
+                  },
+                ),
+              ],
             ),
           ),
+          
+          // Collapsible settings panel
+          if (_isSettingsExpanded) _buildSettingsPanel(),
           // Key Selection Dropdown
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),

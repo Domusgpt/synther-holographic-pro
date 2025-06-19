@@ -285,31 +285,41 @@ class SpectrumPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (spectrumData.isEmpty) return;
+    if (spectrumData.isEmpty || size.width <= 0 || size.height <= 0) return;
 
     final paint = Paint();
     final path = Path();
     
-    // Calculate bar width
+    // Calculate bar width with bounds checking
     final barWidth = size.width / spectrumData.length;
+    if (barWidth <= 0) return;
+    
     final barSpacing = barWidth * 0.1;
-    final actualBarWidth = barWidth - barSpacing;
+    final actualBarWidth = (barWidth - barSpacing).clamp(0.1, barWidth);
 
     // Draw background grid
     _drawGrid(canvas, size);
 
-    // Draw spectrum bars
+    // Draw spectrum bars with bounds checking
     for (int i = 0; i < spectrumData.length; i++) {
       final x = i * barWidth + barSpacing / 2;
-      final normalizedValue = spectrumData[i].clamp(0.0, 1.0);
-      final barHeight = normalizedValue * size.height * 0.9;
       
-      // Frequency-based color modulation
-      final freqRatio = i / spectrumData.length;
+      // Ensure we have valid spectrum data
+      if (i >= spectrumData.length) break;
+      final rawValue = spectrumData[i];
+      if (!rawValue.isFinite) continue;
+      
+      final normalizedValue = rawValue.clamp(0.0, 1.0);
+      final barHeight = (normalizedValue * size.height * 0.9).clamp(0.0, size.height);
+      
+      // Skip if coordinates are invalid
+      if (!x.isFinite || !barHeight.isFinite) continue;
+      
+      // Frequency-based color modulation with safety checks
+      final freqRatio = (i / spectrumData.length).clamp(0.0, 1.0);
       final hslColor = HSLColor.fromColor(color);
-      final modulatedColor = hslColor.withHue(
-        (hslColor.hue + freqRatio * 60) % 360
-      ).toColor();
+      final hueValue = ((hslColor.hue + freqRatio * 60) % 360).clamp(0.0, 360.0);
+      final modulatedColor = hslColor.withHue(hueValue).toColor();
 
       // Draw main spectrum bar
       _drawSpectrumBar(

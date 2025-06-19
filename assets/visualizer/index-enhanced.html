@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Synther Holographic Pro - Enhanced HyperAV Core</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000011;
+            color: #fff;
+            font-family: 'Orbitron', 'Courier New', monospace;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        
+        /* Full-screen HyperAV Canvas */
+        #synther-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            transition: filter 0.3s ease;
+        }
+        
+        /* Audio Visualizer Overlay */
+        .audio-overlay {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #00FFFF;
+            border-radius: 10px;
+            padding: 15px;
+            z-index: 1000;
+            font-size: 12px;
+            min-width: 250px;
+        }
+        
+        .audio-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+        
+        .audio-label {
+            color: #00FFFF;
+        }
+        
+        .audio-value {
+            color: #FF0066;
+            font-family: monospace;
+        }
+        
+        /* Interaction feedback */
+        .interaction-indicator {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #66FF00;
+            border-radius: 10px;
+            padding: 15px;
+            z-index: 1000;
+            font-size: 12px;
+            min-width: 200px;
+        }
+        
+        .indicator-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+        
+        .indicator-label {
+            color: #66FF00;
+        }
+        
+        .indicator-value {
+            color: #fff;
+            font-family: monospace;
+        }
+        
+        /* Loading state */
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00FFFF;
+            font-size: 18px;
+            letter-spacing: 2px;
+            text-align: center;
+            font-family: 'Space Mono', monospace;
+            z-index: 100;
+        }
+        
+        .loading-spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(0, 255, 255, 0.1);
+            border-top: 3px solid #00FFFF;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        /* Hidden by default */
+        .controls-container {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <!-- Enhanced HyperAV Canvas for Synther -->
+    <canvas id="synther-canvas"></canvas>
+    
+    <!-- Loading indicator -->
+    <div class="loading" id="loadingIndicator">
+        <div class="loading-spinner"></div>
+        Initializing Synther HyperAV Core...
+    </div>
+    
+    <!-- Audio Parameter Display -->
+    <div class="audio-overlay" id="audioOverlay" style="display: none;">
+        <div class="audio-row">
+            <span class="audio-label">Filter Cutoff:</span>
+            <span class="audio-value" id="filterCutoff">0.5</span>
+        </div>
+        <div class="audio-row">
+            <span class="audio-label">Resonance:</span>
+            <span class="audio-value" id="filterResonance">0.3</span>
+        </div>
+        <div class="audio-row">
+            <span class="audio-label">Volume:</span>
+            <span class="audio-value" id="masterVolume">0.75</span>
+        </div>
+        <div class="audio-row">
+            <span class="audio-label">Reverb:</span>
+            <span class="audio-value" id="reverbMix">0.2</span>
+        </div>
+        <div class="audio-row">
+            <span class="audio-label">Bass Level:</span>
+            <span class="audio-value" id="bassLevel">0.0</span>
+        </div>
+        <div class="audio-row">
+            <span class="audio-label">Treble Level:</span>
+            <span class="audio-value" id="trebleLevel">0.0</span>
+        </div>
+    </div>
+    
+    <!-- Interaction Feedback -->
+    <div class="interaction-indicator" id="interactionIndicator" style="display: none;">
+        <div class="indicator-row">
+            <span class="indicator-label">Mode:</span>
+            <span class="indicator-value" id="synthMode">Wavetable</span>
+        </div>
+        <div class="indicator-row">
+            <span class="indicator-label">Geometry:</span>
+            <span class="indicator-value" id="currentGeometry">Hypercube</span>
+        </div>
+        <div class="indicator-row">
+            <span class="indicator-label">Audio Reactive:</span>
+            <span class="indicator-value" id="audioReactive">Active</span>
+        </div>
+        <div class="indicator-row">
+            <span class="indicator-label">4D Dimension:</span>
+            <span class="indicator-value" id="dimensionLevel">3.5</span>
+        </div>
+        <div class="indicator-row">
+            <span class="indicator-label">Grid Density:</span>
+            <span class="indicator-value" id="gridDensity">12.0</span>
+        </div>
+        <div class="indicator-row">
+            <span class="indicator-label">FPS:</span>
+            <span class="indicator-value" id="fpsCounter">60</span>
+        </div>
+    </div>
+
+    <script>
+        console.log('🎛️ Synther Holographic Pro - Enhanced HyperAV Core Loading...');
+        
+        // Enhanced Synther HyperAV Visualization System
+        class SyntherHyperAVCore {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                
+                if (!this.gl) {
+                    console.error('WebGL not supported');
+                    document.getElementById('loadingIndicator').innerHTML = 
+                        '<div style="color: #FF0066;">WebGL not supported in this browser</div>';
+                    return;
+                }
+                
+                // Core state
+                this.startTime = Date.now();
+                this.frameCount = 0;
+                this.lastFpsTime = Date.now();
+                this.currentFps = 60;
+                
+                // Synth mode configurations
+                this.synthModes = {
+                    wavetable: {
+                        baseColor: [0.0, 1.0, 1.0],      // Cyan
+                        gridDensity: 12.0,
+                        morphFactor: 0.5,
+                        dimension: 3.5,
+                        glitchIntensity: 0.3,
+                        rotationSpeed: 0.5,
+                        geometry: 'hypercube',
+                        audioReactivity: 1.0
+                    },
+                    fm: {
+                        baseColor: [1.0, 0.0, 1.0],      // Magenta
+                        gridDensity: 8.0,
+                        morphFactor: 0.7,
+                        dimension: 3.8,
+                        glitchIntensity: 0.4,
+                        rotationSpeed: 0.7,
+                        geometry: 'fractal',
+                        audioReactivity: 1.2
+                    },
+                    granular: {
+                        baseColor: [1.0, 1.0, 0.0],      // Yellow
+                        gridDensity: 15.0,
+                        morphFactor: 0.3,
+                        dimension: 3.2,
+                        glitchIntensity: 0.6,
+                        rotationSpeed: 0.3,
+                        geometry: 'sphere',
+                        audioReactivity: 0.8
+                    },
+                    additive: {
+                        baseColor: [0.0, 1.0, 0.0],      // Green
+                        gridDensity: 20.0,
+                        morphFactor: 0.8,
+                        dimension: 3.9,
+                        glitchIntensity: 0.2,
+                        rotationSpeed: 0.6,
+                        geometry: 'crystal',
+                        audioReactivity: 1.5
+                    }
+                };
+                
+                // Current state
+                this.currentMode = 'wavetable';
+                this.params = { ...this.synthModes.wavetable };
+                
+                // Audio state from Synther
+                this.audioState = {
+                    filterCutoff: 0.5,
+                    filterResonance: 0.3,
+                    masterVolume: 0.75,
+                    reverbMix: 0.2,
+                    fftData: new Float32Array(256),
+                    bassLevel: 0.0,
+                    trebleLevel: 0.0,
+                    isPlaying: false
+                };
+                
+                // Interaction state
+                this.interactionState = {
+                    mouseX: 0.5,
+                    mouseY: 0.5,
+                    intensity: 0.0,
+                    lastActivity: Date.now()
+                };
+                
+                this.initShaders();
+                this.initBuffers();
+                this.setupFlutterBridge();
+                this.resize();
+                this.animate();
+                
+                // Hide loading, show UI
+                document.getElementById('loadingIndicator').style.display = 'none';
+                document.getElementById('audioOverlay').style.display = 'block';
+                document.getElementById('interactionIndicator').style.display = 'block';
+                
+                console.log('✅ Synther HyperAV Core initialized successfully');
+                this.signalReady();
+            }
+            
+            initShaders() {
+                const vertexShaderSource = `
+                  attribute vec2 a_position;
+                  void main() {
+                    gl_Position = vec4(a_position, 0.0, 1.0);
+                  }
+                `;
+                
+                // Enhanced fragment shader optimized for audio reactivity
+                const fragmentShaderSource = `
+                  precision highp float;
+                  
+                  uniform vec2 u_resolution;
+                  uniform float u_time;
+                  uniform vec2 u_mouse;
+                  uniform float u_morphFactor;
+                  uniform float u_glitchIntensity;
+                  uniform float u_rotationSpeed;
+                  uniform float u_dimension;
+                  uniform float u_gridDensity;
+                  uniform vec3 u_baseColor;
+                  uniform float u_audioReactivity;
+                  uniform float u_geometry;
+                  
+                  // Audio parameters
+                  uniform float u_filterCutoff;
+                  uniform float u_filterResonance;
+                  uniform float u_masterVolume;
+                  uniform float u_reverbMix;
+                  uniform float u_bassLevel;
+                  uniform float u_trebleLevel;
+                  uniform float u_isPlaying;
+                  
+                  // 4D rotation matrices
+                  mat4 rotateXW(float theta) {
+                    float c = cos(theta);
+                    float s = sin(theta);
+                    return mat4(c, 0, 0, -s, 0, 1, 0, 0, 0, 0, 1, 0, s, 0, 0, c);
+                  }
+                  
+                  mat4 rotateYW(float theta) {
+                    float c = cos(theta);
+                    float s = sin(theta);
+                    return mat4(1, 0, 0, 0, 0, c, 0, -s, 0, 0, 1, 0, 0, s, 0, c);
+                  }
+                  
+                  mat4 rotateZW(float theta) {
+                    float c = cos(theta);
+                    float s = sin(theta);
+                    return mat4(1, 0, 0, 0, 0, 1, 0, 0, 0, 0, c, -s, 0, 0, s, c);
+                  }
+                  
+                  vec3 project4Dto3D(vec4 p) {
+                    float w = 2.0 / (2.0 + p.w);
+                    return vec3(p.x * w, p.y * w, p.z * w);
+                  }
+                  
+                  // Enhanced geometry generators with audio reactivity
+                  float hypercubeLattice(vec3 p, float gridSize, float audioMult) {
+                    vec3 grid = fract(p * gridSize * (1.0 + audioMult * 0.2));
+                    vec3 edges = 1.0 - smoothstep(0.0, 0.03 * (1.0 + audioMult), abs(grid - 0.5));
+                    return max(max(edges.x, edges.y), edges.z);
+                  }
+                  
+                  float fractalLattice(vec3 p, float gridSize, float audioMult) {
+                    vec3 q = p * gridSize;
+                    float scale = 1.0;
+                    float fractal = 0.0;
+                    for(int i = 0; i < 4; i++) {
+                      q = fract(q) - 0.5;
+                      fractal += abs(length(q)) / scale;
+                      scale *= 2.0 * (1.0 + audioMult * 0.1);
+                      q *= 2.0;
+                    }
+                    return 1.0 - smoothstep(0.0, 1.0, fractal);
+                  }
+                  
+                  float sphereLattice(vec3 p, float gridSize, float audioMult) {
+                    vec3 q = fract(p * gridSize * (1.0 + audioMult * 0.3)) - 0.5;
+                    float r = length(q);
+                    return 1.0 - smoothstep(0.2 * (1.0 - audioMult * 0.1), 0.5, r);
+                  }
+                  
+                  float crystalLattice(vec3 p, float gridSize, float audioMult) {
+                    vec3 q = fract(p * gridSize * (1.0 + audioMult * 0.4)) - 0.5;
+                    float d = max(max(abs(q.x), abs(q.y)), abs(q.z));
+                    return 1.0 - smoothstep(0.3 * (1.0 - audioMult * 0.2), 0.5, d);
+                  }
+                  
+                  float getGeometryValue(vec3 p, float gridSize, float geomType, float audioMult) {
+                    if (geomType < 0.5) return hypercubeLattice(p, gridSize, audioMult);
+                    else if (geomType < 1.5) return fractalLattice(p, gridSize, audioMult);
+                    else if (geomType < 2.5) return sphereLattice(p, gridSize, audioMult);
+                    else return crystalLattice(p, gridSize, audioMult);
+                  }
+                  
+                  void main() {
+                    vec2 uv = gl_FragCoord.xy / u_resolution.xy;
+                    float aspectRatio = u_resolution.x / u_resolution.y;
+                    uv.x *= aspectRatio;
+                    
+                    vec2 center = vec2(u_mouse.x * aspectRatio, u_mouse.y);
+                    vec3 p = vec3(uv - center, 0.0);
+                    
+                    // Audio-driven rotation and effects
+                    float audioRotation = u_bassLevel * 2.0 + u_trebleLevel * 0.5;
+                    float timeRotation = u_time * 0.2 * u_rotationSpeed * (1.0 + audioRotation);
+                    mat2 rotation = mat2(cos(timeRotation), -sin(timeRotation), sin(timeRotation), cos(timeRotation));
+                    p.xy = rotation * p.xy;
+                    
+                    // Audio-reactive Z movement
+                    p.z = sin(u_time * 0.1) * 0.5 + u_masterVolume * 0.3;
+                    
+                    // 4D transformations with audio reactivity
+                    if (u_dimension > 3.0) {
+                      float audioDimension = u_dimension + u_bassLevel * 0.5;
+                      float w = sin(length(p) * 3.0 + u_time * 0.3) * (audioDimension - 3.0) * u_audioReactivity;
+                      vec4 p4d = vec4(p, w);
+                      
+                      p4d = rotateXW(timeRotation * 0.31 + u_filterCutoff * 2.0) * p4d;
+                      p4d = rotateYW(timeRotation * 0.27 + u_filterResonance * 3.0) * p4d;
+                      p4d = rotateZW(timeRotation * 0.23 + u_reverbMix * 1.5) * p4d;
+                      
+                      p = project4Dto3D(p4d);
+                    }
+                    
+                    // Audio-reactive grid density
+                    float audioMultiplier = u_bassLevel * 0.5 + u_trebleLevel * 0.3 + u_masterVolume * 0.2;
+                    float dynamicGridDensity = u_gridDensity * (1.0 + audioMultiplier * u_audioReactivity);
+                    
+                    // Get geometry value with audio reactivity
+                    float lattice = getGeometryValue(p, dynamicGridDensity, u_geometry, audioMultiplier);
+                    
+                    // Audio-reactive glitch effects
+                    float audioGlitch = u_glitchIntensity * (0.1 + 0.1 * sin(u_time * 5.0)) * (1.0 + audioMultiplier);
+                    
+                    vec2 rOffset = vec2(audioGlitch * u_filterCutoff, audioGlitch * 0.5);
+                    vec2 gOffset = vec2(-audioGlitch * 0.3, audioGlitch * u_filterResonance);
+                    vec2 bOffset = vec2(audioGlitch * u_reverbMix, -audioGlitch * 0.4);
+                    
+                    float r = getGeometryValue(vec3(p.xy + rOffset, p.z), dynamicGridDensity, u_geometry, audioMultiplier);
+                    float g = getGeometryValue(vec3(p.xy + gOffset, p.z), dynamicGridDensity, u_geometry, audioMultiplier);
+                    float b = getGeometryValue(vec3(p.xy + bOffset, p.z), dynamicGridDensity, u_geometry, audioMultiplier);
+                    
+                    // Base colors with audio-reactive enhancement
+                    vec3 baseColor = vec3(0.02, 0.05, 0.1);
+                    vec3 latticeColor = u_baseColor * (0.8 + 0.4 * audioMultiplier * u_isPlaying);
+                    
+                    vec3 color = mix(baseColor, latticeColor, vec3(r, g, b));
+                    
+                    // Audio-reactive glow
+                    color += u_baseColor * 0.1 * (0.5 + 0.5 * sin(u_time * 0.5)) * audioMultiplier * u_isPlaying;
+                    
+                    // Audio-reactive pulsing
+                    color *= 1.0 + u_bassLevel * 0.3 * u_isPlaying;
+                    
+                    // Vignette
+                    float vignette = 1.0 - smoothstep(0.4, 1.4, length(uv - vec2(center.x, center.y)));
+                    color *= vignette;
+                    
+                    gl_FragColor = vec4(color, 0.95);
+                  }
+                `;
+                
+                const vertexShader = this.createShader(this.gl.VERTEX_SHADER, vertexShaderSource);
+                const fragmentShader = this.createShader(this.gl.FRAGMENT_SHADER, fragmentShaderSource);
+                this.program = this.createProgram(vertexShader, fragmentShader);
+                
+                // Get uniform locations
+                this.uniforms = {
+                    resolution: this.gl.getUniformLocation(this.program, 'u_resolution'),
+                    time: this.gl.getUniformLocation(this.program, 'u_time'),
+                    mouse: this.gl.getUniformLocation(this.program, 'u_mouse'),
+                    morphFactor: this.gl.getUniformLocation(this.program, 'u_morphFactor'),
+                    glitchIntensity: this.gl.getUniformLocation(this.program, 'u_glitchIntensity'),
+                    rotationSpeed: this.gl.getUniformLocation(this.program, 'u_rotationSpeed'),
+                    dimension: this.gl.getUniformLocation(this.program, 'u_dimension'),
+                    gridDensity: this.gl.getUniformLocation(this.program, 'u_gridDensity'),
+                    baseColor: this.gl.getUniformLocation(this.program, 'u_baseColor'),
+                    audioReactivity: this.gl.getUniformLocation(this.program, 'u_audioReactivity'),
+                    geometry: this.gl.getUniformLocation(this.program, 'u_geometry'),
+                    filterCutoff: this.gl.getUniformLocation(this.program, 'u_filterCutoff'),
+                    filterResonance: this.gl.getUniformLocation(this.program, 'u_filterResonance'),
+                    masterVolume: this.gl.getUniformLocation(this.program, 'u_masterVolume'),
+                    reverbMix: this.gl.getUniformLocation(this.program, 'u_reverbMix'),
+                    bassLevel: this.gl.getUniformLocation(this.program, 'u_bassLevel'),
+                    trebleLevel: this.gl.getUniformLocation(this.program, 'u_trebleLevel'),
+                    isPlaying: this.gl.getUniformLocation(this.program, 'u_isPlaying')
+                };
+                
+                this.positionAttributeLocation = this.gl.getAttribLocation(this.program, 'a_position');
+            }
+            
+            createShader(type, source) {
+                const shader = this.gl.createShader(type);
+                this.gl.shaderSource(shader, source);
+                this.gl.compileShader(shader);
+                
+                if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+                    console.error("Shader compilation error:", this.gl.getShaderInfoLog(shader));
+                    this.gl.deleteShader(shader);
+                    return null;
+                }
+                return shader;
+            }
+            
+            createProgram(vertexShader, fragmentShader) {
+                const program = this.gl.createProgram();
+                this.gl.attachShader(program, vertexShader);
+                this.gl.attachShader(program, fragmentShader);
+                this.gl.linkProgram(program);
+                
+                if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) {
+                    console.error("Program linking error:", this.gl.getProgramInfoLog(program));
+                    this.gl.deleteProgram(program);
+                    return null;
+                }
+                return program;
+            }
+            
+            initBuffers() {
+                this.positionBuffer = this.gl.createBuffer();
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+                this.gl.bufferData(
+                    this.gl.ARRAY_BUFFER,
+                    new Float32Array([-1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0]),
+                    this.gl.STATIC_DRAW
+                );
+            }
+            
+            setupFlutterBridge() {
+                // Flutter bridge for parameter updates
+                window.addEventListener('message', (event) => {
+                    const data = event.data;
+                    if (!data || !data.type) return;
+                    
+                    switch (data.type) {
+                        case 'parameterUpdate':
+                            this.updateAudioParameter(data.parameter, data.value);
+                            break;
+                        case 'fftDataUpdate':
+                            this.updateFFTData(data.fftData);
+                            break;
+                        case 'synthModeChange':
+                            this.setSynthMode(data.mode);
+                            break;
+                        case 'toggleControls':
+                            this.toggleControls(data.show);
+                            break;
+                    }
+                });
+                
+                // Mouse interaction
+                this.canvas.addEventListener('mousemove', (e) => {
+                    const rect = this.canvas.getBoundingClientRect();
+                    this.interactionState.mouseX = (e.clientX - rect.left) / rect.width;
+                    this.interactionState.mouseY = 1.0 - (e.clientY - rect.top) / rect.height;
+                    this.interactionState.lastActivity = Date.now();
+                    this.interactionState.intensity = Math.min(this.interactionState.intensity + 0.1, 1.0);
+                });
+                
+                window.addEventListener('resize', () => this.resize());
+            }
+            
+            updateAudioParameter(parameter, value) {
+                if (this.audioState.hasOwnProperty(parameter)) {
+                    this.audioState[parameter] = value;
+                    
+                    // Update UI displays
+                    const element = document.getElementById(parameter);
+                    if (element) {
+                        element.textContent = value.toFixed(3);
+                    }
+                }
+            }
+            
+            updateFFTData(fftData) {
+                if (fftData && fftData.length > 0) {
+                    this.audioState.fftData = new Float32Array(fftData);
+                    
+                    // Calculate bass and treble levels
+                    const bassEnd = Math.floor(fftData.length * 0.1);
+                    const trebleStart = Math.floor(fftData.length * 0.7);
+                    
+                    let bassSum = 0;
+                    let trebleSum = 0;
+                    
+                    for (let i = 0; i < bassEnd; i++) {
+                        bassSum += fftData[i];
+                    }
+                    
+                    for (let i = trebleStart; i < fftData.length; i++) {
+                        trebleSum += fftData[i];
+                    }
+                    
+                    this.audioState.bassLevel = bassSum / bassEnd;
+                    this.audioState.trebleLevel = trebleSum / (fftData.length - trebleStart);
+                    this.audioState.isPlaying = bassSum > 0.01 || trebleSum > 0.01;
+                    
+                    // Update UI
+                    document.getElementById('bassLevel').textContent = this.audioState.bassLevel.toFixed(3);
+                    document.getElementById('trebleLevel').textContent = this.audioState.trebleLevel.toFixed(3);
+                }
+            }
+            
+            setSynthMode(mode) {
+                if (this.synthModes[mode] && this.currentMode !== mode) {
+                    this.currentMode = mode;
+                    const config = this.synthModes[mode];
+                    
+                    // Smooth transition to new mode
+                    const startParams = { ...this.params };
+                    const targetParams = { ...config };
+                    
+                    const transitionDuration = 1500; // 1.5 seconds
+                    const startTime = Date.now();
+                    
+                    const transition = () => {
+                        const elapsed = Date.now() - startTime;
+                        const progress = Math.min(elapsed / transitionDuration, 1.0);
+                        const eased = 0.5 - 0.5 * Math.cos(progress * Math.PI);
+                        
+                        // Interpolate parameters
+                        Object.keys(targetParams).forEach(key => {
+                            if (typeof targetParams[key] === 'number') {
+                                this.params[key] = startParams[key] + (targetParams[key] - startParams[key]) * eased;
+                            } else if (Array.isArray(targetParams[key])) {
+                                this.params[key] = startParams[key].map((val, i) => 
+                                    val + (targetParams[key][i] - val) * eased
+                                );
+                            } else {
+                                this.params[key] = targetParams[key];
+                            }
+                        });
+                        
+                        if (progress < 1.0) {
+                            requestAnimationFrame(transition);
+                        }
+                    };
+                    
+                    transition();
+                    
+                    // Update UI
+                    document.getElementById('synthMode').textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+                    document.getElementById('currentGeometry').textContent = config.geometry.charAt(0).toUpperCase() + config.geometry.slice(1);
+                    
+                    console.log(`🎛️ Synth mode changed to: ${mode}`);
+                }
+            }
+            
+            toggleControls(show) {
+                const audioOverlay = document.getElementById('audioOverlay');
+                const interactionIndicator = document.getElementById('interactionIndicator');
+                
+                if (audioOverlay) audioOverlay.style.display = show ? 'block' : 'none';
+                if (interactionIndicator) interactionIndicator.style.display = show ? 'block' : 'none';
+            }
+            
+            signalReady() {
+                // Signal to Flutter that visualizer is ready
+                if (window.parent) {
+                    window.parent.postMessage({
+                        type: 'visualizerReady',
+                        timestamp: Date.now()
+                    }, '*');
+                }
+                
+                if (window.signalVisualizerCoreReady) {
+                    window.signalVisualizerCoreReady();
+                }
+            }
+            
+            resize() {
+                const displayWidth = this.canvas.clientWidth;
+                const displayHeight = this.canvas.clientHeight;
+                
+                if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
+                    this.canvas.width = displayWidth;
+                    this.canvas.height = displayHeight;
+                    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+                }
+            }
+            
+            updateFPS() {
+                this.frameCount++;
+                const now = Date.now();
+                
+                if (now - this.lastFpsTime >= 1000) {
+                    this.currentFps = this.frameCount;
+                    this.frameCount = 0;
+                    this.lastFpsTime = now;
+                    
+                    document.getElementById('fpsCounter').textContent = this.currentFps;
+                }
+            }
+            
+            render() {
+                // Map geometry name to number
+                const geometryMap = {
+                    'hypercube': 0, 'fractal': 1, 'sphere': 2, 'crystal': 3
+                };
+                const geometryIndex = geometryMap[this.params.geometry] || 0;
+                
+                this.gl.clearColor(0.0, 0.0, 0.067, 1.0); // #000011
+                this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+                this.gl.useProgram(this.program);
+                
+                // Setup vertex attributes
+                this.gl.enableVertexAttribArray(this.positionAttributeLocation);
+                this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+                this.gl.vertexAttribPointer(this.positionAttributeLocation, 2, this.gl.FLOAT, false, 0, 0);
+                
+                // Set uniforms
+                this.gl.uniform2f(this.uniforms.resolution, this.canvas.width, this.canvas.height);
+                this.gl.uniform1f(this.uniforms.time, (Date.now() - this.startTime) / 1000);
+                this.gl.uniform2f(this.uniforms.mouse, this.interactionState.mouseX, this.interactionState.mouseY);
+                this.gl.uniform1f(this.uniforms.morphFactor, this.params.morphFactor);
+                this.gl.uniform1f(this.uniforms.glitchIntensity, this.params.glitchIntensity);
+                this.gl.uniform1f(this.uniforms.rotationSpeed, this.params.rotationSpeed);
+                this.gl.uniform1f(this.uniforms.dimension, this.params.dimension);
+                this.gl.uniform1f(this.uniforms.gridDensity, this.params.gridDensity);
+                this.gl.uniform3fv(this.uniforms.baseColor, this.params.baseColor);
+                this.gl.uniform1f(this.uniforms.audioReactivity, this.params.audioReactivity);
+                this.gl.uniform1f(this.uniforms.geometry, geometryIndex);
+                
+                // Audio uniforms
+                this.gl.uniform1f(this.uniforms.filterCutoff, this.audioState.filterCutoff);
+                this.gl.uniform1f(this.uniforms.filterResonance, this.audioState.filterResonance);
+                this.gl.uniform1f(this.uniforms.masterVolume, this.audioState.masterVolume);
+                this.gl.uniform1f(this.uniforms.reverbMix, this.audioState.reverbMix);
+                this.gl.uniform1f(this.uniforms.bassLevel, this.audioState.bassLevel);
+                this.gl.uniform1f(this.uniforms.trebleLevel, this.audioState.trebleLevel);
+                this.gl.uniform1f(this.uniforms.isPlaying, this.audioState.isPlaying ? 1.0 : 0.0);
+                
+                this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+                
+                // Update UI
+                document.getElementById('dimensionLevel').textContent = this.params.dimension.toFixed(2);
+                document.getElementById('gridDensity').textContent = this.params.gridDensity.toFixed(1);
+                document.getElementById('audioReactive').textContent = this.audioState.isPlaying ? 'Active' : 'Idle';
+                
+                // Decay interaction intensity
+                this.interactionState.intensity *= 0.95;
+            }
+            
+            animate() {
+                this.render();
+                this.updateFPS();
+                requestAnimationFrame(() => this.animate());
+            }
+        }
+        
+        // Initialize the enhanced Synther HyperAV system
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 Initializing Synther Holographic Pro HyperAV Core...');
+            
+            const canvas = document.getElementById('synther-canvas');
+            if (canvas) {
+                window.syntherHyperAV = new SyntherHyperAVCore(canvas);
+                console.log('✅ Synther HyperAV Core loaded successfully!');
+                console.log('🎛️ Audio Reactive Features:');
+                console.log('   • FFT Data: Bass/treble level extraction');
+                console.log('   • Parameter Mapping: Filter, resonance, volume, reverb');
+                console.log('   • Synth Mode Switching: Wavetable, FM, Granular, Additive');
+                console.log('   • Real-time 4D Geometry: Audio-reactive transformations');
+                console.log('   • High Performance: 60fps WebGL rendering');
+            }
+        });
+        
+        // Global function for Flutter bridge
+        window.signalVisualizerCoreReady = function() {
+            console.log('📡 Signaling Flutter that visualizer core is ready');
+        };
+    </script>
+</body>
+</html>

@@ -37,9 +37,21 @@ class FirebaseService {
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
   
+  // Service availability flags
+  bool _isAvailable = false;
+  bool get isAvailable => _isAvailable;
+  
   /// Initialize Firebase services
   Future<void> initialize() async {
     try {
+      // Check if Firebase is properly configured
+      if (_auth.app.options.apiKey.isEmpty || _auth.app.options.projectId.isEmpty) {
+        print('🔥 Firebase not configured - running in offline mode');
+        print('   See FIREBASE_SETUP_GUIDE.md for configuration instructions');
+        _isAvailable = false;
+        return;
+      }
+      
       // Skip functions emulator in production web deployment
       if (!kIsWeb) {
         try {
@@ -48,6 +60,11 @@ class FirebaseService {
           print('Functions emulator not available: $e');
         }
       }
+      
+      // Test connection
+      await _firestore.doc('test/connection').get();
+      _isAvailable = true;
+      print('✅ Firebase services initialized successfully');
       
       // Enable offline persistence for Firestore (web only, with additional safety)
       if (kIsWeb) {
@@ -62,17 +79,21 @@ class FirebaseService {
       }
       
       // Anonymous sign-in for immediate use with additional null checks
-      try {
-        if (_auth.currentUser == null) {
-          await signInAnonymously();
+      if (_isAvailable) {
+        try {
+          if (_auth.currentUser == null) {
+            await signInAnonymously();
+          }
+        } catch (e) {
+          print('Anonymous sign-in error: $e');
+          // Continue without authentication - app should still work
         }
-      } catch (e) {
-        print('Anonymous sign-in error: $e');
-        // Continue without authentication - app should still work
       }
+      
     } catch (e) {
-      print('Firebase initialization error: $e');
-      // Don't throw - let app continue to work without Firebase
+      print('🔥 Firebase initialization failed: $e');
+      print('   The app will continue to work without cloud features');
+      _isAvailable = false;
     }
   }
   

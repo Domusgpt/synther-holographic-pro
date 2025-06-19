@@ -443,7 +443,7 @@ class WaveformPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (waveformData.isEmpty) return;
+    if (waveformData.isEmpty || size.width <= 0 || size.height <= 0) return;
 
     // Draw background grid
     if (showGrid) {

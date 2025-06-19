@@ -11,8 +11,9 @@ import 'holographic_widgets.dart';
 
 /// Revolutionary Vaporwave Holographic Interface
 /// 
-// Import for HolographicKeyboard and its callback type
-import 'widgets/holographic_keyboard.dart';
+// Import for MPE Keyboard and Microtonal System
+import '../features/keyboard/mpe_keyboard_widget.dart';
+import '../core/microtonal_system.dart';
 
 /// Features intense parallax effects, skeuomorphic depth, and neon aesthetics
 class VaporwaveInterface extends StatefulWidget {
@@ -198,16 +199,29 @@ class _VaporwaveInterfaceState extends State<VaporwaveInterface>
               ),
             ),
 
-            // Add HolographicKeyboard for prototyping aftertouch
+            // Professional MPE Keyboard with Multi-touch and Microtonal Support
             Positioned(
-              bottom: 150, // Adjust position as needed
+              bottom: 150,
               left: 20,
               right: 20,
-              height: 180, // Adjust size as needed
-              child: HolographicKeyboard(
-                onNoteOn: (note, velocity) => audioEngine.noteOn(note, velocity),
-                onNoteOff: (note) => audioEngine.noteOff(note),
-                onPolyAftertouch: widget.onPolyAftertouch, // Pass the callback
+              height: 200,
+              child: MPEKeyboardWidget(
+                initialSize: const Size(800, 200),
+                layout: KeyboardLayout.piano,
+                scale: MicrotonalScaleLibrary.standard12TET,
+                mpeEnabled: true,
+                velocitySensitive: true,
+                pressureSensitive: true,
+                octaves: 2,
+                startOctave: 3,
+                enableQuantization: true,
+                showScaleAnalysis: false,
+                onSizeChanged: (size) {
+                  // Handle keyboard size changes
+                },
+                onCollapsedChanged: (collapsed) {
+                  // Handle keyboard collapse state
+                },
               ),
             ),
           ],

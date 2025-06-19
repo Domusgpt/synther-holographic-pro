@@ -532,9 +532,9 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
                       tooltip: panelConfig.isCollapsed ? "Expand" : "Collapse",
                       onPressed: () {
                         setState(() {
-                          bool واIsNowCollapsed = !panelConfig.isCollapsed;
-                          panelConfig.isCollapsed = واIsNowCollapsed;
-                          if (واIsNowCollapsed) {
+                          bool isNowCollapsed = !panelConfig.isCollapsed;
+                          panelConfig.isCollapsed = isNowCollapsed;
+                          if (isNowCollapsed) {
                             HapticFeedback.lightImpact();
                           } else {
                             HapticFeedback.mediumImpact();

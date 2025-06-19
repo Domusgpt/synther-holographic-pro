@@ -470,6 +470,40 @@ class SynthParametersModel extends ChangeNotifier {
     noteOn(note, velocity);
   }
   
+  // MPE (MIDI Polyphonic Expression) support methods
+  void playNote(int note, double velocity) {
+    if (_engine.isInitialized) {
+      _engine.noteOn(note, velocity);
+    }
+  }
+  
+  void stopNote(int note) {
+    if (_engine.isInitialized) {
+      _engine.noteOff(note);
+    }
+  }
+  
+  void setPitchBend(int channel, double value) {
+    if (_engine.isInitialized) {
+      // MPE pitch bend per channel (value: -1.0 to 1.0)
+      _engine.setParameter('pitch_bend_ch$channel', value);
+    }
+  }
+  
+  void setPressure(int channel, double value) {
+    if (_engine.isInitialized) {
+      // MPE pressure (aftertouch) per channel (value: 0.0 to 1.0)
+      _engine.setParameter('pressure_ch$channel', value);
+    }
+  }
+  
+  void setTimbre(int channel, double value) {
+    if (_engine.isInitialized) {
+      // MPE timbre (Y-axis) per channel (value: 0.0 to 1.0)
+      _engine.setParameter('timbre_ch$channel', value);
+    }
+  }
+  
   // Convert to a JSON representation
   Map<String, dynamic> toJson() {
     return {

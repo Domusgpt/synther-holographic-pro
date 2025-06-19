@@ -17,8 +17,8 @@ import 'core/synth_parameters.dart';
 // Firebase Services
 import 'services/firebase_service.dart';
 
-// Professional Synthesizer Interface (Complete)
-import 'ui/professional_synthesizer_interface.dart';
+// Professional Synthesizer with Tabbed Interface
+import 'ui/professional_synthesizer.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

@@ -4,6 +4,103 @@ import 'dart:math' as math;
 import '../../core/holographic_theme.dart';
 import 'holographic_knob.dart';
 
+/// Professional Modulation Route System
+enum ModulationCurve { linear, exponential, logarithmic, custom }
+
+class ModulationSource {
+  final int id;
+  final String name;
+  double currentValue = 0.0;
+  double smoothedValue = 0.0;
+  double smoothingTime = 0.001; // 1ms default
+  final Map<String, double> parameters = {};
+  
+  ModulationSource(this.id, this.name);
+  
+  double getValue() {
+    // Apply smoothing for zipper-free modulation
+    const sampleRate = 44100.0;
+    smoothedValue += (currentValue - smoothedValue) * 
+                     (1.0 - math.exp(-1.0 / (smoothingTime * sampleRate)));
+    return smoothedValue;
+  }
+}
+
+class ModulationDestination {
+  final int id;
+  final String name;
+  final double minValue;
+  final double maxValue;
+  final double defaultValue;
+  final ModulationCurve scale;
+  final String unit;
+  
+  ModulationDestination(
+    this.id, 
+    this.name, 
+    this.minValue, 
+    this.maxValue, 
+    this.defaultValue, 
+    this.scale, 
+    this.unit
+  );
+}
+
+class ModulationRoute {
+  final ModulationSource source;
+  final ModulationDestination destination;
+  double amount; // -100% to +100%
+  double sourceMultiplier; // For velocity, aftertouch scaling
+  ModulationCurve curve;
+  bool bipolar; // Unipolar (0-1) or bipolar (-1 to +1)
+  bool enabled;
+  
+  ModulationRoute({
+    required this.source,
+    required this.destination,
+    this.amount = 0.0,
+    this.sourceMultiplier = 1.0,
+    this.curve = ModulationCurve.linear,
+    this.bipolar = false,
+    this.enabled = true,
+  });
+  
+  double process(double sourceValue) {
+    if (!enabled) return 0.0;
+    
+    double value = sourceValue * sourceMultiplier;
+    
+    // Apply modulation curve
+    switch (curve) {
+      case ModulationCurve.linear:
+        break;
+      case ModulationCurve.exponential:
+        value = value * value;
+        break;
+      case ModulationCurve.logarithmic:
+        value = math.log(value * 9 + 1) / math.log(10);
+        break;
+      case ModulationCurve.custom:
+        // Custom curve implementation
+        break;
+    }
+    
+    if (!bipolar && value < 0) value = 0;
+    return value * amount;
+  }
+  
+  /// Array-like access for compatibility
+  double operator [](int index) {
+    switch (index) {
+      case 0: return source.id.toDouble();
+      case 1: return destination.id.toDouble();
+      case 2: return amount;
+      case 3: return enabled ? 1.0 : 0.0;
+      default: throw RangeError('Index $index out of range for ModulationRoute');
+    }
+  }
+}
+
 /// Professional Modulation Matrix for complex routing
 /// 
 /// Features:
@@ -31,55 +128,119 @@ class ModulationMatrix extends StatefulWidget {
 class _ModulationMatrixState extends State<ModulationMatrix> 
     with TickerProviderStateMixin {
   
+  // Add missing properties
+  int _selectedConnection = -1;
+  final List<ModulationRoute> _modulationMatrix = [];
+  final Map<String, Map<String, dynamic>> _modulationTemplates = {
+    'Classic': {
+      'routes': [
+        {'source': 'LFO 1', 'target': 'Filter Cutoff', 'amount': 0.5},
+        {'source': 'Env 1', 'target': 'Amplitude', 'amount': 1.0},
+      ]
+    },
+    'Vibrato': {
+      'routes': [
+        {'source': 'LFO 1', 'target': 'Pitch', 'amount': 0.1},
+      ]
+    },
+  };
+  
   late AnimationController _pulseController;
   late AnimationController _flowController;
   late AnimationController _particleController;
   
-  // Modulation sources
+  // Professional 24 Modulation Sources
   final List<String> _modulationSources = [
-    'LFO 1', 'LFO 2', 'LFO 3',
-    'ENV 1', 'ENV 2', 'ENV 3',
-    'VELOCITY', 'AFTERTOUCH', 'MOD WHEEL',
-    'PITCH BEND', 'KEY TRACK', 'RANDOM'
+    // Envelopes
+    'AMP ENV', 'FILTER ENV', 'MOD ENV 1', 'MOD ENV 2',
+    // LFOs  
+    'LFO 1', 'LFO 2', 'LFO 3', 'LFO 4',
+    // MIDI/Performance
+    'VELOCITY', 'KEYTRACK', 'AFTERTOUCH', 'MOD WHEEL',
+    'PITCH BEND', 'BREATH', 'EXPRESSION',
+    // Audio Analysis
+    'AUDIO FOLLOWER', 'PITCH DETECTOR',
+    // Sequencer/Arpeggiator
+    'STEP SEQ', 'ARP GATE',
+    // Macro Controls
+    'MACRO 1', 'MACRO 2', 'MACRO 3', 'MACRO 4',
+    // Random/Chaos
+    'RANDOM', 'PERLIN'
   ];
 
-  // Modulation destinations  
+  // Professional 64 Modulation Destinations  
   final List<String> _modulationDestinations = [
-    'OSC1 FREQ', 'OSC1 AMP', 'OSC1 PHASE',
-    'OSC2 FREQ', 'OSC2 AMP', 'OSC2 PHASE',
-    'FILTER CUTOFF', 'FILTER RES', 'FILTER DRIVE',
-    'AMP LEVEL', 'PAN', 'REVERB MIX',
-    'DELAY TIME', 'CHORUS RATE', 'DISTORTION'
+    // Oscillators (4 oscillators x 8 params = 32)
+    'OSC1 PITCH', 'OSC1 FINE', 'OSC1 SHAPE', 'OSC1 LEVEL',
+    'OSC1 FM', 'OSC1 SYNC', 'OSC1 PHASE', 'OSC1 DETUNE',
+    'OSC2 PITCH', 'OSC2 FINE', 'OSC2 SHAPE', 'OSC2 LEVEL', 
+    'OSC2 FM', 'OSC2 SYNC', 'OSC2 PHASE', 'OSC2 DETUNE',
+    'OSC3 PITCH', 'OSC3 FINE', 'OSC3 SHAPE', 'OSC3 LEVEL',
+    'OSC3 FM', 'OSC3 SYNC', 'OSC3 PHASE', 'OSC3 DETUNE',
+    'OSC4 PITCH', 'OSC4 FINE', 'OSC4 SHAPE', 'OSC4 LEVEL',
+    'OSC4 FM', 'OSC4 SYNC', 'OSC4 PHASE', 'OSC4 DETUNE',
+    // Filters (2 filters x 6 params = 12)
+    'FILTER1 CUTOFF', 'FILTER1 RES', 'FILTER1 DRIVE',
+    'FILTER1 TYPE', 'FILTER1 KEY', 'FILTER1 ENV',
+    'FILTER2 CUTOFF', 'FILTER2 RES', 'FILTER2 DRIVE', 
+    'FILTER2 TYPE', 'FILTER2 KEY', 'FILTER2 ENV',
+    // Effects (5 effects x 4 params = 20)
+    'REVERB SIZE', 'REVERB DAMP', 'REVERB MIX', 'REVERB PRE',
+    'DELAY TIME', 'DELAY FEEDBACK', 'DELAY MIX', 'DELAY FILTER',
+    'CHORUS DEPTH', 'CHORUS RATE', 'CHORUS MIX', 'CHORUS PHASE',
+    'DISTORT DRIVE', 'DISTORT TYPE', 'DISTORT MIX', 'DISTORT TONE',
+    'COMPRESSOR THRESH', 'COMPRESSOR RATIO', 'COMPRESSOR ATTACK', 'COMPRESSOR RELEASE'
   ];
 
-  // Modulation matrix state
-  // Each entry: [sourceIndex, destIndex, amount, enabled]
-  final List<List<double>> _modulationMatrix = [];
+  // Professional Modulation Route System (32 routes maximum)
+  final List<ModulationRoute> _modulationRoutes = [];
+  final List<ModulationSource> _sources = [];
+  final List<ModulationDestination> _destinations = [];
+  final Map<ModulationDestination, List<ModulationRoute>> _destinationMap = {};
+  
+  static const int maxRoutes = 32;
+  static const int maxSources = 24;
+  static const int maxDestinations = 64;
   
   // Visual interaction state
-  int _selectedConnection = -1;
+  int _selectedRoute = -1;
   bool _isDragging = false;
   Offset? _dragStart;
   Offset? _dragEnd;
+  ModulationSource? _dragSource;
+  ModulationDestination? _dragDestination;
   
-  // Templates for common modulation setups
-  final Map<String, List<List<double>>> _modulationTemplates = {
-    'Classic Synth': [
-      [0, 0, 0.5, 1], // LFO 1 -> OSC1 FREQ
-      [0, 3, 0.3, 1], // LFO 1 -> OSC2 FREQ
-      [3, 6, 0.8, 1], // ENV 1 -> FILTER CUTOFF
-      [4, 9, 1.0, 1], // ENV 2 -> AMP LEVEL
+  // Professional modulation routing templates
+  final Map<String, List<Map<String, dynamic>>> _professionalTemplates = {
+    'Analog Classic': [
+      {'source': 'LFO 1', 'dest': 'OSC1 PITCH', 'amount': 0.5, 'curve': 'linear'},
+      {'source': 'FILTER ENV', 'dest': 'FILTER1 CUTOFF', 'amount': 0.8, 'curve': 'exponential'},
+      {'source': 'AMP ENV', 'dest': 'OSC1 LEVEL', 'amount': 1.0, 'curve': 'exponential'},
+      {'source': 'VELOCITY', 'dest': 'FILTER1 CUTOFF', 'amount': 0.6, 'curve': 'linear'},
     ],
-    'Wobble Bass': [
-      [1, 6, 0.9, 1], // LFO 2 -> FILTER CUTOFF
-      [1, 7, 0.4, 1], // LFO 2 -> FILTER RES
-      [2, 12, 0.6, 1], // LFO 3 -> DELAY TIME
+    'FM Complex': [
+      {'source': 'LFO 2', 'dest': 'OSC1 FM', 'amount': 0.7, 'curve': 'exponential'},
+      {'source': 'LFO 3', 'dest': 'OSC2 FM', 'amount': 0.5, 'curve': 'linear'},
+      {'source': 'MOD ENV 1', 'dest': 'OSC1 FM', 'amount': 0.9, 'curve': 'exponential'},
+      {'source': 'AFTERTOUCH', 'dest': 'OSC2 LEVEL', 'amount': 0.4, 'curve': 'linear'},
     ],
-    'Evolving Pad': [
-      [0, 0, 0.2, 1], // LFO 1 -> OSC1 FREQ
-      [1, 1, 0.4, 1], // LFO 2 -> OSC1 AMP
-      [2, 6, 0.7, 1], // LFO 3 -> FILTER CUTOFF
-      [3, 11, 0.6, 1], // ENV 1 -> REVERB MIX
+    'Dubstep Wobble': [
+      {'source': 'LFO 1', 'dest': 'FILTER1 CUTOFF', 'amount': 0.95, 'curve': 'exponential'},
+      {'source': 'LFO 1', 'dest': 'FILTER1 RES', 'amount': 0.6, 'curve': 'linear'},
+      {'source': 'LFO 2', 'dest': 'DISTORT DRIVE', 'amount': 0.8, 'curve': 'exponential'},
+      {'source': 'MOD WHEEL', 'dest': 'LFO 1', 'amount': 1.0, 'curve': 'linear'},
+    ],
+    'Ambient Texture': [
+      {'source': 'LFO 3', 'dest': 'REVERB SIZE', 'amount': 0.7, 'curve': 'linear'},
+      {'source': 'LFO 4', 'dest': 'DELAY TIME', 'amount': 0.5, 'curve': 'exponential'},
+      {'source': 'RANDOM', 'dest': 'OSC1 PHASE', 'amount': 0.3, 'curve': 'linear'},
+      {'source': 'PERLIN', 'dest': 'CHORUS DEPTH', 'amount': 0.4, 'curve': 'linear'},
+    ],
+    'MPE Expression': [
+      {'source': 'AFTERTOUCH', 'dest': 'FILTER1 CUTOFF', 'amount': 0.8, 'curve': 'linear'},
+      {'source': 'PITCH BEND', 'dest': 'OSC1 PITCH', 'amount': 2.0, 'curve': 'linear'},
+      {'source': 'EXPRESSION', 'dest': 'REVERB MIX', 'amount': 0.6, 'curve': 'linear'},
+      {'source': 'BREATH', 'dest': 'OSC1 LEVEL', 'amount': 0.9, 'curve': 'exponential'},
     ],
   };
 
@@ -102,8 +263,127 @@ class _ModulationMatrixState extends State<ModulationMatrix>
       vsync: this,
     )..repeat();
     
-    // Initialize with some default connections
-    _loadTemplate('Classic Synth');
+    // Initialize professional modulation system
+    _initializeModulationSystem();
+    
+    // Load default routing template
+    _loadProfessionalTemplate('Analog Classic');
+  }
+  
+  void _initializeModulationSystem() {
+    // Initialize 24 modulation sources
+    for (int i = 0; i < _modulationSources.length; i++) {
+      _sources.add(ModulationSource(i, _modulationSources[i]));
+    }
+    
+    // Initialize 64 modulation destinations with proper ranges
+    for (int i = 0; i < _modulationDestinations.length; i++) {
+      _destinations.add(_createDestination(i, _modulationDestinations[i]));
+    }
+    
+    // Initialize destination lookup map for fast routing
+    for (final destination in _destinations) {
+      _destinationMap[destination] = [];
+    }
+  }
+  
+  ModulationDestination _createDestination(int id, String name) {
+    // Define proper parameter ranges based on destination type
+    if (name.contains('PITCH') || name.contains('FINE')) {
+      return ModulationDestination(id, name, -48, 48, 0, ModulationCurve.linear, 'st');
+    } else if (name.contains('CUTOFF')) {
+      return ModulationDestination(id, name, 20, 20000, 1000, ModulationCurve.exponential, 'Hz');
+    } else if (name.contains('RES')) {
+      return ModulationDestination(id, name, 0, 100, 0, ModulationCurve.linear, '%');
+    } else if (name.contains('LEVEL') || name.contains('AMP')) {
+      return ModulationDestination(id, name, 0, 100, 100, ModulationCurve.exponential, '%');
+    } else if (name.contains('TIME')) {
+      return ModulationDestination(id, name, 1, 2000, 250, ModulationCurve.exponential, 'ms');
+    } else {
+      return ModulationDestination(id, name, 0, 100, 50, ModulationCurve.linear, '%');
+    }
+  }
+  
+  void _loadProfessionalTemplate(String templateName) {
+    final template = _professionalTemplates[templateName];
+    if (template == null) return;
+    
+    // Clear existing routes
+    _modulationRoutes.clear();
+    for (final destination in _destinations) {
+      _destinationMap[destination]!.clear();
+    }
+    
+    // Load template routes
+    for (final routeData in template) {
+      final sourceName = routeData['source'] as String;
+      final destName = routeData['dest'] as String;
+      final amount = routeData['amount'] as double;
+      final curveName = routeData['curve'] as String;
+      
+      // Find source and destination
+      final source = _sources.firstWhere((s) => s.name == sourceName);
+      final destination = _destinations.firstWhere((d) => d.name == destName);
+      
+      // Create modulation curve
+      ModulationCurve curve;
+      switch (curveName) {
+        case 'exponential':
+          curve = ModulationCurve.exponential;
+          break;
+        case 'logarithmic':
+          curve = ModulationCurve.logarithmic;
+          break;
+        default:
+          curve = ModulationCurve.linear;
+      }
+      
+      // Create and add route
+      final route = ModulationRoute(
+        source: source,
+        destination: destination,
+        amount: amount,
+        curve: curve,
+        enabled: true,
+      );
+      
+      if (_modulationRoutes.length < maxRoutes) {
+        _modulationRoutes.add(route);
+        _destinationMap[destination]!.add(route);
+      }
+    }
+    
+    setState(() {});
+  }
+  
+  void _addModulationRoute(ModulationSource source, ModulationDestination destination) {
+    if (_modulationRoutes.length >= maxRoutes) return;
+    
+    // Check if route already exists
+    final existingRoute = _modulationRoutes.firstWhere(
+      (route) => route.source == source && route.destination == destination,
+      orElse: () => ModulationRoute(source: source, destination: destination),
+    );
+    
+    if (_modulationRoutes.contains(existingRoute)) return;
+    
+    final route = ModulationRoute(
+      source: source,
+      destination: destination,
+      amount: 0.5,
+      enabled: true,
+    );
+    
+    _modulationRoutes.add(route);
+    _destinationMap[destination]!.add(route);
+    
+    setState(() {});
+  }
+  
+  void _removeModulationRoute(ModulationRoute route) {
+    _modulationRoutes.remove(route);
+    _destinationMap[route.destination]!.remove(route);
+    setState(() {});
   }
 
   @override

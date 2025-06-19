@@ -16,22 +16,20 @@ import 'package:flutter/foundation.dart'
 /// ```
 class DefaultFirebaseOptions {
 
-  // Define keys for environment variables
-  static const String _firebaseApiKey = String.fromEnvironment('FIREBASE_API_KEY', defaultValue: '');
-  static const String _firebaseAppId = String.fromEnvironment('FIREBASE_APP_ID', defaultValue: '');
-  static const String _firebaseMessagingSenderId = String.fromEnvironment('FIREBASE_MESSAGING_SENDER_ID', defaultValue: '');
-  static const String _firebaseProjectId = String.fromEnvironment('FIREBASE_PROJECT_ID', defaultValue: '');
-  static const String _firebaseAuthDomain = String.fromEnvironment('FIREBASE_AUTH_DOMAIN', defaultValue: '');
-  static const String _firebaseStorageBucket = String.fromEnvironment('FIREBASE_STORAGE_BUCKET', defaultValue: '');
-  static const String _firebaseMeasurementId = String.fromEnvironment('FIREBASE_MEASUREMENT_ID', defaultValue: ''); // For Web
-  static const String _firebaseIosBundleId = String.fromEnvironment('FIREBASE_IOS_BUNDLE_ID', defaultValue: ''); // For iOS
+  // Firebase configuration from synther-pro-holo project
+  static const String _firebaseApiKey = 'AIzaSyCTWZsQTMVeaEsHXrg_pEF_CCzI7sYlZPw';
+  static const String _firebaseProjectId = 'synther-pro-holo';
+  static const String _firebaseMessagingSenderId = '872646180221';
+  static const String _firebaseAuthDomain = 'synther-pro-holo.firebaseapp.com';
+  static const String _firebaseStorageBucket = 'synther-pro-holo.firebasestorage.app';
+  static const String _firebaseMeasurementId = 'G-0VTPFYY5Q7';
+  static const String _firebaseIosBundleId = 'com.example.synther';
 
-  // Specific App IDs for different platforms if they differ from _firebaseAppId
-  // Often, App ID is platform-specific, while other values might be shared.
-  static const String _firebaseAppIdWeb = String.fromEnvironment('FIREBASE_APP_ID_WEB', defaultValue: _firebaseAppId);
-  static const String _firebaseAppIdAndroid = String.fromEnvironment('FIREBASE_APP_ID_ANDROID', defaultValue: _firebaseAppId);
-  static const String _firebaseAppIdIos = String.fromEnvironment('FIREBASE_APP_ID_IOS', defaultValue: _firebaseAppId);
-  static const String _firebaseAppIdLinux = String.fromEnvironment('FIREBASE_APP_ID_LINUX', defaultValue: _firebaseAppId);
+  // Platform-specific App IDs
+  static const String _firebaseAppIdWeb = '1:872646180221:web:c394d10b5b82696417a014';
+  static const String _firebaseAppIdAndroid = '1:872646180221:android:6c4d1ee3c5092d0417a014';
+  static const String _firebaseAppIdIos = '1:872646180221:ios:c394d10b5b82696417a014';
+  static const String _firebaseAppIdLinux = '1:872646180221:web:c394d10b5b82696417a014';
   // It's also common to have different API keys per platform, but for simplicity here, one main key is used.
   // If platform-specific API keys are needed, define more String.fromEnvironment variables like:
   // static const String _firebaseApiKeyWeb = String.fromEnvironment('FIREBASE_API_KEY_WEB', defaultValue: _firebaseApiKey);

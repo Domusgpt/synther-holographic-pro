@@ -600,11 +600,13 @@ class _XYPadHolographicPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+    
     final paint = Paint();
 
     // Calculate visual position (Y is inverted for typical UI top-left origin)
-    final visualX = x * size.width;
-    final visualY = (1.0 - y) * size.height;
+    final visualX = (x * size.width).clamp(0.0, size.width);
+    final visualY = ((1.0 - y) * size.height).clamp(0.0, size.height);
 
     // --- Grid Lines ---
     // Value-based reactivity: grid opacity
