@@ -2,20 +2,20 @@ import 'package:flutter/material.dart';
 import 'key_model.dart';
 import 'keyboard_theme.dart';
 import '../../ui/holographic/holographic_theme.dart'; // For holographic colors
-import '../../core/microtonal_defs.dart'; // For MicrotonalScale, though not directly used in this simplified painter yet
+// import '../../core/microtonal_defs.dart'; // Not directly used for now, but could be for advanced labeling
 
 class KeyboardPainter extends CustomPainter {
   final List<KeyModel> keys;
   final KeyboardTheme theme;
-  // final MicrotonalScale currentScale; // For future scale-based highlighting
-  // final int currentRootNoteOffset; // For future scale-based highlighting
+  // final MicrotonalScale currentScale; // For future scale-based highlighting or key labeling
+  // final int currentRootNoteOffset;
 
   KeyboardPainter({
     required this.keys,
     required this.theme,
     // required this.currentScale,
     // required this.currentRootNoteOffset,
-    // Listenable? repaint, // If repaint is managed by a ChangeNotifier
+    // Listenable? repaint,
   }) /* : super(repaint: repaint) */;
 
   @override
@@ -25,63 +25,90 @@ class KeyboardPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
-    for (final KeyModel key in keys) {
-      // Determine colors based on theme and key state
-      if (key.overrideColor != null) { // Highest priority: overrideColor (e.g., for pressed state)
-        keyPaint.color = key.overrideColor!;
-        borderColor = key.overrideColor!.withAlpha(255); // Brighter border for override
-      } else if (key.isPressed) { // Next: isPressed state
-        if (theme == KeyboardTheme.holographic) {
-          keyPaint.color = HolographicTheme.glowColor.withOpacity(HolographicTheme.activeTransparency * 1.8);
-          borderColor = HolographicTheme.glowColor;
-        } else { // Standard theme pressed
-          keyPaint.color = key.isBlack ? Colors.grey[700]! : Colors.grey[400]!;
-          borderColor = Colors.black;
-        }
-      } else { // Default appearance
-        if (theme == KeyboardTheme.holographic) {
-          // Basic holographic theme colors (simplified from _buildKey)
-          // TODO: Re-add scale-based highlighting logic here or on KeyModel if needed
-          bool isNoteConceptuallyInScale = true; // Placeholder
-          double keyOpacityFactor = 1.0; // Placeholder
+    // Draw white keys first
+    for (final KeyModel key in keys.where((k) => !k.isBlack)) {
+      _drawKey(canvas, key, keyPaint, borderPaint);
+    }
 
-          if (key.isBlack) {
-            keyPaint.color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.2 * keyOpacityFactor);
-            borderColor = HolographicTheme.secondaryEnergy.withOpacity(0.7 * keyOpacityFactor);
-          } else {
-            keyPaint.color = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.6 * keyOpacityFactor);
-            borderColor = HolographicTheme.primaryEnergy.withOpacity(0.7 * keyOpacityFactor);
-          }
-          // Example: if (isNoteConceptuallyInScale) borderColor = HolographicTheme.accentEnergy;
-
-        } else { // Standard theme default
-          keyPaint.color = key.isBlack ? Colors.black : Colors.white;
-          borderColor = Colors.black;
-        }
-      }
-
-      // Draw key body
-      canvas.drawRect(key.bounds, keyPaint);
-
-      // Draw key border
-      borderPaint.color = borderColor;
-      canvas.drawRect(key.bounds, borderPaint);
-
-      // Optional: Draw key label (conceptual)
-      // if (key.label != null) {
-      //   final TextSpan span = TextSpan(style: TextStyle(color: key.isBlack ? Colors.white70 : Colors.black87, fontSize: 10), text: key.label);
-      //   final TextPainter tp = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
-      //   tp.layout();
-      //   tp.paint(canvas, key.bounds.center - Offset(tp.width / 2, tp.height / 2));
-      // }
+    // Then draw black keys so they appear on top
+    for (final KeyModel key in keys.where((k) => k.isBlack)) {
+      _drawKey(canvas, key, keyPaint, borderPaint);
     }
   }
 
+  void _drawKey(Canvas canvas, KeyModel key, Paint keyPaint, Paint borderPaint) {
+    Color finalKeyColor;
+    Color finalBorderColor;
+
+    // Determine colors based on theme and key state
+    if (key.overrideColor != null) { // Highest priority: overrideColor (e.g., for pressed state highlight)
+      finalKeyColor = key.overrideColor!;
+      finalBorderColor = key.overrideColor!.withAlpha(255).withOpacity(0.8); // Brighter border
+    } else if (key.isPressed) {
+      if (theme == KeyboardTheme.holographic) {
+        finalKeyColor = HolographicTheme.glowColor.withOpacity(HolographicTheme.activeTransparency * 1.5);
+        finalBorderColor = HolographicTheme.glowColor.withOpacity(0.9);
+      } else { // Standard theme pressed
+        finalKeyColor = key.isBlack ? Colors.grey[600]! : Colors.grey[300]!;
+        finalBorderColor = Colors.grey[800]!;
+      }
+    } else { // Default appearance
+      if (theme == KeyboardTheme.holographic) {
+        // TODO: Re-add scale-based highlighting logic here or on KeyModel if needed
+        // For now, all keys are "in scale" visually for simplicity on a piano layout.
+        double keyOpacityFactor = 1.0;
+
+        if (key.isBlack) {
+          finalKeyColor = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.0 * keyOpacityFactor);
+          finalBorderColor = HolographicTheme.secondaryEnergy.withOpacity(0.6 * keyOpacityFactor);
+        } else {
+          finalKeyColor = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.5 * keyOpacityFactor);
+          finalBorderColor = HolographicTheme.primaryEnergy.withOpacity(0.6 * keyOpacityFactor);
+        }
+      } else { // Standard theme default
+        finalKeyColor = key.isBlack ? Colors.black : Colors.white;
+        finalBorderColor = Colors.grey[700]!;
+      }
+    }
+
+    keyPaint.color = finalKeyColor;
+    borderPaint.color = finalBorderColor;
+    borderPaint.strokeWidth = key.isPressed ? 1.5 : 1.0;
+
+
+    // Draw key body
+    // Add a slight margin for white keys for better separation if not handled by bounds directly
+    Rect keyBounds = key.bounds;
+    // if (!key.isBlack && theme == KeyboardTheme.standard) {
+    //   keyBounds = keyBounds.deflate(0.5); // Tiny separation for standard white keys
+    // }
+
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(keyBounds, Radius.circular(key.isBlack ? 2.0 : 3.0)),
+        keyPaint);
+
+    // Draw key border
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(keyBounds, Radius.circular(key.isBlack ? 2.0 : 3.0)),
+        borderPaint);
+
+    // Optional: Draw key label (conceptual) - can be expanded later
+    // if (key.label != null) {
+    //   final TextSpan span = TextSpan(style: TextStyle(color: key.isBlack ? Colors.white70 : Colors.black87, fontSize: 10), text: key.label);
+    //   final TextPainter tp = TextPainter(text: span, textAlign: TextAlign.center, textDirection: TextDirection.ltr);
+    //   tp.layout();
+    //   tp.paint(canvas, key.bounds.center - Offset(tp.width / 2, tp.height / 2));
+    // }
+  }
+
+
   @override
   bool shouldRepaint(covariant KeyboardPainter oldDelegate) {
-    // For simplicity, always repaint if keys object changes or theme changes.
-    // A more granular check could compare individual key states if keys list itself doesn't change identity.
+    // Repaint if keys list identity changes, theme changes, or content of keys (isPressed, overrideColor) changes.
+    // A deep comparison of keys list might be too slow if not managed carefully.
+    // Using Listenable approach or just checking list identity + length is common.
+    // For now, repainting if keys object itself is different or if theme changed.
+    // The actual change detection for individual key states is handled by setState in the widget.
     return oldDelegate.keys != keys || oldDelegate.theme != theme;
-    // return true; // Simplest, but less performant
   }
 }

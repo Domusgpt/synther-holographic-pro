@@ -1,28 +1,16 @@
-import 'package:flutter/material.dart'; // For Size, Offset
+import 'package:flutter/painting.dart'; // For Size, Offset, Color
+
 import 'key_model.dart';
 import 'keyboard_layout.dart';
-// import '../../core/synth_parameters.dart'; // For MicrotonalScale (assumed)
-import '../../core/microtonal_defs.dart'; // Import the new MicrotonalScale definition
+import '../../core/microtonal_defs.dart'; // For MicrotonalScale
 
-// Placeholder for MicrotonalScale if not defined in synth_parameters.dart
-// class MicrotonalScale {
-//   final String name;
-//   final List<double> ratios;
-//   final int notesPerOctave;
-//   MicrotonalScale({required this.name, required this.ratios, required this.notesPerOctave});
-//   static final MicrotonalScale chromatic = MicrotonalScale(name: 'Chromatic', ratios: [], notesPerOctave: 12);
-// }
-
-/// Manages the keyboard's visual layout and state.
-///
-/// It uses a [KeyboardLayout] strategy to generate and manage [KeyModel]s.
 class KeyboardLayoutEngine {
-  KeyboardLayout layout;
-  MicrotonalScale scale; // Changed from dynamic to MicrotonalScale
-  int octaves;
+  KeyboardLayout layout; // Made non-final to allow changing layout type
+  MicrotonalScale scale;
+  int octaves; // Or similar parameter defining the range
   Size keyboardSize;
   int startMidiNote;
-  int numVisibleWhiteKeys; // Number of white keys the layout should be based on for width
+  int numVisibleWhiteKeys;
 
   List<KeyModel> keys = [];
 
@@ -31,14 +19,13 @@ class KeyboardLayoutEngine {
     required this.scale,
     required this.octaves,
     required this.keyboardSize,
-    this.startMidiNote = 48, // Default to C3
-    this.numVisibleWhiteKeys = 14, // Default to two octaves of white keys
+    required this.startMidiNote,
+    required this.numVisibleWhiteKeys,
   }) {
-    generateKeys();
+    _generateKeys();
   }
 
-  /// Generates or re-generates the keys based on the current properties.
-  void generateKeys() {
+  void _generateKeys() {
     keys = layout.generateKeys(
       octaves: octaves,
       scale: scale,
@@ -48,19 +35,47 @@ class KeyboardLayoutEngine {
     );
   }
 
-  /// Updates the keyboard dimensions and regenerates keys.
-  void updateDimensions(Size newSize, {int? newOctaves, int? newStartMidiNote, int? newNumVisibleWhiteKeys, MicrotonalScale? newScale}) {
-    keyboardSize = newSize;
-    if (newOctaves != null) octaves = newOctaves;
-    if (newStartMidiNote != null) startMidiNote = newStartMidiNote;
-    if (newNumVisibleWhiteKeys != null) numVisibleWhiteKeys = newNumVisibleWhiteKeys;
-    if (newScale != null) scale = newScale;
+  void updateDimensions(
+    Size newKeyboardSize, {
+    MicrotonalScale? newScale,
+    int? newOctaves,
+    int? newStartMidiNote,
+    int? newNumVisibleWhiteKeys,
+    KeyboardLayout? newLayout,
+  }) {
+    bool needsRegeneration = false;
+    if (newKeyboardSize != keyboardSize) {
+      keyboardSize = newKeyboardSize;
+      needsRegeneration = true;
+    }
+    if (newScale != null && newScale != scale) {
+      scale = newScale;
+      needsRegeneration = true;
+    }
+    if (newOctaves != null && newOctaves != octaves) {
+      octaves = newOctaves;
+      needsRegeneration = true;
+    }
+    if (newStartMidiNote != null && newStartMidiNote != startMidiNote) {
+      startMidiNote = newStartMidiNote;
+      needsRegeneration = true;
+    }
+    if (newNumVisibleWhiteKeys != null && newNumVisibleWhiteKeys != numVisibleWhiteKeys) {
+      numVisibleWhiteKeys = newNumVisibleWhiteKeys;
+      needsRegeneration = true;
+    }
+    if (newLayout != null && newLayout != layout) {
+      layout = newLayout;
+      needsRegeneration = true;
+    }
 
-    generateKeys();
+    if (needsRegeneration) {
+      _generateKeys();
+    }
   }
 
-  /// Finds the key at a given visual position.
   KeyModel? getKeyAtPosition(Offset position) {
+    // Adjust position if there's a global scroll or zoom factor not handled by key bounds
     return layout.getKeyAtPosition(
       position: position,
       keys: keys,
@@ -68,25 +83,29 @@ class KeyboardLayoutEngine {
     );
   }
 
-  /// Gets the visual position (center) of a key by its MIDI note number.
-  Offset? getKeyPosition(int noteNumber) {
-    return layout.getKeyPosition(
-      noteNumber: noteNumber,
-      keys: keys,
-      keyboardSize: keyboardSize,
-    );
+  Offset? getKeyPosition({ // Return type is Offset?
+    required int noteNumber,
+    required List<KeyModel> keys,
+    required Size keyboardSize,
+  }) {
+     // Using a helper extension for firstWhereOrNull for broader compatibility.
+    final key = keys.firstWhereOrNull((k) => k.note == noteNumber);
+    return key?.bounds.center;
   }
 
-  /// Sets the pressed state of a key.
+  // Methods to update key state for visual feedback
   void setKeyPressed(int noteNumber, bool isPressed, {Color? overrideColor}) {
-    final key = keys.firstWhere((k) => k.note == noteNumber, orNull: () => null);
+    // Using a helper extension for firstWhereOrNull for broader compatibility.
+    final key = keys.firstWhereOrNull((k) => k.note == noteNumber);
     if (key != null) {
       key.isPressed = isPressed;
       key.overrideColor = isPressed ? overrideColor : null;
     }
+    // else {
+    //   print("Key not found for note $noteNumber in setKeyPressed");
+    // }
   }
 
-  /// Resets the pressed state of all keys.
   void clearAllKeyPresses() {
     for (var key in keys) {
       key.isPressed = false;
@@ -95,7 +114,7 @@ class KeyboardLayoutEngine {
   }
 }
 
-// Helper extension for firstWhereOrNull if not available (Flutter SDK dependent)
+// Helper extension for firstWhereOrNull
 extension _FirstWhereOrNullExtension<E> on Iterable<E> {
   E? firstWhereOrNull(bool Function(E element) test) {
     for (E element in this) {

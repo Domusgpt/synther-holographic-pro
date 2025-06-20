@@ -5,30 +5,6 @@ import 'dart:math' as math;
 import '../../core/ffi/native_audio_ffi_factory.dart'; // FFI factory
 import '../../ui/holographic/holographic_theme.dart';
 
-// Define Control Categories
-enum ControlCategory {
-  oscillators,
-  filters,
-  envelopes,
-  lfos,
-  effects,
-  master,
-}
-
-extension ControlCategoryExtension on ControlCategory {
-  String get displayName {
-    switch (this) {
-      case ControlCategory.oscillators: return 'OSCILLATORS';
-      case ControlCategory.filters: return 'FILTERS';
-      case ControlCategory.envelopes: return 'ENVELOPES';
-      case ControlCategory.lfos: return 'LFOS';
-      case ControlCategory.effects: return 'EFFECTS';
-      case ControlCategory.master: return 'MASTER';
-      default: return 'UNKNOWN';
-    }
-  }
-}
-
 // --- Placeholder Definitions ---
 // These would typically come from a central place, e.g. synth_parameters.dart or similar
 class SynthParameterId {
@@ -69,7 +45,6 @@ class ControlConfig {
   SynthParameter assignedParameter;
   double currentValue;
   final bool isKnob;
-  final ControlCategory category; // Added category
   bool isLearningMidi;
   int? learnedCcNumber; // MIDI CC number learned for this control
 
@@ -78,7 +53,6 @@ class ControlConfig {
     required this.assignedParameter,
     this.currentValue = 0.5,
     required this.isKnob,
-    required this.category, // Updated constructor
     this.isLearningMidi = false,
     this.learnedCcNumber,
   });
@@ -108,24 +82,11 @@ class _ControlPanelWidgetState extends State<ControlPanelWidget> {
   String? _currentlyLearningControlId;
   final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
 
-  Map<ControlCategory, bool> _categoryExpansionState = {
-    ControlCategory.oscillators: true,
-    ControlCategory.filters: true,
-    ControlCategory.envelopes: true,
-    ControlCategory.lfos: false,
-    ControlCategory.effects: true,
-    ControlCategory.master: false,
-  };
-
   final List<ControlConfig> _controls = [
-    ControlConfig(id: 'knob1', assignedParameter: SynthParameter.filterCutoff, currentValue: 0.75, isKnob: true, category: ControlCategory.filters),
-    ControlConfig(id: 'knob2', assignedParameter: SynthParameter.filterResonance, currentValue: 0.3, isKnob: true, category: ControlCategory.filters),
-    ControlConfig(id: 'slider1', assignedParameter: SynthParameter.attackTime, currentValue: 0.1, isKnob: false, category: ControlCategory.envelopes),
-    ControlConfig(id: 'slider_release', assignedParameter: SynthParameter.releaseTime, currentValue: 0.4, isKnob: false, category: ControlCategory.envelopes),
-    ControlConfig(id: 'slider2', assignedParameter: SynthParameter.reverbMix, currentValue: 0.25, isKnob: false, category: ControlCategory.effects),
-    ControlConfig(id: 'slider_delay', assignedParameter: SynthParameter.delayTime, currentValue: 0.3, isKnob: false, category: ControlCategory.effects),
-    ControlConfig(id: 'osc1_shape', assignedParameter: SynthParameter.filterCutoff, /* Placeholder */ currentValue: 0.5, isKnob: true, category: ControlCategory.oscillators),
-    ControlConfig(id: 'osc1_tune', assignedParameter: SynthParameter.filterResonance, /* Placeholder */ currentValue: 0.5, isKnob: false, category: ControlCategory.oscillators),
+    ControlConfig(id: 'knob1', assignedParameter: SynthParameter.filterCutoff, currentValue: 0.75, isKnob: true),
+    ControlConfig(id: 'knob2', assignedParameter: SynthParameter.filterResonance, currentValue: 0.3, isKnob: true),
+    ControlConfig(id: 'slider1', assignedParameter: SynthParameter.attackTime, currentValue: 0.1, isKnob: false),
+    ControlConfig(id: 'slider2', assignedParameter: SynthParameter.reverbMix, currentValue: 0.25, isKnob: false),
   ];
 
   @override
@@ -208,84 +169,21 @@ class _ControlPanelWidgetState extends State<ControlPanelWidget> {
   }
 
   Widget _buildControlsArea() {
-    List<Widget> categoryWidgets = [];
-
-    for (ControlCategory category in ControlCategory.values) {
-      final categoryControls = _controls.where((control) => control.category == category).toList();
-      if (categoryControls.isNotEmpty) {
-        categoryWidgets.add(
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _categoryExpansionState[category] = !(_categoryExpansionState[category] ?? false);
-                  });
-                  HapticFeedback.mediumImpact();
-                },
-                child: Container(
-                  height: 28,
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(HolographicTheme.widgetTransparency * 1.2),
-                    borderRadius: BorderRadius.circular(5),
-                    border: Border.all(color: HolographicTheme.secondaryEnergy.withOpacity(0.4), width: 0.8),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        category.displayName,
-                        style: HolographicTheme.createHolographicText(
-                          energyColor: HolographicTheme.secondaryEnergy,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          glowIntensity: 0.3,
-                        ),
-                      ),
-                      Icon(
-                        (_categoryExpansionState[category] ?? false) ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
-                        color: HolographicTheme.secondaryEnergy.withOpacity(0.9),
-                        size: 18,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Visibility(
-                visible: _categoryExpansionState[category] ?? false,
-                child: Padding( // Added padding around the Wrap
-                  padding: const EdgeInsets.only(top: 4.0, bottom: 8.0),
-                  child: Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: categoryControls.map((control) {
-                      // Calculate width for items in Wrap to allow approx 2 per row
-                      // This might need adjustment based on actual panel width and padding
-                      double itemWidth = (_currentSize.width / 2) - 24; // 24 for padding/spacing
-                      return SizedBox( // Ensure items have a constrained width
-                        width: itemWidth.clamp(120, 150), // Min/max width for each item
-                        height: 150, // Fixed height for consistency
-                        child: _buildControlItem(control),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      }
-    }
-
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.all(8.0),
-        child: ListView( // Changed from GridView to ListView for categories
-          children: categoryWidgets,
+        child: GridView.builder(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 0.9, // Adjusted for taller items due to learn button/text
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+          ),
+          itemCount: _controls.length,
+          itemBuilder: (context, index) {
+            final control = _controls[index];
+            return _buildControlItem(control);
+          },
         ),
       ),
     );

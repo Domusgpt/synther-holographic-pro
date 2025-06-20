@@ -1,24 +1,7 @@
 import 'package:flutter/gestures.dart'; // For Offset
 import 'package:flutter/material.dart'; // For Size, Colors etc.
 import 'key_model.dart';
-// import '../../core/synth_parameters.dart'; // No longer assume MicrotonalScale is here
 import '../../core/microtonal_defs.dart'; // Import the new MicrotonalScale definition
-
-// Placeholder for MicrotonalScale if not found in synth_parameters.dart
-// class MicrotonalScale {
-//   final String name;
-//   final List<double> ratios; // Ratios relative to the root note (e.g., 1.0, 1.05946, ...)
-//   final int notesPerOctave;
-//
-//   MicrotonalScale({required this.name, required this.ratios, required this.notesPerOctave});
-//
-//   // Example: Chromatic scale
-//   static final MicrotonalScale chromatic = MicrotonalScale(
-//     name: 'Chromatic',
-//     ratios: List.generate(12, (i) => pow(2, i / 12.0).toDouble()),
-//     notesPerOctave: 12,
-//   );
-// }
 
 
 /// Abstract class defining the interface for keyboard layout generation.
@@ -29,12 +12,13 @@ abstract class KeyboardLayout {
   /// [scale] - The musical scale to use.
   /// [keyboardSize] - The total available size for the keyboard.
   /// [startMidiNote] - The MIDI note number for the first key.
+  /// [numVisibleWhiteKeys] - The number of white keys the layout width should be based on.
   List<KeyModel> generateKeys({
     required int octaves,
     required MicrotonalScale scale,
     required Size keyboardSize,
     required int startMidiNote,
-    int numVisibleWhiteKeys = 14, // Default number of white keys to base width calculation on
+    int numVisibleWhiteKeys = 14,
   });
 
   /// Returns the [KeyModel] at a given [Offset] position on the keyboard.
@@ -54,115 +38,130 @@ abstract class KeyboardLayout {
 
 /// A standard piano keyboard layout implementation.
 class PianoLayout extends KeyboardLayout {
-  // Constants for key dimension ratios (can be tuned)
-  static const double whiteKeyWidthToHeightRatio = 52.0 / 150.0; // Approximate standard ratio
-  static const double blackKeyToWhiteKeyWidthRatio = 0.6; // Black key is narrower
-  static const double blackKeyHeightFactor = 0.6;       // Black key is shorter
-  static const double blackKeyOffsetFactor = 0.65;      // How much black key overlaps the white key below it from the side
+  static const double whiteKeyWidthToHeightRatio = 52.0 / 150.0;
+  static const double blackKeyToWhiteKeyWidthRatio = 0.6;
+  static const double blackKeyHeightFactor = 0.6;
+  // Defines how far from the *left* edge of a white key a black key starts, as a factor of white key width.
+  // Standard black keys (C#, D#, F#, G#, A#) relative to C=0:
+  // C# (1) is on C (0)
+  // D# (3) is on D (2)
+  // F# (6) is on F (5)
+  // G# (8) is on G (7)
+  // A# (10) is on A (9)
+  // Values > 0.5 mean they are on the right half of the white key.
+  static const Map<int, double> blackKeyRelativePositionFactor = {
+    1: 0.65, // C# on C
+    3: 0.65, // D# on D
+    6: 0.60, // F# on F (often a bit more to the left)
+    8: 0.65, // G# on G
+    10: 0.65, // A# on A
+  };
+
 
   @override
   List<KeyModel> generateKeys({
-    required int octaves, // Number of C-to-B segments to draw
-    required MicrotonalScale scale, // Now typed to MicrotonalScale
+    required int octaves,
+    required MicrotonalScale scale,
     required Size keyboardSize,
     required int startMidiNote,
-    int numVisibleWhiteKeys = 14, // Number of white keys that should fit the keyboardSize.width
+    int numVisibleWhiteKeys = 14,
   }) {
     final List<KeyModel> keys = [];
     final double whiteKeyHeight = keyboardSize.height;
-    final double whiteKeyWidth = keyboardSize.width / numVisibleWhiteKeys;
+    // Calculate white key width based on the number of white keys to be visible in the given keyboard width
+    final double whiteKeyWidth = keyboardSize.width / numVisibleWhiteKeys.toDouble();
     final double blackKeyWidth = whiteKeyWidth * blackKeyToWhiteKeyWidthRatio;
     final double blackKeyHeight = whiteKeyHeight * blackKeyHeightFactor;
 
-    // Standard piano layout pattern (W, B, W, B, W, W, B, W, B, W, B, W)
-    // 0=W, 1=B
-    final List<int> keyPattern = [0, 1, 0, 1, 0, 0, 1, 0, 1, 0, 1, 0];
-    final List<double> whiteKeyOffsets = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6]; // Cumulative white key index for black keys
+    // Standard 12 notes in a piano octave
+    const int notesPerOctaveStandard = 12;
+    // Pattern of white (0) and black (1) keys in a standard octave: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
+    const List<bool> isBlackKeyPattern = [false, true, false, true, false, false, true, false, true, false, true, false];
+    // White key count leading up to each note in the 12-tone octave (C=0, D=1, E=2, F=3, G=4, A=5, B=6)
+    const List<int> whiteKeyIndexOfNote = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
 
-    double currentX = 0;
     int currentMidiNote = startMidiNote;
-    int notesInScale = 12; // Default to chromatic for physical layout
 
-    // Try to get notesPerOctave from the scale if it's a MicrotonalScale object
-    if (scale is MicrotonalScale && scale.ratios.isNotEmpty) {
-        // notesInScale = scale.notesPerOctave; // This would be used for microtonal note assignment
-        // For now, physical layout remains based on 12-tone structure
-    }
+    // Calculate total number of actual white keys to generate based on octaves,
+    // this might exceed numVisibleWhiteKeys if octaves * 7 > numVisibleWhiteKeys,
+    // implying the keyboard can be scrolled.
+    int totalWhiteKeysToGenerate = octaves * 7;
 
 
-    for (int o = 0; o < octaves; o++) {
-      for (int i = 0; i < notesInScale; i++) {
-        final bool isBlackKey = keyPattern[i % 12] == 1;
-        String keyLabel = "${currentMidiNote}"; // Default label is MIDI note
+    for (int i = 0; i < totalWhiteKeysToGenerate * 2; i++) { // Iterate enough times to catch all notes for given octaves
+        int octaveIndex = (currentMidiNote - startMidiNote) ~/ notesPerOctaveStandard;
+        if (octaveIndex >= octaves) break; // Stop if we've generated enough octaves
 
-        // TODO: Integrate scale.getNoteName(currentMidiNote) or similar for labels
-        // if (scale is MicrotonalScale) {
-        //   keyLabel = scale.getNoteName(currentMidiNote) ?? keyLabel;
-        // }
+        int noteInOctave = (currentMidiNote - startMidiNote) % notesPerOctaveStandard;
 
-        if (!isBlackKey) {
-          keys.add(KeyModel(
-            note: currentMidiNote,
-            isBlack: false,
-            bounds: Rect.fromLTWH(currentX, 0, whiteKeyWidth, whiteKeyHeight),
-            label: keyLabel,
-          ));
-          currentX += whiteKeyWidth;
-        } else {
-          // Black keys are drawn relative to the previous white key
-          // currentX is at the start of the *next* white key after the black key's position
-          double blackKeyX = currentX - (whiteKeyWidth * (1.0 - blackKeyOffsetFactor)) - (blackKeyWidth / 2);
-          // Simplified: Place black key slightly before the dividing line of two white keys
-          // More accurate: currentX - blackKeyWidth / 2; (if currentX was the division line)
-          // Corrected logic for blackKeyX:
-          // It should be offset from the *start* of the white key it's associated with.
-          // Find the white key it's "on top of" or preceding it.
-          // This simplified loop places black keys at approximate positions.
-          // A more robust approach would map white key indices to their x positions first.
+        bool isBlack = isBlackKeyPattern[noteInOctave];
+        String keyLabel = "${currentMidiNote}"; // Default label
 
-          // For this iteration, let's use a simpler relative positioning based on the current white key pattern
-          // The `whiteKeyOffsets` helps determine which white key a black key is related to.
-          // `whiteKeyX = whiteKeyOffsets[i % 12] * whiteKeyWidth + (o * 7 * whiteKeyWidth)`
-          // `blackKeyX = whiteKeyX + whiteKeyWidth - (blackKeyWidth / 2)` // Old logic, needs review
+        // TODO: Use MicrotonalScale 'scale' to generate proper labels based on scale.ratios and root note
+        // For now, physical layout is piano-like, labels are MIDI notes.
 
-          // Simpler logic for now:
-          // Assume currentX is at the start of the white key that *follows* this black key's group
-          // So, the black key is to the left of currentX
-           blackKeyX = currentX - blackKeyWidth / 2 - (whiteKeyWidth * (1-blackKeyOffsetFactor) /2) ;
-           // This logic is still a bit off, needs precise calculation based on standard piano key distribution.
-           // For a standard piano: C#, D# are after C, D. F#, G#, A# are after F, G, A.
-           // Black keys are typically placed towards the right half of a white key or spanning a division.
+        if (!isBlack) {
+            // Calculate the x-position of the current white key
+            // This needs to be based on its actual index in the sequence of all white keys generated so far.
+            int overallWhiteKeyIndex = octaveIndex * 7 + whiteKeyIndexOfNote[noteInOctave];
+            double x = overallWhiteKeyIndex * whiteKeyWidth;
 
-          // Corrected approximate placement:
-          // C# is on C, D# is on D, F# is on F, G# is on G, A# is on A
-          // Relative to the start of the current octave (o * 7 * whiteKeyWidth)
-          // And relative to the white key index within that octave.
-
-          // Based on the keyPattern, when isBlackKey is true, the black key is associated
-          // with the white key at `keys.last` (if available and white).
-          // A common pattern: C, C#, D, D#, E, F, F#, G, G#, A, A#, B
-          // Black keys are offset from the right edge of their preceding white key.
-          if (keys.isNotEmpty && !keys.last.isBlack) {
-             blackKeyX = keys.last.bounds.right - (blackKeyWidth * blackKeyOffsetFactor);
-          } else {
-            // Fallback for first key if it were black (not typical for startMidiNote=C)
-            // This part of the logic needs to be more robust for arbitrary start notes.
-            // For now, we assume a C-based start for simplicity of black key placement.
-            blackKeyX = currentX - (blackKeyWidth / 2); // Fallback, less accurate
-          }
-
-
-          keys.add(KeyModel(
-            note: currentMidiNote,
-            isBlack: true,
-            bounds: Rect.fromLTWH(blackKeyX, 0, blackKeyWidth, blackKeyHeight),
-            label: keyLabel,
-          ));
-          // No currentX increment for black keys as they overlay white keys
+            if (x + whiteKeyWidth <= keyboardSize.width * octaves) { // Ensure it's within drawable area (conceptual for scrolling)
+                 keys.add(KeyModel(
+                    note: currentMidiNote,
+                    isBlack: false,
+                    bounds: Rect.fromLTWH(x, 0, whiteKeyWidth, whiteKeyHeight),
+                    label: keyLabel,
+                ));
+            }
         }
         currentMidiNote++;
-      }
     }
+
+    // Add black keys separately, positioning them relative to white keys
+    // This ensures black keys are added after all white keys for hit-testing order (if relevant)
+    // and correct positioning.
+    currentMidiNote = startMidiNote; // Reset for black key pass
+    for (int i = 0; i < octaves * notesPerOctaveStandard; i++) {
+        int octaveIndex = (currentMidiNote - startMidiNote) ~/ notesPerOctaveStandard;
+        if (octaveIndex >= octaves) break;
+
+        int noteInOctave = (currentMidiNote - startMidiNote) % notesPerOctaveStandard;
+        bool isBlack = isBlackKeyPattern[noteInOctave];
+        String keyLabel = "${currentMidiNote}";
+
+        if (isBlack) {
+            // Find the preceding white key's model to position this black key
+            // The MIDI note of the white key just before or "under" this black key
+            int precedingWhiteKeyNote = currentMidiNote - 1;
+            // Adjust if the black key is C# (so preceding is C, not B of previous octave if startMidiNote is C)
+            // This logic depends on the pattern, C# (1) follows C (0), D# (3) follows D(2) etc.
+            // F# (6) follows E (4) if we consider index, but visually on F (5).
+            // This needs to be robust. Let's use the whiteKeyIndexOfNote to find the white key
+            // that this black key is associated with (the one to its left).
+
+            int associatedWhiteKeyIndexInOctave = whiteKeyIndexOfNote[noteInOctave];
+            int overallWhiteKeyIndex = octaveIndex * 7 + associatedWhiteKeyIndexInOctave;
+            double whiteKeyX = overallWhiteKeyIndex * whiteKeyWidth;
+
+            double blackKeyX = whiteKeyX + (whiteKeyWidth * (blackKeyRelativePositionFactor[noteInOctave] ?? 0.65)) - (blackKeyWidth / 2);
+             if (blackKeyX + blackKeyWidth <= keyboardSize.width * octaves) { // Ensure it's within drawable area
+                keys.add(KeyModel(
+                    note: currentMidiNote,
+                    isBlack: true,
+                    bounds: Rect.fromLTWH(blackKeyX, 0, blackKeyWidth, blackKeyHeight),
+                    label: keyLabel,
+                ));
+            }
+        }
+        currentMidiNote++;
+    }
+
+    // Sort keys by note number for consistent order, though drawing order (black on top) is handled by painter or widget list order.
+    // keys.sort((a, b) => a.note.compareTo(b.note));
+    // For hit-testing, it's often better to have black keys later in the list if iterating forwards.
+    // The current two-pass generation (all white, then all black) achieves this.
+
     return keys;
   }
 
@@ -170,9 +169,9 @@ class PianoLayout extends KeyboardLayout {
   KeyModel? getKeyAtPosition({
     required Offset position,
     required List<KeyModel> keys,
-    required Size keyboardSize, // keyboardSize might be useful for context if keys don't have absolute bounds
+    required Size keyboardSize,
   }) {
-    // Iterate in reverse to check black keys first (as they are drawn on top)
+    // Iterate in reverse to check black keys first (as they are often drawn on top and might overlap)
     for (int i = keys.length - 1; i >= 0; i--) {
       if (keys[i].bounds.contains(position)) {
         return keys[i];
@@ -185,7 +184,7 @@ class PianoLayout extends KeyboardLayout {
   Offset? getKeyPosition({
     required int noteNumber,
     required List<KeyModel> keys,
-    required Size keyboardSize, // keyboardSize might be useful for context
+    required Size keyboardSize,
   }) {
     for (final key in keys) {
       if (key.note == noteNumber) {

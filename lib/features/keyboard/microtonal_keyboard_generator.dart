@@ -20,38 +20,34 @@ class MicrotonalKeyboardGenerator {
     required int startMidiNote,
     required int numVisibleWhiteKeys,
   }) {
+    // For now, all scales will use the provided layout (e.g., PianoLayout)
+    // The 'scale' object is passed to the layout, which might use it for labeling
+    // or, in more advanced layouts, to alter the physical key arrangement.
+    print("MicrotonalKeyboardGenerator: Using layout '${layout.runtimeType}' for scale '${scale.name}'");
+
     switch (scale.id) {
       case 'tet12':
-        // For 12-TET, the standard piano layout is appropriate.
-        // The `scale` object might still be used by the layout for key labeling or tuning.
-        print("MicrotonalKeyboardGenerator: Using standard layout for ${scale.name}");
         return layout.generateKeys(
           octaves: octaves,
-          scale: scale, // Pass the scale for potential labeling/tuning
+          scale: scale,
           keyboardSize: keyboardSize,
           startMidiNote: startMidiNote,
           numVisibleWhiteKeys: numVisibleWhiteKeys,
         );
       case 'tet19':
-        // Placeholder: Delegate to a specialized 19-TET layout generator.
-        // This could involve a different visual arrangement of keys or adapting PianoLayout.
-        print("MicrotonalKeyboardGenerator: Calling _generate19TET for ${scale.name}");
+        print("MicrotonalKeyboardGenerator: Specific generation for ${scale.name} (using _generate19TET placeholder).");
         return _generate19TET(
           scale: scale,
-          layout: layout, // Pass the base layout for potential adaptation
+          layout: layout,
           octaves: octaves,
           keyboardSize: keyboardSize,
           startMidiNote: startMidiNote,
           numVisibleWhiteKeys: numVisibleWhiteKeys,
         );
-      // Add cases for other specific microtonal scales that require unique layouts
-      // e.g., case 'quarterTone':
-      //       return _generateQuarterToneLayout(...);
+      // Add other cases for specific scales if they need truly different physical layouts
+      // or highly specialized adaptations of a base layout.
       default:
-        // For other scales, attempt a generic generation or fall back to the base layout.
-        // This might involve relabeling keys of a standard layout or trying to map
-        // scale degrees to existing physical keys if the number of notes is close (e.g. 12).
-        print("MicrotonalKeyboardGenerator: Calling _generateGenericMicrotonal for ${scale.name}");
+        print("MicrotonalKeyboardGenerator: Generic handling for ${scale.name}.");
         return _generateGenericMicrotonal(
           scale: scale,
           layout: layout,
@@ -63,9 +59,6 @@ class MicrotonalKeyboardGenerator {
     }
   }
 
-  /// Placeholder for generating a specific 19-tone equal temperament layout.
-  /// For this conceptual step, it might just adapt a PianoLayout by relabeling
-  /// or slightly adjusting, or it could define a completely new key arrangement.
   static List<KeyModel> _generate19TET({
     required MicrotonalScale scale,
     required KeyboardLayout layout,
@@ -74,23 +67,18 @@ class MicrotonalKeyboardGenerator {
     required int startMidiNote,
     required int numVisibleWhiteKeys,
   }) {
-    print("Placeholder: _generate19TET actually called for ${scale.name}. Returning base layout for now.");
-    // Conceptual: Could try to map 19 notes onto a 12-key physical layout per octave,
-    // which would involve complex decisions about which physical keys map to which microtonal steps,
-    // possibly using labels extensively or even altering which keys are "active".
-    // Or, it could define a new visual layout with more keys per octave if the UI supports it.
-    // For now, returns the standard layout provided.
+    print("Placeholder: _generate19TET called for ${scale.name}. Returning base layout's keys for now.");
+    // Future: Could adapt PianoLayout by trying to map 19 notes to the 12 physical keys per octave,
+    // perhaps by changing labels, or by creating a new KeyboardLayout specifically for 19-TET visuals.
     return layout.generateKeys(
       octaves: octaves,
-      scale: scale, // Pass the 19-TET scale for labeling if PianoLayout supports it
+      scale: scale, // Pass the 19-TET scale; PianoLayout might use it for labels if adapted
       keyboardSize: keyboardSize,
       startMidiNote: startMidiNote,
       numVisibleWhiteKeys: numVisibleWhiteKeys,
     );
   }
 
-  /// Placeholder for a generic microtonal layout generator.
-  /// This would attempt to map the given `scale` onto the provided `layout`.
   static List<KeyModel> _generateGenericMicrotonal({
     required MicrotonalScale scale,
     required KeyboardLayout layout,
@@ -99,16 +87,12 @@ class MicrotonalKeyboardGenerator {
     required int startMidiNote,
     required int numVisibleWhiteKeys,
   }) {
-    print("Placeholder: _generateGenericMicrotonal called for ${scale.name}. Returning base layout for now.");
-    // Conceptual: This could iterate through the physical keys generated by `layout.generateKeys`
-    // and then try to assign MIDI note numbers and labels based on the `scale.ratios`.
-    // If `scale.notesPerOctave` is different from the physical layout's expectation (e.g., 12 for PianoLayout),
-    // decisions need to be made on how to map them.
-    // For instance, if scale.notesPerOctave > 12, some notes might not be playable on a standard piano physical layout.
-    // If scale.notesPerOctave < 12, some physical keys might be inactive or play duplicate notes.
+    print("Placeholder: _generateGenericMicrotonal called for ${scale.name}. Returning base layout's keys for now.");
+    // Future: Could involve more sophisticated logic to map scale.ratios to MIDI note numbers
+    // and generate appropriate labels for a standard physical layout.
     return layout.generateKeys(
       octaves: octaves,
-      scale: scale, // Pass the microtonal scale for labeling
+      scale: scale, // Pass the microtonal scale; PianoLayout might use it for labels
       keyboardSize: keyboardSize,
       startMidiNote: startMidiNote,
       numVisibleWhiteKeys: numVisibleWhiteKeys,

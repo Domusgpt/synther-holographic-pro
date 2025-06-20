@@ -1,55 +1,56 @@
 import 'package:flutter/gestures.dart'; // For Offset
-import 'key_model.dart'; // Assuming KeyModel is in the same directory or accessible path
+import 'key_model.dart';
+import 'keyboard_layout_engine.dart'; // For _layoutEngine access
 
 class MPETouch {
   final int touchId; // From Flutter's PointerEvent
   final int channel; // MIDI channel (2-16 for MPE)
-  final int note;    // MIDI note number
-  final Offset initialPosition;
-  Offset currentPosition;
+  final int note;    // MIDI note number of the key initially struck
+  final Offset initialKeyboardPosition; // Position within the full keyboard coordinate space
+  Offset currentKeyboardPosition;     // Current position within the full keyboard coordinate space
   double pressure; // Normalized (0.0 to 1.0)
   double xBend;    // Normalized (-1.0 to 1.0, maps to pitch bend)
   double yTimbre;  // Normalized (0.0 to 1.0, maps to CC or other timbre control)
   final DateTime startTime;
+  KeyModel? currentKey; // The key currently under this touch
 
   MPETouch({
     required this.touchId,
     required this.channel,
     required this.note,
-    required this.initialPosition,
-    required this.currentPosition,
+    required this.initialKeyboardPosition,
+    // currentPosition is initialized with initialKeyboardPosition
     this.pressure = 0.5, // Default initial pressure if not available from event
     this.xBend = 0.0,
     this.yTimbre = 0.0,
     required this.startTime,
-  });
+    this.currentKey,
+  }) : currentKeyboardPosition = initialKeyboardPosition;
 
   @override
   String toString() {
-    return 'MPETouch(id: $touchId, ch: $channel, note: $note, pos: ${currentPosition.dx.toStringAsFixed(1)},${currentPosition.dy.toStringAsFixed(1)}, P: ${pressure.toStringAsFixed(2)}, xB: ${xBend.toStringAsFixed(2)}, yT: ${yTimbre.toStringAsFixed(2)})';
+    return 'MPETouch(id: $touchId, ch: $channel, note: $note, key: ${currentKey?.note}, pos: ${currentKeyboardPosition.dx.toStringAsFixed(1)},${currentKeyboardPosition.dy.toStringAsFixed(1)}, P: ${pressure.toStringAsFixed(2)}, xB: ${xBend.toStringAsFixed(2)}, yT: ${yTimbre.toStringAsFixed(2)})';
   }
 }
 
 class MPETouchHandler {
+  final KeyboardLayoutEngine _layoutEngine;
   final Map<int, MPETouch> _activeTouches = {};
   int _nextChannel = 2; // MIDI channels 2-16 are typically used for MPE notes
 
-  // MPE usually reserves channel 1 for global messages and uses 2-16 for notes.
-  // So, 15 channels available per zone.
   static const int MPE_MASTER_CHANNEL = 1;
   static const int MPE_START_NOTE_CHANNEL = 2;
   static const int MPE_END_NOTE_CHANNEL = 16;
   static const int CHANNELS_PER_ZONE = MPE_END_NOTE_CHANNEL - MPE_START_NOTE_CHANNEL + 1;
 
+  MPETouchHandler({required KeyboardLayoutEngine layoutEngine}) : _layoutEngine = layoutEngine;
 
   int _allocateChannel() {
     int allocatedChannel = _nextChannel;
     _nextChannel++;
     if (_nextChannel > MPE_END_NOTE_CHANNEL) {
-      _nextChannel = MPE_START_NOTE_CHANNEL; // Wrap around
+      _nextChannel = MPE_START_NOTE_CHANNEL;
     }
-    // Basic check to see if wrapped channel is already in use (very simple allocation)
-    // A more robust system would check all channels or use a free-list.
     int attempts = 0;
     while (_activeTouches.values.any((touch) => touch.channel == allocatedChannel) && attempts < CHANNELS_PER_ZONE) {
         allocatedChannel = _nextChannel;
@@ -61,20 +62,21 @@ class MPETouchHandler {
     }
     if (attempts >= CHANNELS_PER_ZONE) {
         print("MPE Warning: No free channels available!");
-        // Potentially return a fallback or throw an error
-        return MPE_START_NOTE_CHANNEL; // Fallback, could lead to conflicts
+        return MPE_START_NOTE_CHANNEL; // Fallback
     }
     return allocatedChannel;
   }
 
   void _releaseChannel(int channel) {
-    // In a more complex system, this channel would be marked as free.
-    // For now, _allocateChannel just cycles, so explicit release isn't strictly necessary
-    // for that simple allocation logic, but good practice to have.
     // print("MPE Channel Released: $channel");
   }
 
-  MPETouch? handleTouchStart(int touchId, Offset position, KeyModel key, double initialPressure) {
+  /// Handles the start of a new touch.
+  /// [touchId]: The unique pointer ID from the event.
+  /// [positionInKeyboard]: The touch position in the keyboard's local coordinate space (potentially scaled by zoom).
+  /// [key]: The KeyModel initially struck.
+  /// [initialPressure]: The initial pressure from the pointer event.
+  MPETouch? handleTouchStart(int touchId, Offset positionInKeyboard, KeyModel key, double initialPressure) {
     if (_activeTouches.containsKey(touchId)) {
       print("MPE Warning: Touch ID $touchId already active. Ignoring new start.");
       return null;
@@ -85,85 +87,94 @@ class MPETouchHandler {
       touchId: touchId,
       channel: channel,
       note: key.note,
-      initialPosition: position,
-      currentPosition: position,
-      pressure: initialPressure.clamp(0.0, 1.0), // Ensure pressure is normalized
+      initialKeyboardPosition: positionInKeyboard,
+      currentKey: key,
+      pressure: initialPressure.clamp(0.0, 1.0),
       startTime: DateTime.now(),
     );
     _activeTouches[touchId] = newTouch;
 
-    // Placeholder for actual MIDI message sending
-    // Velocity could be derived from initial pressure or a fixed value for now
     int velocity = (newTouch.pressure * 127).clamp(1, 127).toInt();
-    print("MPE Note On - TouchID: $touchId, Channel: ${newTouch.channel}, Note: ${newTouch.note}, Velocity: $velocity, Pos: (${position.dx.toStringAsFixed(1)},${position.dy.toStringAsFixed(1)})");
+    print("MPE Note On - TouchID: $touchId, Channel: ${newTouch.channel}, Note: ${newTouch.note}, Velocity: $velocity, Pos: (${positionInKeyboard.dx.toStringAsFixed(1)},${positionInKeyboard.dy.toStringAsFixed(1)})");
 
-    // TODO: Send MIDI Note On (per-note channel)
-    // TODO: Send MIDI Initial Pitch Bend (0 for now, calculated on move)
-    // TODO: Send MIDI Initial Timbre (CC74, from y-axis, 0 for now)
-    // TODO: Send MIDI Initial Pressure (Channel Pressure or Poly Aftertouch)
-
+    // TODO: Send actual MPE MIDI Note On, initial Pitch Bend (0), initial Timbre (0 or from Y), initial Pressure.
     return newTouch;
   }
 
   MPETouch? handleTouchEnd(int touchId) {
     final touch = _activeTouches.remove(touchId);
     if (touch == null) {
-      // print("MPE Warning: Touch ID $touchId not found for touch end.");
       return null;
     }
-
     print("MPE Note Off - TouchID: $touchId, Channel: ${touch.channel}, Note: ${touch.note}");
     _releaseChannel(touch.channel);
-
-    // TODO: Send MIDI Note Off (per-note channel)
-    // TODO: Optionally send final pressure/timbre/bend values if needed by synth
-
+    // TODO: Send MPE MIDI Note Off.
     return touch;
   }
 
-  MPETouch? handleTouchMove(int touchId, Offset position, double eventPressure) {
+  /// Handles the movement of an active touch.
+  /// [touchId]: The unique pointer ID from the event.
+  /// [positionInKeyboard]: The current touch position in the keyboard's local coordinate space.
+  /// [eventPressure]: The current pressure from the pointer event.
+  MPETouch? handleTouchMove(int touchId, Offset positionInKeyboard, double eventPressure) {
     final touch = _activeTouches[touchId];
     if (touch == null) {
-      // This can happen if move events come after a touch end, or for unmanaged pointers
-      // print("MPE Warning: Touch ID $touchId not found for touch move.");
       return null;
     }
 
-    touch.currentPosition = position;
-    touch.pressure = eventPressure.clamp(0.0, 1.0); // Ensure pressure is normalized
+    touch.currentKeyboardPosition = positionInKeyboard;
+    touch.pressure = eventPressure.clamp(0.0, 1.0);
 
-    // Conceptual X-Bend (Pitch Bend) calculation - typically relative to key center or start
-    // For now, let's make it relative to the initial touch X position on the key.
-    // Max bend range could be, e.g., half a key width for full bend.
-    // This needs to be mapped to MIDI pitch bend range (+/- 8191).
-    // double xDelta = touch.currentPosition.dx - touch.initialPosition.dx;
-    // touch.xBend = (xDelta / (keyWidth / 2)).clamp(-1.0, 1.0); // Example, needs actual keyWidth
+    // Update current key under touch - this might change if user slides off the key
+    touch.currentKey = _layoutEngine.getKeyAtPosition(positionInKeyboard);
 
-    // Conceptual Y-Timbre (CC74) calculation - relative to initial Y or key height
-    // double yDelta = touch.initialPosition.dy - touch.currentPosition.dy; // Often inverted
-    // touch.yTimbre = (yDelta / keyHeight).clamp(0.0, 1.0); // Example, needs actual keyHeight
+    if (touch.currentKey != null) {
+      // Calculate local position on the current key
+      // This assumes positionInKeyboard and key.bounds are in the same coordinate system (e.g., unscaled)
+      final Offset localPositionOnKey = positionInKeyboard - touch.currentKey!.bounds.topLeft;
 
-    print("MPE Move - TouchID: $touchId, Ch: ${touch.channel}, Note: ${touch.note}, Pos: (${position.dx.toStringAsFixed(1)},${position.dy.toStringAsFixed(1)}), P: ${touch.pressure.toStringAsFixed(2)}");
+      touch.xBend = _calculatePitchBend(localPositionOnKey, touch.currentKey!);
+      touch.yTimbre = _calculateTimbre(localPositionOnKey, touch.currentKey!);
+    } else {
+      // Optionally reset bend/timbre if finger slides off all keys, or maintain last values
+      // touch.xBend = 0.0; // Or some other neutral/last value logic
+      // touch.yTimbre = 0.0; // Or some other neutral/last value logic
+    }
 
-    // TODO: Send MIDI Pitch Bend (per-note channel) if xBend changed significantly
-    // TODO: Send MIDI CC74 (Timbre) (per-note channel) if yTimbre changed significantly
-    // TODO: Send MIDI Channel Pressure or Poly Aftertouch (per-note channel) for pressure
+    print("MPE Move - TouchID: $touchId, Ch: ${touch.channel}, Note: ${touch.note}, Key: ${touch.currentKey?.note}, X: ${touch.xBend.toStringAsFixed(2)}, Y: ${touch.yTimbre.toStringAsFixed(2)}, P: ${touch.pressure.toStringAsFixed(2)}");
 
+    // TODO: Send MPE MIDI Pitch Bend, Timbre (CC74), and Pressure messages.
     return touch;
   }
 
-  // Method to get all active touches, e.g., for external state updates or drawing
+  double _calculatePitchBend(Offset localPositionOnKey, KeyModel key) {
+    if (key.bounds.width == 0) return 0.0;
+    // Normalize X position within the key (0.0 at left edge, 1.0 at right edge)
+    final double relativeX = (localPositionOnKey.dx / key.bounds.width).clamp(0.0, 1.0);
+    // Map to -1.0 to 1.0, with 0.0 at the center of the key
+    return (relativeX - 0.5) * 2.0;
+  }
+
+  double _calculateTimbre(Offset localPositionOnKey, KeyModel key) {
+    if (key.bounds.height == 0) return 0.0;
+    // Normalize Y position within the key (0.0 at top edge, 1.0 at bottom edge)
+    final double relativeY = (localPositionOnKey.dy / key.bounds.height).clamp(0.0, 1.0);
+    // MPE typically maps Y-axis from bottom (0.0) to top (1.0) for timbre control,
+    // or initial Y sets a base timbre and vertical movement modulates it.
+    // Here, returning raw relativeY, can be inverted or scaled by caller/synth.
+    return relativeY;
+  }
+
   List<MPETouch> getActiveTouches() {
     return _activeTouches.values.toList();
   }
 
   void clearAllTouches() {
-    // Conceptually, send note-offs for all active touches before clearing
-    _activeTouches.keys.toList().forEach((touchId) { // Iterate over a copy of keys
-        handleTouchEnd(touchId);
+    _activeTouches.keys.toList().forEach((touchId) {
+        handleTouchEnd(touchId); // Ensures note-offs are conceptually sent
     });
     _activeTouches.clear();
-    _nextChannel = MPE_START_NOTE_CHANNEL; // Reset channel allocation
+    _nextChannel = MPE_START_NOTE_CHANNEL;
     print("MPE: All active touches cleared.");
   }
 }

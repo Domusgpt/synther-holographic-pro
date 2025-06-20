@@ -1,40 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // For HapticFeedback
 import 'package:provider/provider.dart';
-import 'dart:math' as math; // For black key positioning
-import '../../core/synth_parameters.dart'; // Assuming this provides SynthParametersModel and MicrotonalScale
-import '../../core/ffi/native_audio_ffi_factory.dart'; // Import for NativeAudioLib factory
+import 'dart:math' as math; // For math.sin, math.min, math.max
+import '../../core/synth_parameters.dart'; // Assuming this provides SynthParametersModel
+import '../../core/ffi/native_audio_ffi_factory.dart';
 import '../../ui/holographic/holographic_theme.dart';
 
-// Import new keyboard layout classes
+// New imports for Keyboard Engine
 import 'key_model.dart';
 import 'keyboard_layout.dart';
 import 'keyboard_layout_engine.dart';
-import 'mpe_touch_handler.dart'; // Import MPE Touch Handler
-import '../../core/microtonal_defs.dart'; // Import MicrotonalScale definitions
-import 'keyboard_painter.dart'; // Import KeyboardPainter
-import 'keyboard_theme.dart'; // Import KeyboardTheme
+import 'mpe_touch_handler.dart';
+import '../../core/microtonal_defs.dart';
+import 'keyboard_painter.dart';
+import 'keyboard_theme.dart';
 
-
-// --- Musical Scale Definitions (To be deprecated or moved if MicrotonalScale is fully adopted) ---
-// For now, _selectedScale will be of type MusicalScale, and KeyboardLayoutEngine will adapt.
-// enum MusicalScale { Chromatic, Major, MinorNatural, MinorHarmonic, MinorMelodic, PentatonicMajor, PentatonicMinor, Blues, Dorian, Mixolydian } // Commented out
-
-const List<String> rootNoteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; // Retain for root note selection
-
-// final Map<MusicalScale, List<int>> scaleIntervals = { // Commented out
-//   MusicalScale.Chromatic: [0,1,2,3,4,5,6,7,8,9,10,11],
-//   MusicalScale.Major: [0,2,4,5,7,9,11],
-//   MusicalScale.MinorNatural: [0,2,3,5,7,8,10],
-//   MusicalScale.MinorHarmonic: [0,2,3,5,7,8,11],
-//   MusicalScale.MinorMelodic: [0,2,3,5,7,9,11], // Ascending
-//   MusicalScale.PentatonicMajor: [0,2,4,7,9],
-//   MusicalScale.PentatonicMinor: [0,3,5,7,10],
-//   MusicalScale.Blues: [0,3,5,6,7,10],
-//   MusicalScale.Dorian: [0,2,3,5,7,9,10],
-//   MusicalScale.Mixolydian: [0,2,4,5,7,9,10],
-// };
-// --- End Musical Scale Definitions ---
+// Old MusicalScale definitions (to be removed/commented)
+// enum MusicalScale { Chromatic, Major, MinorNatural, MinorHarmonic, MinorMelodic, PentatonicMajor, PentatonicMinor, Blues, Dorian, Mixolydian }
+const List<String> rootNoteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']; // Still useful for root note selection
+// final Map<MusicalScale, List<int>> scaleIntervals = { ... }; // No longer used directly here for scale logic
 
 
 /// A widget that displays a piano keyboard for triggering notes, styled holographically.
@@ -71,29 +55,29 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
   late int _currentOctave;
   double _velocity = 100.0 / 127.0;
 
-  late double _keyWidthFactor; // Will be managed by engine or passed to it
-  late int _numVisibleWhiteKeysActual;
+  late double _keyWidthFactor; // Controls visual zoom of keys
+  late int _numVisibleWhiteKeysActual; // Determines how many white keys the layout is based on
 
-  MicrotonalScale _selectedScale = MicrotonalScale.tet12; // Updated to MicrotonalScale
-  int _selectedRootNoteMidiOffset = 0; // Remains for selecting root note for the scale
-  // final Set<int> _notesInCurrentScale = {}; // This logic will be simplified or removed for now
+  MicrotonalScale _selectedScale = MicrotonalScale.tet12; // Use new MicrotonalScale
+  int _selectedRootNoteMidiOffset = 0; // For selecting root note for the scale
+  // final Set<int> _notesInCurrentScale = {}; // Replaced by MicrotonalScale logic or painter logic
 
-  final Set<int> _pressedKeys = {}; // Stores MIDI note numbers
-  final Map<int, int> _activePointersToMidiNotes = {}; // Map pointerId to midiNote
-  final NativeAudioLib _nativeAudioLib = createNativeAudioLib();
-  final MPETouchHandler _mpeTouchHandler = MPETouchHandler(); // Add MPE Touch Handler instance
-
+  final Set<int> _pressedKeys = {}; // Stores MIDI note numbers of pressed keys
+  final Map<int, int> _activePointersToMidiNotes = {}; // Tracks active touch pointers
+  final NativeAudioLibInterface _nativeAudioLib = createNativeAudioLib(); // Use interface
   late KeyboardLayoutEngine _layoutEngine;
+  late MPETouchHandler _mpeTouchHandler;
 
-  double _initialKeyWidthFactorForPinch = 1.0; // This might be deprecated if zoom is handled by engine
+  double _initialKeyWidthFactorForPinch = 1.0;
   ScaleUpdateDetails? _lastScaleDetails;
   double _octaveScrollAccumulator = 0.0;
 
-  // static const int notesInOctave = 12; // Now part of scale or layout logic
-  // static const List<bool> _isBlackKeyMap = [false, true, false, true, false, false, true, false, true, false, true, false]; // Handled by PianoLayout
-  // static const List<double> _blackKeyOffsets = [0.0, 0.60, 0.0, 0.70, 0.0, 0.0, 0.55, 0.0, 0.65, 0.0, 0.75, 0.0]; // Handled by PianoLayout
-  // static const double blackKeyWidthFactor = 0.65; // Handled by PianoLayout
-  // static const double blackKeyHeightFactor = 0.6; // Handled by PianoLayout
+  // Old constants for direct layout calculation (now handled by PianoLayout)
+  // static const int notesInOctave = 12;
+  // static const List<bool> _isBlackKeyMap = [...];
+  // static const List<double> _blackKeyOffsets = [...];
+  // static const double blackKeyWidthFactor = 0.65;
+  // static const double blackKeyHeightFactor = 0.6;
 
   @override
   void initState() {
@@ -101,23 +85,22 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     _isCollapsed = widget.isInitiallyCollapsed;
     _currentSize = widget.initialSize;
     _currentOctave = widget.initialOctave.clamp(widget.minOctave, widget.maxOctave);
-    // _keyWidthFactor = 1.0; // Deprecated, will be handled by engine or its sizing
+    _keyWidthFactor = 1.0; // Initial visual zoom factor
     _numVisibleWhiteKeysActual = widget.numWhiteKeysToDisplay.clamp(7, 28);
 
-    // Initialize Layout Engine
-    // Note: keyboardSize will be properly set in LayoutBuilder for the first time.
-    // Using widget.initialSize for a temporary valid Size.
     _layoutEngine = KeyboardLayoutEngine(
       layout: PianoLayout(),
-      scale: _selectedScale, // Now correctly typed
-      octaves: _currentOctave,
-      keyboardSize: widget.initialSize, // Initial temporary size
-      startMidiNote: _currentOctave * 12,
+      scale: _selectedScale,
+      octaves: _currentOctave, // This might be interpreted as number of octaves to generate by PianoLayout
+      keyboardSize: _currentSize, // Initial size, will be updated by LayoutBuilder
+      startMidiNote: _currentOctave * 12, // Standard MIDI C note for the current octave
       numVisibleWhiteKeys: _numVisibleWhiteKeysActual,
     );
+    _mpeTouchHandler = MPETouchHandler(layoutEngine: _layoutEngine); // Initialize MPE handler
 
-    // _updateNotesInScale(); // Commented out: Highlighting logic needs rework for MicrotonalScale
-                           // The physical layout is piano-based; scale defines tuning/labels.
+    // _updateNotesInScale(); // Call this if it's still needed for visual scale highlighting by painter
+                           // For now, its primary role of filtering notes is less relevant with MPE
+                           // and a physical piano layout.
   }
 
   void _updateLayoutAndRefresh(Size newSize) {
@@ -126,70 +109,44 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
       _currentSize = newSize;
       needsRebuild = true;
     }
-    // Add other checks if layout-affecting parameters changed, e.g., _selectedScale, _currentOctave
-    // For now, we assume these are passed directly to updateDimensions.
 
     _layoutEngine.updateDimensions(
-      newSize, // Pass the new size directly
-      newScale: _selectedScale, // Pass current scale
-      newOctaves: _currentOctave, // Pass current octave
+      newSize,
+      newScale: _selectedScale,
+      newOctaves: _currentOctave,
       newStartMidiNote: _currentOctave * 12,
       newNumVisibleWhiteKeys: _numVisibleWhiteKeysActual,
     );
 
-    if (needsRebuild && mounted) { // Or if any other critical param changed
+    if (mounted && needsRebuild) { // Only setState if size actually changed or critical params
       setState(() {});
     }
   }
 
-  // This method's role changes. With MicrotonalScale, the scale definition itself
-  // dictates what notes are "in the scale". For a standard piano physical layout,
-  // all keys are "playable" but will map to microtonal pitches based on the scale
-  // and root note. Highlighting might be based on whether a physical key corresponds
-  // to a primary degree of the scale, or removed altogether for microtonal setups
-  // where every key is a distinct microtonal step.
-  // For now, commenting out its content as it's tightly coupled to the old MusicalScale enum.
+  // This method might be deprecated or its role changed.
+  // Highlighting keys based on scale on a physical piano layout when using microtonal scales
+  // needs careful consideration. For now, it mainly ensures layout is updated on scale change.
   void _updateNotesInScale() {
-    // _notesInCurrentScale.clear();
-    // List<int>? intervals = scaleIntervals[_selectedScale]; // This would need to use MicrotonalScale
-    // if (intervals != null) {
-    //   for (int interval in intervals) {
-    //     _notesInCurrentScale.add((_selectedRootNoteMidiOffset + interval) % 12);
-    //   }
-    // }
     _releaseAllNotes();
-
-    // With MicrotonalScale, the layout engine should ideally get the scale
-    // to potentially adjust key labels or active states if the layout supports it.
-    // Calling _updateLayoutAndRefresh here ensures the engine is aware of scale changes.
     if (_currentSize != Size.zero) { // Ensure _currentSize is initialized
+        // This ensures the layout engine gets the new scale.
+        // The painter would then need to use this scale info for highlighting if desired.
         _updateLayoutAndRefresh(_currentSize);
     }
-
     if(mounted) setState(() {});
   }
 
-  // Updated signature
+  // _onNoteOn and _onNoteOff are now conceptually superseded by MPETouchHandler for direct interaction.
+  // However, we keep the core logic of updating _pressedKeys and SynthParametersModel,
+  // which will be triggered by MPETouchHandler (or a similar mechanism) eventually.
+  // For this refactor step, the Listener in _buildKeyboardArea will call MPETouchHandler,
+  // and also perform these state updates temporarily.
   void _onNoteOn(int midiNote, int pointerId, double pressure) {
-    // Scale/Root note filtering is now more complex with microtonal scales
-    // The physical key pressed (midiNote if it were 12-TET) needs to be mapped
-    // to the actual microtonal note based on _selectedScale and _selectedRootNoteMidiOffset.
-    // For now, we'll assume the PianoLayout still generates keys with standard MIDI note numbers
-    // and the microtonal aspect is handled by the audio engine based on these + scale info.
-    // Visual highlighting of "in-scale" keys on a 12-key layout for a microtonal scale needs thought.
-    // For this step, we'll bypass the old _notesInCurrentScale check.
-
-    // int noteChromaticOffset = midiNote % 12;
-    // if (_selectedScale.id != 'tet12' && !_notesInCurrentScale.contains(noteChromaticOffset)) {
-    //   return;
-    // }
-
+    // The old scale filtering logic is removed. Playability is assumed for physical keys.
+    // Mapping to actual microtonal pitches is the audio engine's job based on this MIDI note + scale.
     if (midiNote > 127) return;
 
     if (!_pressedKeys.contains(midiNote)) {
-      // Update KeyModel state via LayoutEngine
-      _layoutEngine.setKeyPressed(midiNote, true, overrideColor: HolographicTheme.glowColor);
-
       final model = context.read<SynthParametersModel>();
       int currentVelocity = (_velocity * 127).round();
       model.noteOn(midiNote, currentVelocity);
@@ -208,20 +165,20 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     }
   }
 
-  // Updated signature
+  // Updated to reflect it's now primarily for state management, not direct event handling
   void _onNoteOff(int midiNote, int pointerId) {
+    // The keyMidiOffset logic is removed as midiNote is now directly from KeyModel.
     if (_activePointersToMidiNotes[pointerId] == midiNote || _pressedKeys.contains(midiNote)) {
       final model = context.read<SynthParametersModel>();
       model.noteOff(midiNote);
+      // Send poly aftertouch of 0 when note is released
       _nativeAudioLib.sendPolyAftertouch(midiNote, 0);
-
-      // Update KeyModel state via LayoutEngine
-      _layoutEngine.setKeyPressed(midiNote, false);
-
+      // print("PolyAT Zero: Note $midiNote, Pointer: $pointerId");
       setState(() {
         _pressedKeys.remove(midiNote);
       });
     }
+    // Always remove the pointer from the active map
     _activePointersToMidiNotes.remove(pointerId);
   }
 
@@ -229,12 +186,11 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     final model = context.read<SynthParametersModel>();
     for (int note in _pressedKeys) {
       model.noteOff(note);
-      _nativeAudioLib.sendPolyAftertouch(note, 0);
-       _layoutEngine.setKeyPressed(note, false);
+      _nativeAudioLib.sendPolyAftertouch(note, 0); // Pressure 0 on note off
     }
     setState(() {
       _pressedKeys.clear();
-      _activePointersToMidiNotes.clear();
+      _activePointersToMidiNotes.clear(); // Clear active pointers as well
     });
   }
 
@@ -458,7 +414,7 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             onChanged: (MicrotonalScale? value) { // Changed to MicrotonalScale
               if (value != null) {
                 setState(() { _selectedScale = value; });
-                _updateNotesInScale(); // This will now call _updateLayoutAndRefresh
+                _updateNotesInScale(); // Will call _updateLayoutAndRefresh
                 HapticFeedback.selectionClick();
               }
             },
@@ -476,45 +432,34 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
           return const SizedBox.shrink();
         }
 
-        // Update layout engine if size or other parameters changed
-        // This might be better in a post-frame callback or if driven by parameter changes explicitly
-        if (_currentSize != constraints.biggest ||
-            _layoutEngine.keyboardSize != constraints.biggest ||
-            _layoutEngine.octaves != _currentOctave || // Example check
-            _layoutEngine.scale != _selectedScale) { // Example check
-
-            // Schedule update after build to avoid setState during build issues.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-                 if (mounted) { // Check if still mounted before calling setState
-                    _updateLayoutAndRefresh(constraints.biggest);
-                 }
-            });
-        }
-
-        // The PianoLayout's generateKeys now uses keyboardSize.width / numVisibleWhiteKeys.
-        // The actual rendered width if _keyWidthFactor modifies individual key widths might differ.
-        // For CustomPaint, we want the painter to draw the keys at their calculated sizes from _layoutEngine.keys
-        // The _keyWidthFactor should be applied *inside* the painter if we want visual zoom,
-        // or the keyboardSize given to the engine should be pre-scaled.
-        // For now, let's assume _layoutEngine.keys have bounds appropriate for _currentSize without _keyWidthFactor,
-        // and _keyWidthFactor is for the scrollable area's total width if it exceeds constraints.
-
-        double totalLayoutWidth = _currentSize.width * _keyWidthFactor; // Conceptual total width for scrolling
-         if (_layoutEngine.keys.isNotEmpty) {
-            double minX = double.infinity;
-            double maxX = double.negativeInfinity;
-            for(var key in _layoutEngine.keys) {
-                minX = math.min(minX, key.bounds.left);
-                maxX = math.max(maxX, key.bounds.right);
+        // Ensure layout engine is updated with the latest size and parameters
+        // Using WidgetsBinding to defer this call until after the current build cycle.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && (_currentSize != constraints.biggest ||
+                           _layoutEngine.keyboardSize != constraints.biggest ||
+                           _layoutEngine.octaves != _currentOctave ||
+                           _layoutEngine.scale != _selectedScale ||
+                           _layoutEngine.numVisibleWhiteKeys != _numVisibleWhiteKeysActual ||
+                           _layoutEngine.startMidiNote != _currentOctave * 12
+                           )) {
+                _updateLayoutAndRefresh(constraints.biggest);
             }
-            // If keyWidthFactor is for zooming the visual appearance of keys,
-            // it should be passed to the painter or applied during key generation.
-            // If it's for how much of a larger virtual keyboard is shown,
-            // then the keyboardSize passed to engine should be constraints.biggest * _keyWidthFactor (for width).
-            // Let's assume for now PianoLayout generates for the given keyboardSize, and we scale that container.
-            totalLayoutWidth = (_layoutEngine.keyboardSize.width * _keyWidthFactor).clamp(constraints.minWidth, constraints.maxWidth * 3);
+        });
 
-        }
+        double totalLayoutWidth = (_layoutEngine.keyboardSize.width * _keyWidthFactor).clamp(constraints.minWidth, constraints.maxWidth * 5.0);
+        if (_layoutEngine.keys.isNotEmpty) {
+             double minX = double.infinity;
+             double maxX = double.negativeInfinity;
+             for(var key in _layoutEngine.keys) {
+                 minX = math.min(minX, key.bounds.left);
+                 maxX = math.max(maxX, key.bounds.right);
+             }
+             // Calculate actual width based on generated keys if they define the extent
+             // This assumes keys are generated in a continuous block.
+             // The painter will draw them relative to a 0,0 origin based on their bounds.
+             // The SingleChildScrollView needs to know the total span of these bounds.
+             totalLayoutWidth = (maxX - minX) * _keyWidthFactor;
+         }
 
 
         return GestureDetector(
@@ -522,29 +467,27 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             _initialKeyWidthFactorForPinch = _keyWidthFactor;
             _lastScaleDetails = null;
             _octaveScrollAccumulator = 0.0;
-            _releaseAllNotes(); // Release notes on gesture start to avoid stuck notes
+            _releaseAllNotes();
           },
           onScaleUpdate: (details) {
             if (details.pointerCount == 2) {
               setState(() {
-                _keyWidthFactor = (_initialKeyWidthFactorForPinch * details.scale).clamp(0.5, 3.0);
-                // No need to call _updateLayoutAndRefresh here if painter handles visual scaling
-                // or if the key bounds are considered relative to a zoomable canvas.
-                // For CustomPaint, if keys are generated once, painter needs to scale.
-                // If keys are regenerated on zoom, then _updateLayoutAndRefresh.
-                // Let's assume painter will use keyWidthFactor for now if needed, or we adjust generateKeys.
+                _keyWidthFactor = (_initialKeyWidthFactorForPinch * details.scale).clamp(0.3, 3.0);
+                // The CustomPaint's size will be scaled by SingleChildScrollView's child Container.
+                // The painter itself will draw keys based on their original model bounds.
+                // The "zoom" is effectively how much of the full keyboard (if wider than view) is shown.
               });
               HapticFeedback.lightImpact();
             } else if (details.pointerCount >= 3 && _lastScaleDetails != null && _lastScaleDetails!.pointerCount >=3) {
                 double dx = details.focalPointDelta.dx;
                 _octaveScrollAccumulator += dx;
-                double changeThreshold = _currentSize.width * 0.25;
+                double changeThreshold = _currentSize.width * 0.20;
                 if (_octaveScrollAccumulator.abs() > changeThreshold) {
                   _releaseAllNotes();
-                  if (_octaveScrollAccumulator > 0) {
-                    if (_currentOctave < widget.maxOctave) { setState(() { _currentOctave++; _updateLayoutAndRefresh(_currentSize);}); }
-                  } else {
+                  if (_octaveScrollAccumulator > 0) { // Swipe right, decrease octave
                     if (_currentOctave > widget.minOctave) { setState(() { _currentOctave--; _updateLayoutAndRefresh(_currentSize);}); }
+                  } else { // Swipe left, increase octave
+                    if (_currentOctave < widget.maxOctave) { setState(() { _currentOctave++; _updateLayoutAndRefresh(_currentSize);}); }
                   }
                   _octaveScrollAccumulator = 0;
                   HapticFeedback.selectionClick();
@@ -556,12 +499,18 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
             _lastScaleDetails = null;
             _octaveScrollAccumulator = 0.0;
           },
-          child: Listener( // Listener for individual key presses, move, release
+          child: Listener(
             onPointerDown: (PointerDownEvent event) {
-              final KeyModel? key = _layoutEngine.getKeyAtPosition(event.localPosition / _keyWidthFactor); // Adjust position by zoom
+              // Adjust touch position by current scroll offset and keyWidthFactor (zoom)
+              // This requires knowing the scroll offset if SingleChildScrollView is used.
+              // For simplicity, if CustomPaint is child of SingleChildScrollView, localPosition is already correct for visible part.
+              // The challenge is if the CustomPaint itself is larger than the viewport due to _keyWidthFactor.
+              // Let's assume _keyWidthFactor is more for future use where painter might scale drawings.
+              // For now, _layoutEngine.getKeyAtPosition expects coordinates in its own internal space.
+              // If PianoLayout generates keys to fit keyboardSize, and keyboardSize is constraints.biggest,
+              // then event.localPosition should be correct.
+              final KeyModel? key = _layoutEngine.getKeyAtPosition(event.localPosition);
               if (key != null) {
-                // TODO: Determine if note is "in scale" for visual feedback or playability if desired
-                // For now, allowing all physical keys to be interactive
                 _mpeTouchHandler.handleTouchStart(event.pointer, event.localPosition, key, event.pressure);
                 if (!_pressedKeys.contains(key.note)) {
                     _pressedKeys.add(key.note);
@@ -608,15 +557,14 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
                   }
               }
             },
-            child: SingleChildScrollView(
+            child: SingleChildScrollView( // This scroll view handles the actual viewport for a potentially larger keyboard
               scrollDirection: Axis.horizontal,
-              physics: const BouncingScrollPhysics(), // Or NeverScrollable if zoom handles all interaction
+              physics: const BouncingScrollPhysics(),
               child: CustomPaint(
-                size: Size(totalLayoutWidth, constraints.maxHeight), // Painter draws on this canvas size
+                size: Size(totalLayoutWidth, constraints.maxHeight),
                 painter: KeyboardPainter(
-                  keys: _layoutEngine.keys, // Keys with bounds relative to a non-zoomed layout
-                  theme: KeyboardTheme.holographic, // Hardcode for now
-                  // keyWidthFactor: _keyWidthFactor, // Pass zoom factor to painter
+                  keys: _layoutEngine.keys,
+                  theme: KeyboardTheme.holographic,
                 ),
               ),
             ),
@@ -626,128 +574,12 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     );
   }
 
+  // _buildKey method is removed.
+  /*
   Widget _buildKey({required KeyModel keyModel, required bool isPressed}) {
-    int noteChromaticIndexInOctave = keyModel.note % 12; // Relative to C
-    // The concept of "isNoteInScale" for highlighting a standard 12-key piano
-    // based on a microtonal scale is complex. For now, we simplify:
-    // If it's 12-TET, all keys are part of the "scale".
-    // For other microtonal scales, this visual highlighting might be misleading on a piano layout.
-    // We can keep a simplified version or remove it. Let's simplify for now.
-    bool isNoteConceptuallyInScale = true; // Assume all physical keys are playable
-    // If _selectedScale.id != 'tet12', one might implement logic to see if keyModel.note
-    // closely aligns with a primary degree of the _selectedScale for highlighting.
-    // For now, this is simplified. The old _notesInCurrentScale logic is mostly removed.
-
-    Color keyColor;
-    Color borderColor;
-    double keyOpacityFactor = 1.0;
-
-    if (_selectedScale != MusicalScale.Chromatic && !isNoteInScale) {
-      keyOpacityFactor = 0.3;
-    }
-
-    if (isBlack) {
-      keyColor = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 2.2 * keyOpacityFactor);
-      borderColor = HolographicTheme.secondaryEnergy.withOpacity(0.7 * keyOpacityFactor);
-    } else {
-      keyColor = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.6 * keyOpacityFactor);
-      borderColor = HolographicTheme.primaryEnergy.withOpacity(0.7 * keyOpacityFactor);
-    }
-
-    if (_selectedScale != MusicalScale.Chromatic && isNoteInScale && !isPressed) {
-      borderColor = HolographicTheme.accentEnergy.withOpacity(0.9 * keyOpacityFactor);
-      keyColor = keyColor.withAlpha((keyColor.alpha * 1.2).clamp(0,255).toInt());
-    }
-
-    BoxDecoration decoration = isPressed
-        ? HolographicTheme.createHolographicBorder(
-            energyColor: keyModel.overrideColor ?? HolographicTheme.glowColor, // Use overrideColor if available
-            intensity: 2.2,
-            cornerRadius: keyModel.isBlack ? 3 : 4,
-            borderWidth: 1.8,
-          ).copyWith(
-            color: (keyModel.overrideColor ?? HolographicTheme.glowColor).withOpacity(HolographicTheme.activeTransparency * 1.8)
-          )
-        : BoxDecoration(
-            color: keyColor,
-            borderRadius: BorderRadius.circular(keyModel.isBlack ? 3 : 4),
-            border: Border.all(color: borderColor, width: 1.0,),
-             boxShadow: [ BoxShadow( color: borderColor.withOpacity(0.3 * keyOpacityFactor), blurRadius: 3, spreadRadius: 0.5, offset: Offset(0,1.5) ) ]
-          );
-    
-    return Listener(
-      onPointerDown: (PointerDownEvent event) {
-        // if (_selectedScale.id != 'tet12' && !isNoteConceptuallyInScale) return; // Adjusted condition
-        // The above check is tricky; for now, allow all physical keys to be pressed.
-        // The audio engine would handle mapping to the correct microtonal pitch.
-        _mpeTouchHandler.handleTouchStart(event.pointer, event.localPosition, keyModel, event.pressure);
-
-        if (!_pressedKeys.contains(keyModel.note)) {
-            _pressedKeys.add(keyModel.note);
-            _activePointersToMidiNotes[event.pointer] = keyModel.note;
-             _layoutEngine.setKeyPressed(keyModel.note, true, overrideColor: HolographicTheme.glowColor);
-            if (mounted) setState(() {});
-        }
-      },
-      onPointerMove: (PointerMoveEvent event) {
-        // Integrate MPE Touch Move
-        _mpeTouchHandler.handleTouchMove(event.pointer, event.localPosition, event.pressure);
-        // Direct PolyAT call is now conceptually handled by MPETouchHandler
-        // final int? midiNote = _activePointersToMidiNotes[event.pointer];
-        // if (midiNote != null && _pressedKeys.contains(midiNote)) {
-        //   double pressure = event.pressure.clamp(0.0, 1.0);
-        //   int scaledPressure = (pressure * 127).round();
-        //   _nativeAudioLib.sendPolyAftertouch(midiNote, scaledPressure);
-        // }
-      },
-      onPointerUp: (PointerUpEvent event) {
-        // Integrate MPE Touch End
-        final MPETouch? endedTouch = _mpeTouchHandler.handleTouchEnd(event.pointer);
-        // _onNoteOff(keyModel.note, event.pointer); // Direct call conceptually handled by MPETouchHandler
-
-        if (endedTouch != null) { // Or use keyModel.note if endedTouch is null but pointer matches
-           _pressedKeys.remove(endedTouch.note);
-           _activePointersToMidiNotes.remove(event.pointer);
-            _layoutEngine.setKeyPressed(endedTouch.note, false);
-           if (mounted) setState(() {});
-        } else { // Fallback if touch was not found by MPE handler but pointer up happens
-            if (_activePointersToMidiNotes.containsKey(event.pointer)) {
-                int noteToRemove = _activePointersToMidiNotes[event.pointer]!;
-                _pressedKeys.remove(noteToRemove);
-                _layoutEngine.setKeyPressed(noteToRemove, false);
-                _activePointersToMidiNotes.remove(event.pointer);
-                if (mounted) setState(() {});
-            }
-        }
-      },
-      onPointerCancel: (PointerCancelEvent event) {
-        // Integrate MPE Touch End
-        final MPETouch? cancelledTouch = _mpeTouchHandler.handleTouchEnd(event.pointer);
-        // _onNoteOff(keyModel.note, event.pointer); // Direct call conceptually handled by MPETouchHandler
-
-         if (cancelledTouch != null) {
-           _pressedKeys.remove(cancelledTouch.note);
-           _activePointersToMidiNotes.remove(event.pointer);
-           _layoutEngine.setKeyPressed(cancelledTouch.note, false);
-           if (mounted) setState(() {});
-        } else {
-            if (_activePointersToMidiNotes.containsKey(event.pointer)) {
-                int noteToRemove = _activePointersToMidiNotes[event.pointer]!;
-                _pressedKeys.remove(noteToRemove);
-                _layoutEngine.setKeyPressed(noteToRemove, false);
-                _activePointersToMidiNotes.remove(event.pointer);
-                 if (mounted) setState(() {});
-            }
-        }
-      },
-      child: Container(
-        // Width and height are now derived from keyModel.bounds in the Positioned widget
-        margin: keyModel.isBlack ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: 0.75),
-        decoration: decoration,
-        // child: keyModel.label != null ? Center(child: Text(keyModel.label!, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 8))) : null, // Optional: Draw label
-      ),
-    );
+    ...
   }
+  */
 
   @override
   Widget build(BuildContext context) {
