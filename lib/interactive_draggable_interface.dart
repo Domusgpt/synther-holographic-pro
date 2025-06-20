@@ -1,9 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart'; // Added for HapticFeedback
 import 'package:provider/provider.dart';
+import 'dart:ui'; // For ImageFilter
+import 'dart:async'; // For Timer
+import 'dart:math' as math; // For math.sin
 
 // Import actual feature widgets
 import 'features/xy_pad/xy_pad_widget.dart';
+import 'ui/holographic/holographic_effect_wrapper.dart'; // Import the wrapper
+import 'features/effects_chain/effects_chain_panel_widget.dart'; // Import Effects Chain Panel
 // Import MusicalScale and XYPadAssignment if they are moved to a shared location
 // For now, PanelStateService uses indices, but SynthParametersModel might need direct enum access.
 // For _PanelConfig.toSerializableConfig, we need SynthParametersModel and its enums.
@@ -21,6 +26,14 @@ import 'features/visualizer_bridge/visualizer_bridge_widget.dart';
 import 'ui/holographic/holographic_theme.dart';
 // import 'services/firebase_service.dart'; // If used directly by this widget
 // import 'core/audio_engine.dart'; // If used directly
+
+// Enum for Panel Background Effects
+enum PanelBackgroundEffect {
+  standardTranslucency,
+  blurredVisualizer,
+  colorShiftedVisualizer, // Conceptual
+  invertedVisualizerColors // Conceptual
+}
 
 import 'dart:ffi'; // For Pointer.fromFunction
 import 'package:ffi/ffi.dart'; // For calloc if needed for string passing (not directly here)
@@ -40,6 +53,7 @@ class _PanelConfig {
   bool isCollapsed;
   bool isVisibleInWorkspace;
   final GlobalKey key;
+  PanelBackgroundEffect backgroundEffect; // Added background effect field
 
   _PanelConfig({
     required this.id,
@@ -52,6 +66,7 @@ class _PanelConfig {
     required this.normHeight,
     this.isCollapsed = false,
     this.isVisibleInWorkspace = true,
+    this.backgroundEffect = PanelBackgroundEffect.standardTranslucency, // Default value
   }) : key = GlobalKey(debugLabel: id);
 
   // Convert to a serializable format
@@ -132,12 +147,25 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   StreamSubscription<UiMidiEvent>? _uiMidiEventSubscription;
   bool _isVaultAreaVisible = true; // Instance variable
 
+  // Placeholder for audio-reactive data
+  double _simulatedMasterAudioLevel = 0.0;
+  Timer? _simulationTimer;
+
   final PanelStateService _panelStateService = PanelStateService();
 
   @override
   void initState() {
     super.initState();
     _nativeAudioLib = createNativeAudioLib(); // Initialize FFI via factory
+
+    // Start simulated audio level timer
+    _simulationTimer = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) return;
+      setState(() {
+        // Simulate a pulsing audio level
+        _simulatedMasterAudioLevel = (math.sin(DateTime.now().millisecondsSinceEpoch / 500.0) + 1.0) / 2.0; // Varies between 0.0 and 1.0
+      });
+    });
 
     // Try to load panel layout first
     _loadPanelLayoutAndInitialize();
@@ -158,6 +186,7 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
   @override
   void dispose() {
     _uiMidiEventSubscription?.cancel(); // Cancel the stream subscription
+    _simulationTimer?.cancel(); // Cancel the simulation timer
     // TODO: Add an FFI function to unregister the callback if SynthEngine supports it.
     // Consider calling UiMidiEventService().dispose() if this is the main/root widget of the app.
     super.dispose();
@@ -336,12 +365,13 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
     // Default panel layout if nothing is loaded from shared_preferences
     print("Initializing default panel layout.");
     _panels.clear();
-    _panels.add(_PanelConfig(id: 'xyPad_1', title: 'XY CONTROL PAD', childWidgetTypeKey: 'xyPad_1', normX: 0.05, normY: 0.15, normWidth: 0.22, normHeight: 0.30));
-    _panels.add(_PanelConfig(id: 'controlPanel_1', title: 'SYNTH CONTROLS', childWidgetTypeKey: 'controlPanel_1', normX: 0.30, normY: 0.15, normWidth: 0.22, normHeight: 0.45));
-    _panels.add(_PanelConfig(id: 'keyboard_1', title: 'VIRTUAL KEYBOARD', childWidgetTypeKey: 'keyboard_1', normX: 0.05, normY: 0.65, normWidth: 0.50, normHeight: 0.20));
-    _panels.add(_PanelConfig(id: 'llmPresetGen_1', title: 'AI PRESET GENERATOR', childWidgetTypeKey: 'llmPresetGen_1', normX: 0.05, normY: 0.05, normWidth: 0.30, normHeight: 0.30));
-    _panels.add(_PanelConfig(id: 'automation_1', title: 'AUTOMATION', childWidgetTypeKey: 'automation_1', normX: 0.58, normY: 0.65, normWidth: 0.22, normHeight: 0.20));
-    _panels.add(_PanelConfig(id: 'presets_1', title: 'PRESET MANAGER', childWidgetTypeKey: 'presets_1', normX: 0.38, normY: 0.05, normWidth: 0.22, normHeight: 0.35));
+    _panels.add(_PanelConfig(id: 'xyPad_1', title: 'XY CONTROL PAD', childWidgetTypeKey: 'xyPad_1', normX: 0.05, normY: 0.15, normWidth: 0.22, normHeight: 0.30, backgroundEffect: PanelBackgroundEffect.blurredVisualizer));
+    _panels.add(_PanelConfig(id: 'controlPanel_1', title: 'SYNTH CONTROLS', childWidgetTypeKey: 'controlPanel_1', normX: 0.30, normY: 0.15, normWidth: 0.22, normHeight: 0.45, backgroundEffect: PanelBackgroundEffect.colorShiftedVisualizer));
+    _panels.add(_PanelConfig(id: 'keyboard_1', title: 'VIRTUAL KEYBOARD', childWidgetTypeKey: 'keyboard_1', normX: 0.05, normY: 0.65, normWidth: 0.50, normHeight: 0.20, backgroundEffect: PanelBackgroundEffect.invertedVisualizerColors));
+    _panels.add(_PanelConfig(id: 'llmPresetGen_1', title: 'AI PRESET GENERATOR', childWidgetTypeKey: 'llmPresetGen_1', normX: 0.05, normY: 0.05, normWidth: 0.30, normHeight: 0.30)); // Standard
+    _panels.add(_PanelConfig(id: 'automation_1', title: 'AUTOMATION', childWidgetTypeKey: 'automation_1', normX: 0.58, normY: 0.65, normWidth: 0.22, normHeight: 0.20, backgroundEffect: PanelBackgroundEffect.blurredVisualizer));
+    _panels.add(_PanelConfig(id: 'presets_1', title: 'PRESET MANAGER', childWidgetTypeKey: 'presets_1', normX: 0.38, normY: 0.05, normWidth: 0.22, normHeight: 0.35)); // Standard
+    _panels.add(_PanelConfig(id: 'effectsChain_1', title: 'EFFECTS CHAIN', childWidgetTypeKey: 'effectsChain_1', normX: 0.70, normY: 0.15, normWidth: 0.25, normHeight: 0.50));
     _panels.add(_PanelConfig(id: 'midiSettings_1', title: 'MIDI SETTINGS', childWidgetTypeKey: 'midiSettings_1', normX: 0.63, normY: 0.05, normWidth: 0.22, normHeight: 0.30, isVisibleInWorkspace: false));
     _panels.add(_PanelConfig(id: 'placeholder_1', title: 'EFFECTS RACK (Vaulted)', childWidgetTypeKey: 'placeholder_1', normX: 0.63, normY: 0.40, normWidth: 0.22, normHeight: 0.25, isVisibleInWorkspace: false));
 
@@ -470,23 +500,190 @@ class _InteractiveDraggableSynthState extends State<InteractiveDraggableSynth> {
     final pixelWidth = panelConfig.normWidth * screenWidth;
     final pixelHeight = panelConfig.normHeight * screenHeight;
 
-    // This is the frame for each draggable, resizable, collapsible panel
+    Widget panelContent = Column(
+      children: [
+        // Draggable Header
+        GestureDetector(
+          onPanUpdate: (details) {
+            setState(() {
+              // Update normalized positions
+              panelConfig.normX = (pixelX + details.delta.dx) / screenWidth;
+              panelConfig.normY = (pixelY + details.delta.dy) / screenHeight;
+              // Clamp normalized positions to keep panel somewhat on screen
+              panelConfig.normX = panelConfig.normX.clamp(-0.75, 0.9); // Allow some offscreen
+              panelConfig.normY = panelConfig.normY.clamp(0.0, 0.9);
+            });
+          },
+          child: Container(
+            height: 40,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.activeTransparency * 0.8),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+              border: Border(bottom: BorderSide(color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.hoverTransparency), width: 1)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.drag_indicator, color: HolographicTheme.secondaryEnergy, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    panelConfig.title,
+                    style: HolographicTheme.createHolographicText(
+                      energyColor: HolographicTheme.primaryEnergy,
+                      fontSize: 13,
+                      glowIntensity: 0.5,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    panelConfig.isCollapsed ? Icons.keyboard_arrow_down : Icons.keyboard_arrow_up,
+                    color: HolographicTheme.secondaryEnergy,
+                    size: 18,
+                  ),
+                  tooltip: panelConfig.isCollapsed ? "Expand" : "Collapse",
+                  onPressed: () {
+                    setState(() {
+                      panelConfig.isCollapsed = !panelConfig.isCollapsed;
+                      HapticFeedback.mediumImpact();
+                    });
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  splashRadius: 18,
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  icon: Icon(
+                    Icons.visibility_off_outlined,
+                    color: HolographicTheme.secondaryEnergy.withOpacity(0.8),
+                    size: 16,
+                  ),
+                  tooltip: "Hide (Send to Vault)",
+                  onPressed: () {
+                    HapticFeedback.mediumImpact();
+                    onClosed();
+                  },
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                  splashRadius: 18,
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Content Area
+        if (!panelConfig.isCollapsed)
+          Expanded(
+            child: Material(
+              color: Colors.transparent, // Important for backdrop/effects to show through
+              child: Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: _getWidgetForTypeKey(panelConfig.childWidgetTypeKey),
+              ),
+            ),
+          ),
+        // Resize Handle (conditionally rendered)
+        if (!panelConfig.isCollapsed)
+          Positioned(
+            bottom: 0,
+            right: 0,
+            child: GestureDetector(
+              onPanUpdate: (details) {
+                setState(() {
+                  final newPixelWidth = (pixelWidth + details.delta.dx).clamp(150.0, 800.0);
+                  final newPixelHeight = (pixelHeight + details.delta.dy).clamp(100.0, 700.0);
+                  panelConfig.normWidth = newPixelWidth / screenWidth;
+                  panelConfig.normHeight = newPixelHeight / screenHeight;
+                });
+              },
+              child: Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                   color: HolographicTheme.secondaryText.withOpacity(HolographicTheme.widgetTransparency * 1.2),
+                   borderRadius: const BorderRadius.only(bottomRight: Radius.circular(8)),
+                ),
+                child: Icon(Icons.open_in_full_rounded, color: HolographicTheme.secondaryEnergy.withOpacity(0.9), size: 12),
+              ),
+            ),
+          ),
+      ],
+    );
+
+    BoxDecoration baseDecoration = HolographicTheme.createHolographicBorder(
+      energyColor: HolographicTheme.primaryEnergy,
+      intensity: 0.8,
+      cornerRadius: 10,
+    );
+
+    Color panelBackgroundColor = HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.25);
+    Widget? backgroundEffectWidget;
+    List<Widget> foregroundWidgets = [panelContent]; // panelContent is the base visual content of the panel
+
+    // Determine the final child to be wrapped by Positioned
+    Widget finalPanelWidget = Container(
+      decoration: baseDecoration.copyWith(color: panelBackgroundColor),
+      child: Stack(
+        children: [
+          if (backgroundEffectWidget != null) Positioned.fill(child: backgroundEffectWidget),
+          ...foregroundWidgets,
+        ],
+      )
+    );
+
+    // Apply HolographicEffectWrapper conditionally
+    if (panelConfig.id == 'xyPad_1') {
+      finalPanelWidget = HolographicEffectWrapper(
+        intensity: _simulatedMasterAudioLevel * 0.5, // Reactive intensity
+        child: finalPanelWidget,
+      );
+    } else if (panelConfig.id == 'controlPanel_1') { // Example of a fixed low intensity
+       finalPanelWidget = HolographicEffectWrapper(
+        intensity: 0.1,
+        child: finalPanelWidget,
+      );
+    }
+    // Other panels will not have the HolographicEffectWrapper applied for this example.
+
+    switch (panelConfig.backgroundEffect) {
+      case PanelBackgroundEffect.standardTranslucency:
+        // Default behavior, color already set in baseDecoration.copyWith
+        break;
+      case PanelBackgroundEffect.blurredVisualizer:
+        panelBackgroundColor = Colors.white.withOpacity(0.05); // More transparent for blur
+        backgroundEffectWidget = ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                color: Colors.white.withOpacity(0.01), // Minimal color for the filter to apply to
+              ),
+            ),
+          ),
+        );
+        break;
+      case PanelBackgroundEffect.colorShiftedVisualizer:
+        panelBackgroundColor = HolographicTheme.accentEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.30); // Different color tint
+        foregroundWidgets.add(Center(child: Text("Color Shifted BG (Conceptual)", style: TextStyle(color: Colors.white54, fontSize: 10))));
+        break;
+      case PanelBackgroundEffect.invertedVisualizerColors:
+        panelBackgroundColor = Colors.black.withOpacity(0.6); // Darker placeholder
+         foregroundWidgets.add(Center(child: Text("Inverted Visualizer BG (Conceptual)", style: TextStyle(color: Colors.white38, fontSize: 10))));
+        break;
+    }
+
     return Positioned(
       left: pixelX,
       top: pixelY,
       key: panelConfig.key,
-      child: Container(
-        width: panelConfig.isCollapsed ? 250 : pixelWidth.clamp(150.0, 800.0), // Min/max pixel width
-        height: panelConfig.isCollapsed ? 40 : pixelHeight.clamp(100.0, 700.0), // Min/max pixel height
-        decoration: HolographicTheme.createHolographicBorder(
-          energyColor: HolographicTheme.primaryEnergy,
-          intensity: 0.8,
-          cornerRadius: 10,
-        ).copyWith(
-          color: HolographicTheme.primaryEnergy.withOpacity(HolographicTheme.widgetTransparency * 0.25),
-        ),
-        child: Column(
-          children: [
+      child: finalPanelWidget, // Use the (potentially wrapped) finalPanelWidget
+    );
+  }
             // Draggable Header
             GestureDetector(
               onPanUpdate: (details) {
