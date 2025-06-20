@@ -642,7 +642,9 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
     Color borderColor;
     double keyOpacityFactor = 1.0;
 
-    if (_selectedScale != MusicalScale.Chromatic && !isNoteInScale) {
+    // Assuming isNoteInScale logic will be adapted for MicrotonalScale if complex highlighting is needed.
+    // For now, direct replacement might simplify or alter highlighting behavior.
+    if (_selectedScale != MicrotonalScale.tet12 && !isNoteInScale) {
       keyOpacityFactor = 0.3;
     }
 
@@ -654,7 +656,8 @@ class _VirtualKeyboardWidgetState extends State<VirtualKeyboardWidget> {
       borderColor = HolographicTheme.primaryEnergy.withOpacity(0.7 * keyOpacityFactor);
     }
 
-    if (_selectedScale != MusicalScale.Chromatic && isNoteInScale && !isPressed) {
+    // Assuming isNoteInScale logic will be adapted for MicrotonalScale if complex highlighting is needed.
+    if (_selectedScale != MicrotonalScale.tet12 && isNoteInScale && !isPressed) {
       borderColor = HolographicTheme.accentEnergy.withOpacity(0.9 * keyOpacityFactor);
       keyColor = keyColor.withAlpha((keyColor.alpha * 1.2).clamp(0,255).toInt());
     }
