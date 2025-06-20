@@ -693,100 +693,184 @@ class _XYPadTabViewState extends State<XYPadTabView> {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.black.withOpacity(0.5),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Color(0xFF00FFFF).withOpacity(0.2)),
-      ),
-      child: Column(
-        children: [
-          // Key Selection
-          Row(
-            children: [
-              Text('Key: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Expanded(
-                child: DropdownButton<MusicalKey>(
-                  value: _selectedKeyId,
-                  isExpanded: true,
-                  dropdownColor: Colors.grey[850],
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                  underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.3)),
-                  items: availableKeys.map((KeyDefinition keyDef) {
-                    return DropdownMenuItem<MusicalKey>(
-                      value: keyDef.id,
-                      child: Text(keyDef.name, style: TextStyle(color: Colors.white)),
-                    );
-                  }).toList(),
-                  onChanged: (MusicalKey? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedKeyId = newValue;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          // Scale Selection
-          Row(
-            children: [
-              Text('Scale: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Expanded(
-                child: DropdownButton<MusicalScaleType>(
-                  value: _selectedScaleId,
-                  isExpanded: true,
-                  dropdownColor: Colors.grey[850],
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                  underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.3)),
-                  items: availableScales.map((ScaleDefinition scaleDef) {
-                    return DropdownMenuItem<MusicalScaleType>(
-                      value: scaleDef.id,
-                      child: Text(scaleDef.name, style: TextStyle(color: Colors.white)),
-                    );
-                  }).toList(),
-                  onChanged: (MusicalScaleType? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedScaleId = newValue;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 8),
-          // Y-Axis Parameter Selection
-          Row(
-            children: [
-              Text('Y-Axis: ', style: TextStyle(color: Colors.white70, fontSize: 12)),
-              Expanded(
-                child: DropdownButton<XYParameter>(
-                  value: _selectedYParameter,
-                  isExpanded: true,
-                  dropdownColor: Colors.grey[850],
-                  style: TextStyle(color: Colors.white, fontSize: 12),
-                  underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.3)),
-                  items: _complimentaryYParameters.map((ParameterChoice choice) {
-                    return DropdownMenuItem<XYParameter>(
-                      value: choice.id,
-                      child: Text(choice.name, style: TextStyle(color: Colors.white)),
-                    );
-                  }).toList(),
-                  onChanged: (XYParameter? newValue) {
-                    if (newValue != null) {
-                      setState(() {
-                        _selectedYParameter = newValue;
-                      });
-                    }
-                  },
-                ),
-              ),
-            ],
+        color: Colors.black.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Color(0xFF00FFFF).withOpacity(0.3), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Color(0xFF00FFFF).withOpacity(0.2),
+            blurRadius: 12,
+            spreadRadius: 2,
           ),
         ],
       ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Title with holographic styling
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'XY PAD CONTROLS',
+                style: TextStyle(
+                  color: Color(0xFF00FFFF),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  shadows: [
+                    Shadow(
+                      color: Color(0xFF00FFFF).withOpacity(0.8),
+                      blurRadius: 4,
+                    ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _isSettingsExpanded = false;
+                  });
+                },
+                child: Container(
+                  width: 24,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: Color(0xFF00FFFF).withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Color(0xFF00FFFF).withOpacity(0.6),
+                      width: 1.0,
+                    ),
+                  ),
+                  child: Icon(
+                    Icons.keyboard_arrow_up,
+                    color: Color(0xFF00FFFF),
+                    size: 16,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          
+          // Key Selection with improved styling
+          _buildControlRow(
+            'KEY',
+            DropdownButton<MusicalKey>(
+              value: _selectedKeyId,
+              isExpanded: true,
+              dropdownColor: Colors.black.withOpacity(0.9),
+              style: TextStyle(color: Colors.white, fontSize: 12),
+              underline: Container(
+                height: 2,
+                decoration: LinearGradient(
+                  colors: [Color(0xFF00FFFF).withOpacity(0.6), Color(0xFF00FFFF).withOpacity(0.2)],
+                ).createShader(Rect.fromLTWH(0, 0, 200, 2)) != null
+                    ? BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF00FFFF).withOpacity(0.6), Color(0xFF00FFFF).withOpacity(0.2)],
+                        ),
+                      )
+                    : BoxDecoration(color: Color(0xFF00FFFF).withOpacity(0.4)),
+              ),
+              items: availableKeys.map((KeyDefinition keyDef) {
+                return DropdownMenuItem<MusicalKey>(
+                  value: keyDef.id,
+                  child: Text(keyDef.name, style: TextStyle(color: Colors.white)),
+                );
+              }).toList(),
+              onChanged: (MusicalKey? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedKeyId = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+          
+          SizedBox(height: 8),
+          
+          // Scale Selection with improved styling
+          _buildControlRow(
+            'SCALE',
+            DropdownButton<MusicalScaleType>(
+              value: _selectedScaleId,
+              isExpanded: true,
+              dropdownColor: Colors.black.withOpacity(0.9),
+              style: TextStyle(color: Colors.white, fontSize: 12),
+              underline: Container(
+                height: 2,
+                decoration: BoxDecoration(color: Color(0xFF00FFFF).withOpacity(0.4)),
+              ),
+              items: availableScales.map((ScaleDefinition scaleDef) {
+                return DropdownMenuItem<MusicalScaleType>(
+                  value: scaleDef.id,
+                  child: Text(scaleDef.name, style: TextStyle(color: Colors.white)),
+                );
+              }).toList(),
+              onChanged: (MusicalScaleType? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedScaleId = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+          
+          SizedBox(height: 8),
+          
+          // Y-Axis Parameter Selection with improved styling
+          _buildControlRow(
+            'Y-AXIS',
+            DropdownButton<XYParameter>(
+              value: _selectedYParameter,
+              isExpanded: true,
+              dropdownColor: Colors.black.withOpacity(0.9),
+              style: TextStyle(color: Colors.white, fontSize: 12),
+              underline: Container(
+                height: 2,
+                decoration: BoxDecoration(color: Color(0xFF00FFFF).withOpacity(0.4)),
+              ),
+              items: _complimentaryYParameters.map((ParameterChoice choice) {
+                return DropdownMenuItem<XYParameter>(
+                  value: choice.id,
+                  child: Text(choice.name, style: TextStyle(color: Colors.white)),
+                );
+              }).toList(),
+              onChanged: (XYParameter? newValue) {
+                if (newValue != null) {
+                  setState(() {
+                    _selectedYParameter = newValue;
+                  });
+                }
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControlRow(String label, Widget control) {
+    return Row(
+      children: [
+        Container(
+          width: 60,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+        Expanded(child: control),
+      ],
     );
   }
 
@@ -841,17 +925,38 @@ class _XYPadTabViewState extends State<XYPadTabView> {
                     letterSpacing: 2,
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    _isSettingsExpanded ? Icons.settings : Icons.settings_outlined,
-                    color: Color(0xFF00FFFF),
-                    size: 20,
-                  ),
-                  onPressed: () {
+                GestureDetector(
+                  onTap: () {
                     setState(() {
                       _isSettingsExpanded = !_isSettingsExpanded;
                     });
                   },
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: _isSettingsExpanded 
+                          ? Color(0xFF00FFFF).withOpacity(0.3)
+                          : Colors.black.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Color(0xFF00FFFF).withOpacity(_isSettingsExpanded ? 0.8 : 0.4),
+                        width: 2.0,
+                      ),
+                      boxShadow: _isSettingsExpanded ? [
+                        BoxShadow(
+                          color: Color(0xFF00FFFF).withOpacity(0.3),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ] : null,
+                    ),
+                    child: Icon(
+                      _isSettingsExpanded ? Icons.keyboard_arrow_up : Icons.tune,
+                      color: Color(0xFF00FFFF),
+                      size: 18,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -859,101 +964,6 @@ class _XYPadTabViewState extends State<XYPadTabView> {
           
           // Collapsible settings panel
           if (_isSettingsExpanded) _buildSettingsPanel(),
-          // Key Selection Dropdown
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Row(
-              children: [
-                Text('Key: ', style: TextStyle(color: Colors.white70)),
-                Expanded(
-                  child: DropdownButton<MusicalKey>(
-                    value: _selectedKeyId,
-                    isExpanded: true,
-                    dropdownColor: Colors.grey[850],
-                    style: TextStyle(color: Colors.white),
-                    underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
-                    items: availableKeys.map((KeyDefinition keyDef) {
-                      return DropdownMenuItem<MusicalKey>(
-                        value: keyDef.id,
-                        child: Text(keyDef.name, style: TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
-                    onChanged: (MusicalKey? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _selectedKeyId = newValue;
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Scale Selection Dropdown
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Row(
-              children: [
-                Text('Scale: ', style: TextStyle(color: Colors.white70)),
-                Expanded(
-                  child: DropdownButton<MusicalScaleType>(
-                    value: _selectedScaleId,
-                    isExpanded: true,
-                    dropdownColor: Colors.grey[850],
-                    style: TextStyle(color: Colors.white),
-                    underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
-                    items: availableScales.map((ScaleDefinition scaleDef) {
-                      return DropdownMenuItem<MusicalScaleType>(
-                        value: scaleDef.id,
-                        child: Text(scaleDef.name, style: TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
-                    onChanged: (MusicalScaleType? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _selectedScaleId = newValue;
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // Y-Axis Dropdown
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-            child: Row(
-              children: [
-                Text('Y-Axis: ', style: TextStyle(color: Colors.white70)),
-                Expanded(
-                  child: DropdownButton<XYParameter>(
-                    value: _selectedYParameter,
-                    isExpanded: true,
-                    dropdownColor: Colors.grey[850],
-                    style: TextStyle(color: Colors.white),
-                    underline: Container(height: 1, color: Color(0xFF00FFFF).withOpacity(0.5)),
-                    items: _complimentaryYParameters.map((ParameterChoice choice) { // Use complimentary list
-                      return DropdownMenuItem<XYParameter>(
-                        value: choice.id,
-                        child: Text(choice.name, style: TextStyle(color: Colors.white)),
-                      );
-                    }).toList(),
-                    onChanged: (XYParameter? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          _selectedYParameter = newValue;
-                          // TODO: Add logic to update AudioEngine or internal mapping if needed
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: 10), // Spacer before the pad
           Expanded(
             child: GestureDetector(
               onPanUpdate: (details) {

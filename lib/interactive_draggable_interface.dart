@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'dart:ui'; // For ImageFilter
 import 'dart:async'; // For Timer
 import 'dart:math' as math; // For math.sin
+import 'dart:ffi'; // For Pointer.fromFunction
+import 'package:ffi/ffi.dart'; // For calloc if needed for string passing (not directly here)
 
 // Import actual feature widgets
 import 'features/xy_pad/xy_pad_widget.dart';
@@ -24,6 +26,9 @@ import 'features/midi_settings/midi_settings_widget.dart';
 import 'core/synth_parameters.dart'; // For SynthParametersModel if needed by placeholder widgets
 import 'features/visualizer_bridge/visualizer_bridge_widget.dart';
 import 'ui/holographic/holographic_theme.dart';
+import 'core/ffi/native_audio_ffi_factory.dart'; // For NativeAudioLib factory and callback typedef
+import 'core/services/panel_state_service.dart'; // Import the new service
+import 'core/services/ui_midi_event_service.dart'; // Import UI MIDI event service
 // import 'services/firebase_service.dart'; // If used directly by this widget
 // import 'core/audio_engine.dart'; // If used directly
 
@@ -34,11 +39,6 @@ enum PanelBackgroundEffect {
   colorShiftedVisualizer, // Conceptual
   invertedVisualizerColors // Conceptual
 }
-
-import 'dart:ffi'; // For Pointer.fromFunction
-import 'package:ffi/ffi.dart'; // For calloc if needed for string passing (not directly here)
-import 'core/ffi/native_audio_ffi_factory.dart'; // For NativeAudioLib factory and callback typedef
-import 'core/services/panel_state_service.dart'; // Import the new service
 
 // Define a class to hold panel configuration and state
 class _PanelConfig {
@@ -122,8 +122,6 @@ class _PanelConfig {
 }
 
 // Static members for FFI callback interaction
-import 'dart:async'; // For StreamSubscription
-import 'core/services/ui_midi_event_service.dart'; // Import the new service
 
 // Top-level or static function for FFI callback
 void _staticHandleUiControlMidiMessage(int targetPanelId, int ccNumber, int ccValue) {
