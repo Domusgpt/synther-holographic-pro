@@ -25,6 +25,8 @@ class KeyboardPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
 
+    Color borderColor; // Declare borderColor
+
     for (final KeyModel key in keys) {
       // Determine colors based on theme and key state
       if (key.overrideColor != null) { // Highest priority: overrideColor (e.g., for pressed state)
