@@ -10,6 +10,6 @@ repository=https://github.com/thestk/rtaudio.git
 remote=origin
 init_submodules=TRUE
 recurse_submodules=--recursive
-submodules=
+submodules=/mnt/c/Users/millz/Desktop/Synther_Refactored/native/build/_deps/rtaudio-src
 CMP0097=NEW
 
