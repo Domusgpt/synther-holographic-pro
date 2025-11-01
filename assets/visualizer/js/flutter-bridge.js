@@ -99,7 +99,7 @@ function initializeFlutterBridge() {
     
     window.resetVisualizer = function() {
         if (!window.mainVisualizerCore) return;
-        
+
         // Reset to default values
         window.visualParams = {
             morphFactor: 0.7, dimension: 4.0, rotationSpeed: 0.5, gridDensity: 8.0,
@@ -108,14 +108,40 @@ function initializeFlutterBridge() {
             shellWidth: 0.025, tetraThickness: 0.035,
             hue: 0.5, saturation: 0.8, brightness: 0.9
         };
-        
+
         window.mainVisualizerCore.updateParameters(window.visualParams);
-        
+
         // Update all sliders if function is available
         if (window.updateSlider) {
             for (const key in window.visualParams) {
                 window.updateSlider(key, window.visualParams[key]);
             }
+        }
+    };
+
+    // NEW: Update visualizer configuration (Tiers 1-3: Family, Polytope, Geometry)
+    window.updateVisualizerConfiguration = function(configData) {
+        if (!window.mainVisualizerCore) {
+            console.warn('updateVisualizerConfiguration: mainVisualizerCore not found!');
+            return;
+        }
+
+        console.log('Updating visualizer configuration:', configData);
+
+        // Update polytope (Tier 2)
+        if (configData.polytope) {
+            window.mainVisualizerCore.updateParameters({ polytope: configData.polytope });
+        }
+
+        // Update geometry type (Tier 3)
+        if (configData.geometryType) {
+            window.mainVisualizerCore.updateParameters({ geometryType: configData.geometryType });
+        }
+
+        // Visualizer family (Tier 1) - TODO: Implement when family renderers are ready
+        if (configData.family) {
+            console.log(`Visualizer family set to: ${configData.family} (family rendering not yet implemented)`);
+            // Future: Switch between Faceted/Quantum/Holographic renderers
         }
     };
     
@@ -171,6 +197,8 @@ function initializeFlutterBridge() {
                 } else {
                     console.warn('EventListener: window.setVisualizerControlsVisibility not defined in visualizer-main.js');
                 }
+            } else if (type === 'configurationUpdate') { // NEW: Handle configuration updates
+                window.updateVisualizerConfiguration(event.data);
             }
             // Consider adding a 'setControlsVisibility' with a boolean payload as a more generic alternative in future.
         }
