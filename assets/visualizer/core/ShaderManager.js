@@ -7,7 +7,48 @@ class ShaderManager {
     _compileShader(shaderIdentifier, source, type) { if (this.compiledShaders[shaderIdentifier]) { return this.compiledShaders[shaderIdentifier]; } const shader = this.gl.createShader(type); if (!shader) { console.error(`Failed create shader '${shaderIdentifier}'.`); this.compiledShaders[shaderIdentifier] = null; return null; } this.gl.shaderSource(shader, source); this.gl.compileShader(shader); if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) { const log = this.gl.getShaderInfoLog(shader); console.error(`Compile error shader '${shaderIdentifier}':\n${log}`); this._logShaderSourceWithError(source, log); this.gl.deleteShader(shader); this.compiledShaders[shaderIdentifier] = null; return null; } this.compiledShaders[shaderIdentifier] = shader; return shader; }
     _logShaderSourceWithError(source, errorLog) { const lines=source.split('\n'); const match=errorLog.match(/ERROR:\s*\d+:(\d+):/); let errLine=match?parseInt(match[1],10):-1; console.error("--- Shader Source ---"); lines.forEach((line, i)=>{const p=(i+1===errLine)?">> ": "   "; console.error(p+(i+1).toString().padStart(3)+": "+line);}); console.error("--- Shader Source End ---"); }
     _createProgram(programName, vertexShader, fragmentShader) { if (this.programs[programName]) { const old = this.programs[programName]; if (old) { try { const shaders = this.gl.getAttachedShaders(old); shaders?.forEach(s => this.gl.detachShader(old, s)); this.gl.deleteProgram(old); } catch (e) {} } delete this.programs[programName]; delete this.uniformLocations[programName]; delete this.attributeLocations[programName]; } const program = this.gl.createProgram(); if (!program) { console.error(`Failed create program '${programName}'.`); return null; } this.gl.attachShader(program, vertexShader); this.gl.attachShader(program, fragmentShader); this.gl.linkProgram(program); if (!this.gl.getProgramParameter(program, this.gl.LINK_STATUS)) { console.error(`Link error program '${programName}':\n${this.gl.getProgramInfoLog(program)}`); try { this.gl.detachShader(program, vertexShader); } catch(e) {} try { this.gl.detachShader(program, fragmentShader); } catch(e) {} this.gl.deleteProgram(program); this.programs[programName] = null; return null; } this.programs[programName] = program; this.uniformLocations[programName] = {}; this.attributeLocations[programName] = {}; console.log(`Program '${programName}' created/linked.`); return program; }
-    createDynamicProgram(programName, geometryTypeName, projectionMethodName) { const vsName = this.options.baseVertexShaderName; const vsInfo = this.shaderSources[vsName]; if (!vsInfo) { console.error(`Base VS source '${vsName}' missing.`); return null; } const vs = this._compileShader(vsName, vsInfo.source, vsInfo.type); if (!vs) return null; const geom = this.geometryManager.getGeometry(geometryTypeName); const proj = this.projectionManager.getProjection(projectionMethodName); if (!geom || !proj) { console.error(`Geom/Proj provider missing.`); return null; } const geomGLSL = geom.getShaderCode(); const projGLSL = proj.getShaderCode(); if (typeof geomGLSL !== 'string' || typeof projGLSL !== 'string') { console.error(`Invalid GLSL returned.`); return null; } const fsName = this.options.baseFragmentShaderName; const fsInfo = this.shaderSources[fsName]; if (!fsInfo) { console.error(`Base FS source '${fsName}' missing.`); return null; } let fsSource = fsInfo.source; fsSource = fsSource.replace('//__GEOMETRY_CODE_INJECTION_POINT__', geomGLSL); fsSource = fsSource.replace('//__PROJECTION_CODE_INJECTION_POINT__', projGLSL); const fsId = `fragment-${geometryTypeName}-${projectionMethodName}`; const fs = this._compileShader(fsId, fsSource, fsInfo.type); if (!fs) return null; const newProg = this._createProgram(programName, vs, fs); if (this.currentProgramName === programName) { if (newProg) { this.gl.useProgram(newProg); } else { this.gl.useProgram(null); this.currentProgramName = null; console.error(`Failed rebuild active program '${programName}'.`); } } return newProg; }
+    createDynamicProgram(programName, polytopeName, geometryTypeName, projectionMethodName) {
+        // NEW: Support both polytope (Tier 2) and geometry type (Tier 3)
+        // For backward compatibility, if only 3 args provided, treat 2nd arg as polytope and default geometry to 'lattice'
+        if (arguments.length === 3) {
+            projectionMethodName = arguments[2];
+            polytopeName = arguments[1];
+            geometryTypeName = 'lattice'; // default geometry
+        }
+
+        const vsName = this.options.baseVertexShaderName;
+        const vsInfo = this.shaderSources[vsName];
+        if (!vsInfo) { console.error(`Base VS source '${vsName}' missing.`); return null; }
+        const vs = this._compileShader(vsName, vsInfo.source, vsInfo.type);
+        if (!vs) return null;
+
+        // NEW: Use generatePolytopeGeometryShader to combine polytope + geometry
+        const geomGLSL = this.geometryManager.generatePolytopeGeometryShader(polytopeName, geometryTypeName);
+        const proj = this.projectionManager.getProjection(projectionMethodName);
+        if (!proj) { console.error(`Projection provider missing.`); return null; }
+        const projGLSL = proj.getShaderCode();
+
+        if (typeof geomGLSL !== 'string' || typeof projGLSL !== 'string') { console.error(`Invalid GLSL returned.`); return null; }
+
+        const fsName = this.options.baseFragmentShaderName;
+        const fsInfo = this.shaderSources[fsName];
+        if (!fsInfo) { console.error(`Base FS source '${fsName}' missing.`); return null; }
+
+        let fsSource = fsInfo.source;
+        fsSource = fsSource.replace('//__GEOMETRY_CODE_INJECTION_POINT__', geomGLSL);
+        fsSource = fsSource.replace('//__PROJECTION_CODE_INJECTION_POINT__', projGLSL);
+
+        const fsId = `fragment-${polytopeName}-${geometryTypeName}-${projectionMethodName}`;
+        const fs = this._compileShader(fsId, fsSource, fsInfo.type);
+        if (!fs) return null;
+
+        const newProg = this._createProgram(programName, vs, fs);
+        if (this.currentProgramName === programName) {
+            if (newProg) { this.gl.useProgram(newProg); }
+            else { this.gl.useProgram(null); this.currentProgramName = null; console.error(`Failed rebuild active program '${programName}'.`); }
+        }
+        return newProg;
+    }
     useProgram(programName) { if (programName === null) { if (this.currentProgramName !== null) { try { this.gl.useProgram(null); } catch(e){} this.currentProgramName = null; } return true; } const program = this.programs[programName]; if (program) { const currentGLProgram = this.gl.getParameter(this.gl.CURRENT_PROGRAM); if (currentGLProgram !== program) { try { this.gl.useProgram(program); } catch(e) { console.error(`useProgram failed for ${programName}`, e); return false;} } this.currentProgramName = programName; return true; } else { console.warn(`Program '${programName}' not found or invalid.`); if (this.currentProgramName === programName) { this.currentProgramName = null; try { this.gl.useProgram(null); } catch(e){} } return false;} }
     getUniformLocation(name) { if (!this.currentProgramName || !this.programs[this.currentProgramName]) { return null; } const cache = this.uniformLocations[this.currentProgramName]; if (cache.hasOwnProperty(name)) { return cache[name]; } const loc = this.gl.getUniformLocation(this.programs[this.currentProgramName], name); cache[name] = loc; return loc; }
     getAttributeLocation(name) { if (!this.currentProgramName || !this.programs[this.currentProgramName]) { return null; } const cache = this.attributeLocations[this.currentProgramName]; if (cache.hasOwnProperty(name)) { return cache[name]; } const loc = this.gl.getAttribLocation(this.programs[this.currentProgramName], name); cache[name] = (loc === -1) ? null : loc; return cache[name]; }

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'synth_parameters.dart';
+import 'visualizer_configuration.dart';
 import '../design_system/design_system.dart';
 
 /// Advanced parameter-to-visualizer binding engine for Morph-UI
@@ -13,19 +14,26 @@ class ParameterVisualizerBridge extends ChangeNotifier {
 
   /// Active parameter bindings: Flutter parameter -> Visualizer parameter
   final Map<String, VisualizerBinding> _bindings = {};
-  
+
   /// Real-time parameter values cache for smooth updates
   final Map<String, double> _parameterCache = {};
-  
+
   /// Visual feedback colors for each parameter
   final Map<String, Color> _parameterColors = {};
-  
-  /// Update callback for visualizer
+
+  /// Current visualizer configuration (Tiers 1-3)
+  VisualizerConfiguration _configuration = const VisualizerConfiguration();
+  VisualizerConfiguration get configuration => _configuration;
+
+  /// Update callback for visualizer numeric parameters
   Function(String, double)? _visualizerUpdateCallback;
-  
+
+  /// Update callback for visualizer configuration changes
+  Function(Map<String, dynamic>)? _configurationUpdateCallback;
+
   /// Tinting callback for UI elements
   Function(String, Color, double)? _uiTintCallback;
-  
+
   /// Connection status
   bool _isConnected = false;
   bool get isConnected => _isConnected;
@@ -154,17 +162,55 @@ class ParameterVisualizerBridge extends ChangeNotifier {
   /// Initialize the bridge with callbacks
   void initialize({
     required Function(String, double) visualizerUpdateCallback,
+    Function(Map<String, dynamic>)? configurationUpdateCallback,
     Function(String, Color, double)? uiTintCallback,
   }) {
     _visualizerUpdateCallback = visualizerUpdateCallback;
+    _configurationUpdateCallback = configurationUpdateCallback;
     _uiTintCallback = uiTintCallback;
     _isConnected = true;
-    
+
     // Set up default bindings
     _setupDefaultBindings();
-    
+
+    // Send initial configuration to visualizer
+    _updateVisualizerConfiguration();
+
     debugPrint('ParameterVisualizerBridge initialized with ${_bindings.length} bindings');
     notifyListeners();
+  }
+
+  /// Update visualizer family (Tier 1)
+  void setVisualizerFamily(VisualizerFamily family) {
+    _configuration = _configuration.copyWith(family: family);
+    _updateVisualizerConfiguration();
+    debugPrint('Visualizer family changed to: ${family.displayName}');
+    notifyListeners();
+  }
+
+  /// Update polytope (Tier 2)
+  void setPolytope(Polytope polytope) {
+    _configuration = _configuration.copyWith(polytope: polytope);
+    _updateVisualizerConfiguration();
+    debugPrint('Polytope changed to: ${polytope.displayName}');
+    notifyListeners();
+  }
+
+  /// Update geometry type (Tier 3)
+  void setGeometryType(GeometryType geometryType) {
+    _configuration = _configuration.copyWith(geometryType: geometryType);
+    _updateVisualizerConfiguration();
+    debugPrint('Geometry type changed to: ${geometryType.displayName}');
+    notifyListeners();
+  }
+
+  /// Send the current configuration to the visualizer
+  void _updateVisualizerConfiguration() {
+    if (_configurationUpdateCallback != null && _isConnected) {
+      final configData = _configuration.toJson();
+      _configurationUpdateCallback!(configData);
+      debugPrint('Sent configuration to visualizer: $configData');
+    }
   }
   
   /// Create a binding between a Flutter parameter and visualizer parameter
