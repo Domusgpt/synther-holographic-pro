@@ -22,8 +22,20 @@ const _parameterMap = {
     // Oscillator parameters
     'waveformType': { target: 'colorShift', scale: (v) => v / 5 }, // Oscillator waveform type (e.g., enum index 0-5 from Flutter) shifts base colors (0-1 range for shader).
     'oscillatorVolume': { target: 'universeModifier', scale: (v) => 0.5 + v * 1.5 }, // Oscillator volume (0-1) modifies a 'universe' visual parameter (0.5-2.0).
-    'oscillatorFrequency': { target: 'pulseSpeed', scale: (v) => v * 2.0} // Normalized frequency (0-1 from Flutter) affects pulsing speed of some elements.
+    'oscillatorFrequency': { target: 'pulseSpeed', scale: (v) => v * 2.0}, // Normalized frequency (0-1 from Flutter) affects pulsing speed of some elements.
+
+    // NEW: 7-band levels for LayerManager (Phase 2)
+    'band0': { target: '_band0', scale: (v) => v }, //Sub Bass
+    'band1': { target: '_band1', scale: (v) => v }, // Bass
+    'band2': { target: '_band2', scale: (v) => v }, // Low Mids
+    'band3': { target: '_band3', scale: (v) => v }, // Mids
+    'band4': { target: '_band4', scale: (v) => v }, // High Mids
+    'band5': { target: '_band5', scale: (v) => v }, // Presence
+    'band6': { target: '_band6', scale: (v) => v }, // Brilliance
 };
+
+// NEW: Store 7-band levels for LayerManager
+window._current7BandLevels = [0, 0, 0, 0, 0, 0, 0];
 
 window.visualizerCoreIsReady = false;
 
@@ -53,22 +65,36 @@ function initializeFlutterBridge() {
             console.warn('updateVisualizerParameter: visualParams not found!');
             // return; // Might still want to update core if params object is missing for some reason
         }
-        
+
         const mapping = _parameterMap[name];
         if (mapping) {
             const scaledValue = mapping.scale(value);
-            
+
+            // NEW: Handle band levels for 5-layer system
+            if (name.startsWith('band')) {
+                const bandIndex = parseInt(name.substring(4)); // Extract number from 'band0', 'band1', etc.
+                if (bandIndex >= 0 && bandIndex < 7) {
+                    window._current7BandLevels[bandIndex] = scaledValue;
+
+                    // Update the visualizer core with complete band array
+                    if (window.mainVisualizerCore.updateBandLevels) {
+                        window.mainVisualizerCore.updateBandLevels(window._current7BandLevels);
+                    }
+                }
+                return; // Band parameters don't go through normal parameter system
+            }
+
             if (window.visualParams) {
                 window.visualParams[mapping.target] = scaledValue;
             } else {
                  // If visualParams is missing, at least try to update the core directly
                  console.warn('visualParams object not found, attempting direct core update for:', mapping.target);
             }
-            
+
             window.mainVisualizerCore.updateParameters({
                 [mapping.target]: scaledValue
             });
-            
+
             if (window.updateSlider) { // For local UI sliders in visualizer page
                 window.updateSlider(mapping.target, scaledValue);
             }
@@ -138,10 +164,10 @@ function initializeFlutterBridge() {
             window.mainVisualizerCore.updateParameters({ geometryType: configData.geometryType });
         }
 
-        // Visualizer family (Tier 1) - TODO: Implement when family renderers are ready
+        // Visualizer family (Tier 1) - Phase 3 implementation
         if (configData.family) {
-            console.log(`Visualizer family set to: ${configData.family} (family rendering not yet implemented)`);
-            // Future: Switch between Faceted/Quantum/Holographic renderers
+            console.log(`Visualizer family set to: ${configData.family}`);
+            window.mainVisualizerCore.updateParameters({ visualizerFamily: configData.family });
         }
     };
     

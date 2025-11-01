@@ -212,6 +212,19 @@ class ParameterVisualizerBridge extends ChangeNotifier {
       debugPrint('Sent configuration to visualizer: $configData');
     }
   }
+
+  /// Update 7-band levels for 5-layer system
+  /// This sends raw band data to JavaScript LayerManager
+  void updateBandLevels(List<double> bandLevels) {
+    if (!_isConnected || _visualizerUpdateCallback == null) return;
+    if (bandLevels.length != 7) return;
+
+    // Send band levels as a special parameter
+    // JavaScript will handle this to update LayerManager
+    for (int i = 0; i < 7; i++) {
+      _visualizerUpdateCallback!('band$i', bandLevels[i]);
+    }
+  }
   
   /// Create a binding between a Flutter parameter and visualizer parameter
   void createBinding({

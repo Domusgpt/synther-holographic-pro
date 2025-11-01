@@ -85,6 +85,9 @@ class AudioReactiveController extends ChangeNotifier {
     }
 
     _calculateDerivedParameters();
+
+    // NEW: Send band levels to JavaScript for 5-layer system
+    _visualBridge.updateBandLevels(_bandSmoothed);
   }
 
   void _calculateDerivedParameters() {

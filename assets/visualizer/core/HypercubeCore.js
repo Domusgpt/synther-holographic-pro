@@ -1,10 +1,12 @@
-/* core/HypercubeCore.js - v1.4 */
+/* core/HypercubeCore.js - v2.0 - 5-Layer System */
 import ShaderManager from './ShaderManager.js';
+import LayerManager from './RotationLayer.js';
 
 const DEFAULT_STATE = {
     startTime: 0, lastUpdateTime: 0, deltaTime: 0, time: 0.0, resolution: [0, 0],
-    polytope: 'hypercube', // NEW: Tier 2 - Polytope (hypercube/hypersphere/hypertetrahedron)
-    geometryType: 'lattice', // NEW: Tier 3 - Geometry Type (lattice/ribbon/particle/etc)
+    visualizerFamily: 'holographic', // NEW: Tier 1 - Visualizer Family (faceted/quantum/holographic)
+    polytope: 'hypercube', // Tier 2 - Polytope (hypercube/hypersphere/hypertetrahedron)
+    geometryType: 'lattice', // Tier 3 - Geometry Type (lattice/ribbon/particle/etc)
     projectionMethod: 'perspective', dimensions: 4.0,
     morphFactor: 0.5, rotationSpeed: 0.2, universeModifier: 1.0, patternIntensity: 1.0,
     gridDensity: 8.0, lineThickness: 0.03, shellWidth: 0.025, tetraThickness: 0.035,
@@ -18,7 +20,14 @@ const DEFAULT_STATE = {
 
 class HypercubeCore {
     constructor(canvas, shaderManager, options = {}) {
-        if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error("Valid HTMLCanvasElement needed."); if (!shaderManager || !(shaderManager instanceof ShaderManager)) throw new Error("Valid ShaderManager needed."); this.canvas = canvas; this.gl = shaderManager.gl; this.shaderManager = shaderManager; this.quadBuffer = null; this.aPositionLoc = -1; this.state = { ...DEFAULT_STATE, ...options, colorScheme: { ...DEFAULT_STATE.colorScheme, ...(options.colorScheme || {}) }, audioLevels: { ...DEFAULT_STATE.audioLevels, ...(options.audioLevels || {}) }, callbacks: { ...DEFAULT_STATE.callbacks, ...(options.callbacks || {}) }, _dirtyUniforms: new Set() }; this.state.lineThickness = options.lineThickness ?? DEFAULT_STATE.lineThickness; this.state.shellWidth = options.shellWidth ?? DEFAULT_STATE.shellWidth; this.state.tetraThickness = options.tetraThickness ?? DEFAULT_STATE.tetraThickness; this._markAllUniformsDirty(); if (options.geometryType) this.state.geometryType = options.geometryType; if (options.projectionMethod) this.state.projectionMethod = options.projectionMethod; if (options.shaderProgramName) this.state.shaderProgramName = options.shaderProgramName; try { this._setupWebGLState(); this._initBuffers(); this.state.needsShaderUpdate = true; this._updateShaderIfNeeded(); } catch (error) { console.error("HypercubeCore Init Error:", error); this.state.callbacks.onError?.(error); }
+        if (!canvas || !(canvas instanceof HTMLCanvasElement)) throw new Error("Valid HTMLCanvasElement needed."); if (!shaderManager || !(shaderManager instanceof ShaderManager)) throw new Error("Valid ShaderManager needed."); this.canvas = canvas; this.gl = shaderManager.gl; this.shaderManager = shaderManager; this.quadBuffer = null; this.aPositionLoc = -1;
+
+        // NEW: Initialize 5-layer system
+        this.layerManager = new LayerManager();
+        this.lastFrameTime = 0;
+        this._bandLevels = [0, 0, 0, 0, 0, 0, 0]; // 7-band analyzer levels
+
+        this.state = { ...DEFAULT_STATE, ...options, colorScheme: { ...DEFAULT_STATE.colorScheme, ...(options.colorScheme || {}) }, audioLevels: { ...DEFAULT_STATE.audioLevels, ...(options.audioLevels || {}) }, callbacks: { ...DEFAULT_STATE.callbacks, ...(options.callbacks || {}) }, _dirtyUniforms: new Set() }; this.state.lineThickness = options.lineThickness ?? DEFAULT_STATE.lineThickness; this.state.shellWidth = options.shellWidth ?? DEFAULT_STATE.shellWidth; this.state.tetraThickness = options.tetraThickness ?? DEFAULT_STATE.tetraThickness; this._markAllUniformsDirty(); if (options.geometryType) this.state.geometryType = options.geometryType; if (options.projectionMethod) this.state.projectionMethod = options.projectionMethod; if (options.shaderProgramName) this.state.shaderProgramName = options.shaderProgramName; try { this._setupWebGLState(); this._initBuffers(); this.state.needsShaderUpdate = true; this._updateShaderIfNeeded(); } catch (error) { console.error("HypercubeCore Init Error:", error); this.state.callbacks.onError?.(error); }
     }
 
     _markAllUniformsDirty() { this.state._dirtyUniforms = new Set(); for (const key in DEFAULT_STATE) { if (['_dirtyUniforms', 'isRendering', 'animationFrameId', 'callbacks', 'startTime', 'lastUpdateTime', 'deltaTime', 'needsShaderUpdate', 'polytope', 'geometryType', 'projectionMethod', 'shaderProgramName'].includes(key)) continue; this._markUniformDirty(key); } }
@@ -27,6 +36,64 @@ class HypercubeCore {
     _initBuffers() { const gl = this.gl; const pos = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]); this.quadBuffer = gl.createBuffer(); if (!this.quadBuffer) throw new Error("Buffer creation failed."); gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER, null); }
     _updateShaderIfNeeded() { if (!this.state.needsShaderUpdate) return true; const progName=this.state.shaderProgramName, polytopeName=this.state.polytope, geomName=this.state.geometryType, projName=this.state.projectionMethod; console.log(`Updating shader '${progName}' (Polytope:${polytopeName}, Geom:${geomName}, Proj:${projName})`); const program = this.shaderManager.createDynamicProgram(progName, polytopeName, geomName, projName); if (!program) { console.error(`Shader update failed.`); this.state.callbacks.onError?.(new Error(`Shader update failed`)); this.stop(); return false; } this.state.needsShaderUpdate = false; this.shaderManager.useProgram(progName); this.aPositionLoc = this.shaderManager.getAttributeLocation('a_position'); if (this.aPositionLoc === null) { console.warn(`Attr 'a_position' missing.`); } else { try { this.gl.enableVertexAttribArray(this.aPositionLoc); } catch (e) { console.error(`Enable attr error:`, e); this.aPositionLoc = -1; } } this._markAllUniformsDirty(); console.log(`Shader updated.`); return true; }
     updateParameters(newParams) { let shaderNeedsUpdate = false; for (const key in newParams) { if (!Object.hasOwnProperty.call(this.state, key)) continue; const oldValue = this.state[key]; const newValue = newParams[key]; let changed = false; if (typeof oldValue === 'object' && oldValue !== null && !Array.isArray(oldValue)) { if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) { this.state[key] = { ...oldValue, ...newValue }; changed = true; if (key === 'colorScheme') { if (newValue.hasOwnProperty('primary')) this._markUniformDirty('colorScheme.primary'); if (newValue.hasOwnProperty('secondary')) this._markUniformDirty('colorScheme.secondary'); if (newValue.hasOwnProperty('background')) this._markUniformDirty('colorScheme.background'); } else if (key === 'audioLevels') { if (newValue.hasOwnProperty('bass')) this._markUniformDirty('audioLevels.bass'); if (newValue.hasOwnProperty('mid')) this._markUniformDirty('audioLevels.mid'); if (newValue.hasOwnProperty('high')) this._markUniformDirty('audioLevels.high'); } } } else if (JSON.stringify(oldValue) !== JSON.stringify(newValue)) { this.state[key] = newValue; changed = true; this._markUniformDirty(key); if (key === 'polytope' || key === 'geometryType' || key === 'projectionMethod') { shaderNeedsUpdate = true; } } } if (shaderNeedsUpdate) { this.state.needsShaderUpdate = true; } }
+
+    /**
+     * NEW: Update 7-band levels for layer system
+     * @param {Array<number>} bandLevels - Array of 7 band energy levels (0-1)
+     */
+    updateBandLevels(bandLevels) {
+        if (!this.layerManager || !Array.isArray(bandLevels) || bandLevels.length < 7) return;
+
+        // Store for layer updates
+        this._bandLevels = bandLevels;
+
+        // Also update legacy audio levels (bass, mid, high) for backward compatibility
+        this.state.audioLevels.bass = (bandLevels[0] + bandLevels[1]) / 2;
+        this.state.audioLevels.mid = (bandLevels[2] + bandLevels[3]) / 2;
+        this.state.audioLevels.high = (bandLevels[4] + bandLevels[5] + bandLevels[6]) / 3;
+        this._markUniformDirty('audioLevels');
+    }
+
+    /**
+     * NEW: Apply visualizer family-specific rendering modifiers (Phase 3)
+     * Modifies visual parameters based on selected family
+     */
+    _applyFamilyModifiers() {
+        const family = this.state.visualizerFamily || 'holographic';
+
+        switch (family) {
+            case 'faceted':
+                // Faceted: Sharp, crystalline, geometric - Subtractive synthesis aesthetic
+                // Emphasize: Sharp edges, high contrast, discrete rotations
+                this.state.lineThickness = Math.min(this.state.lineThickness * 1.3, 0.09); // Thicker lines
+                this.state.glitchIntensity = Math.min(this.state.glitchIntensity * 1.5, 0.2); // More artifacts
+                // Reduce morphFactor for more discrete, stepped appearance
+                this.state.morphFactor = this.state.morphFactor * 0.7;
+                // Increase pattern intensity for high contrast
+                this.state.patternIntensity = Math.min(this.state.patternIntensity * 1.3, 3.0);
+                break;
+
+            case 'quantum':
+                // Quantum: Probabilistic, particle-based - Granular synthesis aesthetic
+                // Emphasize: Particle clouds, swarm behavior, organic movement
+                this.state.lineThickness = Math.max(this.state.lineThickness * 0.6, 0.005); // Thinner lines (particle-like)
+                this.state.gridDensity = Math.min(this.state.gridDensity * 1.4, 20.0); // Higher density (more particles)
+                // Increase morph factor for more organic, flowing behavior
+                this.state.morphFactor = Math.min(this.state.morphFactor * 1.4, 2.0);
+                // Reduce pattern intensity for softer, cloudier appearance
+                this.state.patternIntensity = this.state.patternIntensity * 0.8;
+                break;
+
+            case 'holographic':
+            default:
+                // Holographic: Translucent, layered, ethereal - Additive synthesis aesthetic
+                // Emphasize: Transparency, depth, shimmer
+                // Keep base values (default), add subtle enhancements
+                this.state.colorShift = Math.min(this.state.colorShift + 0.1, 1.0); // Slight hue shift
+                // Pattern intensity remains balanced
+                break;
+        }
+    }
     _checkResize() { const gl=this.gl, c=this.canvas, dw=c.clientWidth, dh=c.clientHeight; if(c.width!==dw || c.height!==dh){ c.width=dw; c.height=dh; gl.viewport(0,0,dw,dh); this.state.resolution=[dw,dh]; this._markUniformDirty('resolution'); return true; } return false; }
     _setUniforms() {
         const gl = this.gl; const dirty = this.state._dirtyUniforms; const programName = this.state.shaderProgramName;
@@ -84,7 +151,22 @@ class HypercubeCore {
         });
         this.state._dirtyUniforms = stillDirtyUniforms; // Only retain uniforms that genuinely need retry or were unhandled.
     }
-    _render(timestamp) { if (!this.state.isRendering) return; const gl = this.gl; if (!gl || gl.isContextLost()) { console.error(`Context lost.`); this.stop(); this.state.callbacks.onError?.(new Error("WebGL context lost")); return; } if (!this.state.startTime) this.state.startTime = timestamp; const currentTime = (timestamp - this.state.startTime) * 0.001; this.state.deltaTime = currentTime - this.state.time; this.state.time = currentTime; this.state.lastUpdateTime = timestamp; this._markUniformDirty('time'); this._checkResize(); if (this.state.needsShaderUpdate) { if (!this._updateShaderIfNeeded()) { return; } } this._setUniforms(); const bg = this.state.colorScheme.background; gl.clearColor(bg[0], bg[1], bg[2], 1.0); gl.clear(gl.COLOR_BUFFER_BIT); if (this.quadBuffer && this.aPositionLoc !== null && this.aPositionLoc >= 0) { try { gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer); /*gl.enableVertexAttribArray(this.aPositionLoc);*/ gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } catch (e) { console.error("Draw error:", e); this.stop(); this.state.callbacks.onError?.(new Error("WebGL draw error")); } } this.state.callbacks.onRender?.(this.state); this.state.animationFrameId = requestAnimationFrame(this._render.bind(this)); }
+    _render(timestamp) { if (!this.state.isRendering) return; const gl = this.gl; if (!gl || gl.isContextLost()) { console.error(`Context lost.`); this.stop(); this.state.callbacks.onError?.(new Error("WebGL context lost")); return; } if (!this.state.startTime) this.state.startTime = timestamp; const currentTime = (timestamp - this.state.startTime) * 0.001; this.state.deltaTime = currentTime - this.state.time; this.state.time = currentTime; this.state.lastUpdateTime = timestamp; this._markUniformDirty('time');
+
+        // NEW: Update 5-layer system with band levels
+        if (this.layerManager && this._bandLevels) {
+            const deltaTimeMs = (timestamp - this.lastFrameTime);
+            this.lastFrameTime = timestamp;
+            this.layerManager.updateAll(this._bandLevels, deltaTimeMs, {
+                rotationSpeed: this.state.rotationSpeed,
+                morphFactor: this.state.morphFactor,
+            });
+        }
+
+        // NEW: Apply visualizer family modifiers before rendering (Phase 3)
+        this._applyFamilyModifiers();
+
+        this._checkResize(); if (this.state.needsShaderUpdate) { if (!this._updateShaderIfNeeded()) { return; } } this._setUniforms(); const bg = this.state.colorScheme.background; gl.clearColor(bg[0], bg[1], bg[2], 1.0); gl.clear(gl.COLOR_BUFFER_BIT); if (this.quadBuffer && this.aPositionLoc !== null && this.aPositionLoc >= 0) { try { gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer); /*gl.enableVertexAttribArray(this.aPositionLoc);*/ gl.vertexAttribPointer(this.aPositionLoc, 2, gl.FLOAT, false, 0, 0); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); } catch (e) { console.error("Draw error:", e); this.stop(); this.state.callbacks.onError?.(new Error("WebGL draw error")); } } this.state.callbacks.onRender?.(this.state); this.state.animationFrameId = requestAnimationFrame(this._render.bind(this)); }
     start() { if (this.state.isRendering) return; if (!this.gl || this.gl.isContextLost()) { console.error(`Cannot start, WebGL context invalid.`); return; } console.log(`Starting render loop.`); this.state.isRendering = true; this.state.startTime = performance.now(); this.state.time = 0; this.state.lastUpdateTime = this.state.startTime; if (this.state.needsShaderUpdate) { if (!this._updateShaderIfNeeded()) { console.error(`Initial shader update failed.`); this.state.isRendering = false; return; } } else if (this.aPositionLoc === null || this.aPositionLoc < 0) { this.aPositionLoc = this.shaderManager.getAttributeLocation('a_position'); if (this.aPositionLoc === null || this.aPositionLoc < 0) { console.error(`Attr 'a_position' invalid.`); this.state.isRendering = false; return; } } if (this.aPositionLoc !== null && this.aPositionLoc >=0) { try { this.gl.enableVertexAttribArray(this.aPositionLoc); } catch (e) { console.error("Enable attr error during start:", e); this.state.isRendering = false; return; } } this._markAllUniformsDirty(); this.state.animationFrameId = requestAnimationFrame(this._render.bind(this)); }
     stop() { if (!this.state.isRendering) return; console.log(`Stopping render loop.`); if (this.state.animationFrameId) { cancelAnimationFrame(this.state.animationFrameId); } this.state.isRendering = false; this.state.animationFrameId = null; }
     dispose() { const name = this.state?.shaderProgramName || 'Unknown'; console.log(`Disposing HypercubeCore (${name})...`); this.stop(); if (this.gl && !this.gl.isContextLost()) { try { if (this.quadBuffer) this.gl.deleteBuffer(this.quadBuffer); if (this.shaderManager?.dispose) { this.shaderManager.dispose(); } const loseCtx = this.gl.getExtension('WEBGL_lose_context'); loseCtx?.loseContext(); } catch(e) { console.warn(`WebGL cleanup error:`, e); } } this.quadBuffer = null; this.gl = null; this.canvas = null; this.shaderManager = null; this.state = {}; console.log(`HypercubeCore (${name}) disposed.`); }
