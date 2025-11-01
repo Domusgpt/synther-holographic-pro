@@ -12,11 +12,15 @@ import '../ui/holographic/holographic_theme.dart';
 /// - High Mids: 2000-4000 Hz
 /// - Presence: 4000-6000 Hz
 /// - Brilliance: 6000-20000 Hz
+///
+/// Can run headless (headless: true) for background audio analysis
+/// without rendering any UI components.
 class SevenBandAnalyzer extends StatefulWidget {
   final double width;
   final double height;
   final bool showLabels;
   final bool showPeakHold;
+  final bool headless; // Run without UI rendering
   final Color? primaryColor;
   final Color? secondaryColor;
   final Function(List<double>)? onBandLevelsUpdate;
@@ -27,6 +31,7 @@ class SevenBandAnalyzer extends StatefulWidget {
     this.height = 120,
     this.showLabels = true,
     this.showPeakHold = true,
+    this.headless = false,
     this.primaryColor,
     this.secondaryColor,
     this.onBandLevelsUpdate,
@@ -118,6 +123,11 @@ class _SevenBandAnalyzerState extends State<SevenBandAnalyzer>
 
   @override
   Widget build(BuildContext context) {
+    // Headless mode: return invisible widget but keep analysis running
+    if (widget.headless) {
+      return const SizedBox.shrink();
+    }
+
     final primaryColor = widget.primaryColor ?? HolographicTheme.primaryEnergy;
     final secondaryColor = widget.secondaryColor ?? HolographicTheme.secondaryEnergy;
 
