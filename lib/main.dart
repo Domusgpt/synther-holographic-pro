@@ -17,8 +17,8 @@ import 'core/synth_parameters.dart';
 // Firebase Services
 import 'services/firebase_service.dart';
 
-// Professional Synthesizer Interface (Complete)
-import 'ui/professional_synthesizer_interface.dart';
+// Unified Holographic Interface (Audio-Reactive with Visual System Controls)
+import 'ui/unified_holographic_interface.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -124,7 +124,7 @@ class SyntherApp extends StatelessWidget {
         primarySwatch: Colors.cyan,
         visualDensity: VisualDensity.adaptivePlatformDensity,
       ),
-      home: const ProfessionalSynthesizerInterface(),
+      home: const UnifiedHolographicInterface(),
     );
   }
 }
