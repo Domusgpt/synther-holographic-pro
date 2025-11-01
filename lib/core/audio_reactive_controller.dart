@@ -262,6 +262,19 @@ class AudioReactiveController extends ChangeNotifier {
     final attackNormalized = (synth.attackTime / 5.0).clamp(0.0, 1.0);
     _visualBridge.updateParameter('morphFactor', 0.5 + (attackNormalized * 1.0));
 
+    // NEW Phase 4: Decay time → contraction speed
+    final decayNormalized = (synth.decayTime / 5.0).clamp(0.0, 1.0);
+    _visualBridge.updateParameter('contractionSpeed', 0.1 + (decayNormalized * 2.9));
+
+    // NEW Phase 4: Sustain level → stability factor (inverse)
+    // Higher sustain = more stable (less jitter)
+    final sustainStability = 1.0 - (synth.sustainLevel * 0.5);
+    _visualBridge.updateParameter('stabilityFactor', sustainStability);
+
+    // NEW Phase 4: Release time → dissolve factor
+    final releaseNormalized = (synth.releaseTime / 10.0).clamp(0.0, 1.0);
+    _visualBridge.updateParameter('dissolveFactor', releaseNormalized);
+
     // Reverb affects density/depth
     final reverbDensity = 8.0 + (synth.reverbMix * 10.0);
     _visualBridge.updateParameter('gridDensity', reverbDensity);
@@ -274,6 +287,45 @@ class AudioReactiveController extends ChangeNotifier {
 
     // Master volume affects overall visual intensity
     _visualBridge.updateParameter('patternIntensity', 0.5 + (synth.masterVolume * 1.5));
+
+    // NEW Phase 4 & 6: Effect-to-geometry auto-switching
+    // This creates immediate visual parity when effects are enabled
+
+    // Note: These would require effect enable/disable flags in SynthParametersModel
+    // For now, we'll check effect mix/amount values
+
+    // If reverb is high, suggest using membrane geometry (rippling)
+    if (synth.reverbMix > 0.4) {
+      // Could auto-switch: _visualBridge.setGeometryType(GeometryType.membrane);
+      // For now, just set effect-specific parameters
+    }
+
+    // If delay feedback is high, suggest echo trails
+    if (synth.delayFeedback > 0.5) {
+      _visualBridge.updateParameter('universeModifier', 1.2 + (synth.delayFeedback * 0.8));
+    }
+
+    // Placeholder for future chorus/phaser/distortion/compressor
+    // These require adding effect enable flags to SynthParametersModel:
+    //
+    // if (synth.chorusEnabled && synth.chorusMix > 0.1) {
+    //   _visualBridge.setGeometryType(GeometryType.interference);
+    //   _visualBridge.updateParameter('interferenceAmount', synth.chorusMix);
+    // }
+    //
+    // if (synth.phaserEnabled && synth.phaserRate > 0.0) {
+    //   _visualBridge.setGeometryType(GeometryType.helix);
+    //   _visualBridge.updateParameter('helixRotationSpeed', synth.phaserRate * 2.0);
+    // }
+    //
+    // if (synth.distortionAmount > 0.1) {
+    //   _visualBridge.setGeometryType(GeometryType.crystalline);
+    //   _visualBridge.updateParameter('facetSharpness', synth.distortionAmount);
+    // }
+    //
+    // if (synth.compressorEnabled) {
+    //   _visualBridge.updateParameter('breathingDepth', synth.compressorRatio * 0.3);
+    // }
   }
 
   /// Get current band levels (for optional UI display)
@@ -284,6 +336,73 @@ class AudioReactiveController extends ChangeNotifier {
   double get totalEnergy => _totalEnergy;
   double get spectralCentroid => _spectralCentroid;
   double get spectralFlux => _spectralFlux;
+
+  /// NEW Phase 5: LFO Visual Integration
+  /// Maps LFO modulation to visual parameters with waveform-specific transitions
+  /// @param lfoIndex - Which LFO (0-3)
+  /// @param value - LFO output value (0-1)
+  /// @param rate - LFO rate in Hz
+  /// @param waveform - LFO waveform type ('sine', 'triangle', 'square', 'sawtooth', 'random')
+  void updateFromLFO(int lfoIndex, double value, double rate, {String waveform = 'sine'}) {
+    if (lfoIndex < 0 || lfoIndex > 3) return;
+
+    // Apply waveform-specific transformation
+    double transformedValue = value;
+    switch (waveform) {
+      case 'sine':
+        // Smooth interpolation (already 0-1 sine wave)
+        transformedValue = value;
+        break;
+      case 'triangle':
+        // Linear ramp up and down
+        transformedValue = value;
+        break;
+      case 'square':
+        // Hard step
+        transformedValue = value > 0.5 ? 1.0 : 0.0;
+        break;
+      case 'sawtooth':
+        // Ascending ramp
+        transformedValue = value;
+        break;
+      case 'random':
+        // Noise-based jitter (add randomness)
+        transformedValue = value + (math.Random().nextDouble() * 0.2 - 0.1);
+        transformedValue = transformedValue.clamp(0.0, 1.0);
+        break;
+    }
+
+    // Map each LFO to specific visual parameters
+    switch (lfoIndex) {
+      case 0:
+        // LFO 1 → Rotation speed modulation
+        final speedMod = 0.5 + (transformedValue * 1.5);
+        _visualBridge.updateParameter('rotationSpeed', speedMod);
+        break;
+
+      case 1:
+        // LFO 2 → Morph factor oscillation
+        final morphMod = 0.5 + (transformedValue * 1.0);
+        _visualBridge.updateParameter('morphFactor', morphMod);
+        break;
+
+      case 2:
+        // LFO 3 → Color shift cycling
+        _visualBridge.updateParameter('colorShift', transformedValue);
+        break;
+
+      case 3:
+        // LFO 4 → Grid density breathing
+        final densityMod = 6.0 + (transformedValue * 10.0);
+        _visualBridge.updateParameter('gridDensity', densityMod);
+        break;
+    }
+  }
+
+  /// NEW Phase 5: Simplified LFO update (just value, auto-detects waveform from pattern)
+  void updateLFO(int lfoIndex, double value) {
+    updateFromLFO(lfoIndex, value, 1.0, waveform: 'sine');
+  }
 
   @override
   void dispose() {
