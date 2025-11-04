@@ -32,6 +32,28 @@ const _parameterMap = {
     'band4': { target: '_band4', scale: (v) => v }, // High Mids
     'band5': { target: '_band5', scale: (v) => v }, // Presence
     'band6': { target: '_band6', scale: (v) => v }, // Brilliance
+
+    // NEW Phase 4: Envelope parameter mappings
+    'contractionSpeed': { target: 'contractionSpeed', scale: (v) => v }, // Geometry contraction rate (0.1-3.0)
+    'stabilityFactor': { target: 'stabilityFactor', scale: (v) => v }, // Jitter/chaos amount (0-1)
+    'dissolveFactor': { target: 'dissolveFactor', scale: (v) => v }, // Fade-out opacity (0-1)
+
+    // NEW Phase 6: Effect-specific visual parameters
+    'interferenceAmount': { target: 'interferenceAmount', scale: (v) => v }, // Chorus wave intensity (0-1)
+    'helixRotationSpeed': { target: 'helixRotationSpeed', scale: (v) => v }, // Phaser spiral rate (0-4)
+    'facetSharpness': { target: 'facetSharpness', scale: (v) => v }, // Distortion edge definition (0-1)
+    'breathingDepth': { target: 'breathingDepth', scale: (v) => v }, // Compressor scale pulsation (0-1)
+
+    // Direct visual parameter control (for manual/LFO modulation)
+    'rotationSpeed': { target: 'rotationSpeed', scale: (v) => v }, // Overall rotation speed
+    'morphFactor': { target: 'morphFactor', scale: (v) => v }, // Geometry deformation
+    'colorShift': { target: 'colorShift', scale: (v) => v }, // Hue cycling
+    'gridDensity': { target: 'gridDensity', scale: (v) => v }, // Point/line density
+    'glitchIntensity': { target: 'glitchIntensity', scale: (v) => v }, // Artifact intensity
+    'patternIntensity': { target: 'patternIntensity', scale: (v) => v }, // Overall brightness
+    'universeModifier': { target: 'universeModifier', scale: (v) => v }, // Scale/echo effect
+    'dimension': { target: 'dimension', scale: (v) => v }, // Dimensional shift
+    'lineThickness': { target: 'lineThickness', scale: (v) => v }, // Line width
 };
 
 // NEW: Store 7-band levels for LayerManager

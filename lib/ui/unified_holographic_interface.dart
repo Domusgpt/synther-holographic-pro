@@ -8,6 +8,7 @@ import '../widgets/seven_band_analyzer.dart';
 import '../widgets/visual_system_controls.dart';
 import '../widgets/synth_components/holographic_knob.dart';
 import '../widgets/embedded_hyperav_visualizer.dart';
+import '../widgets/visual_effects_test_panel.dart';
 import 'holographic/holographic_theme.dart';
 import 'audio_reactive_ui_effects.dart';
 
@@ -35,6 +36,7 @@ class _UnifiedHolographicInterfaceState
   late AudioReactiveController _audioReactiveController;
 
   bool _showAnalyzerOverlay = false;
+  bool _showTestPanel = false;
 
   @override
   void initState() {
@@ -130,6 +132,16 @@ class _UnifiedHolographicInterfaceState
             ),
           ),
 
+          // Test Panel Overlay (Phase 5 & 6)
+          if (_showTestPanel)
+            Positioned(
+              left: 16,
+              top: 100,
+              bottom: 100,
+              width: 450,
+              child: const VisualEffectsTestPanel(),
+            ),
+
           // Toggle button for debug analyzer
           Positioned(
             bottom: 16,
@@ -145,6 +157,26 @@ class _UnifiedHolographicInterfaceState
               child: Icon(
                 _showAnalyzerOverlay ? Icons.visibility_off : Icons.graphic_eq,
                 color: HolographicTheme.primaryEnergy,
+                size: 20,
+              ),
+            ),
+          ),
+
+          // Toggle button for test panel
+          Positioned(
+            bottom: 16,
+            right: 76,
+            child: FloatingActionButton(
+              mini: true,
+              backgroundColor: HolographicTheme.secondaryEnergy.withOpacity(0.3),
+              onPressed: () {
+                setState(() {
+                  _showTestPanel = !_showTestPanel;
+                });
+              },
+              child: Icon(
+                _showTestPanel ? Icons.visibility_off : Icons.science,
+                color: HolographicTheme.secondaryEnergy,
                 size: 20,
               ),
             ),

@@ -40,6 +40,26 @@ class SynthParametersModel extends ChangeNotifier {
   double _reverbMix = 0.2; // 0-1
   double _delayTime = 0.5; // seconds
   double _delayFeedback = 0.3; // 0-1
+
+  // NEW: Effect enable flags for Phase 6 visual integration
+  bool _chorusEnabled = false;
+  double _chorusMix = 0.5;
+  double _chorusRate = 0.5; // Hz
+  bool _distortionEnabled = false;
+  double _distortionAmount = 0.0;
+  bool _phaserEnabled = false;
+  double _phaserRate = 0.5; // Hz
+  double _phaserDepth = 0.5;
+  bool _compressorEnabled = false;
+  double _compressorRatio = 4.0;
+  bool _flangerEnabled = false;
+  double _flangerDepth = 0.5;
+  double _flangerRate = 0.5; // Hz
+
+  // NEW: LFO parameters for Phase 5 testing
+  final List<double> _lfoValues = List.filled(4, 0.5); // 4 LFOs, values 0-1
+  final List<double> _lfoRates = List.filled(4, 1.0); // Hz
+  final List<String> _lfoWaveforms = ['sine', 'triangle', 'square', 'sawtooth']; // Waveform types
   
   // XY Pad parameters
   double _xyPadX = 0.5; // 0-1
@@ -151,12 +171,32 @@ class SynthParametersModel extends ChangeNotifier {
   int get xyPadCurrentPitchX => xyPadPitch; // Renamed for clarity in getter
 
   GranularParameters get granularParameters => _granularParameters;
-  
+
   // Aliases for morph_app.dart compatibility
   double get attack => _attackTime;
   double get decay => _decayTime;
   double get sustain => _sustainLevel;
   double get release => _releaseTime;
+
+  // NEW: Effect getters
+  bool get chorusEnabled => _chorusEnabled;
+  double get chorusMix => _chorusMix;
+  double get chorusRate => _chorusRate;
+  bool get distortionEnabled => _distortionEnabled;
+  double get distortionAmount => _distortionAmount;
+  bool get phaserEnabled => _phaserEnabled;
+  double get phaserRate => _phaserRate;
+  double get phaserDepth => _phaserDepth;
+  bool get compressorEnabled => _compressorEnabled;
+  double get compressorRatio => _compressorRatio;
+  bool get flangerEnabled => _flangerEnabled;
+  double get flangerDepth => _flangerDepth;
+  double get flangerRate => _flangerRate;
+
+  // NEW: LFO getters
+  double getLFOValue(int index) => (index >= 0 && index < 4) ? _lfoValues[index] : 0.5;
+  double getLFORate(int index) => (index >= 0 && index < 4) ? _lfoRates[index] : 1.0;
+  String getLFOWaveform(int index) => (index >= 0 && index < 4) ? _lfoWaveforms[index] : 'sine';
   
   
   // Setters
@@ -293,6 +333,133 @@ class SynthParametersModel extends ChangeNotifier {
   void setDecay(double value) => setDecayTime(value);
   void setSustain(double value) => setSustainLevel(value);
   void setRelease(double value) => setReleaseTime(value);
+
+  // NEW: Effect setters
+  void setChorusEnabled(bool value) {
+    _chorusEnabled = value;
+    if (_engine.isInitialized) {
+      _engine.setParameter('chorus_enabled', value ? 1.0 : 0.0);
+    }
+    notifyListeners();
+  }
+
+  void setChorusMix(double value) {
+    _chorusMix = value.clamp(0.0, 1.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('chorus_mix', _chorusMix);
+    }
+    notifyListeners();
+  }
+
+  void setChorusRate(double value) {
+    _chorusRate = value.clamp(0.1, 10.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('chorus_rate', _chorusRate);
+    }
+    notifyListeners();
+  }
+
+  void setDistortionEnabled(bool value) {
+    _distortionEnabled = value;
+    if (_engine.isInitialized) {
+      _engine.setParameter('distortion_enabled', value ? 1.0 : 0.0);
+    }
+    notifyListeners();
+  }
+
+  void setDistortionAmount(double value) {
+    _distortionAmount = value.clamp(0.0, 1.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('distortion_amount', _distortionAmount);
+    }
+    notifyListeners();
+  }
+
+  void setPhaserEnabled(bool value) {
+    _phaserEnabled = value;
+    if (_engine.isInitialized) {
+      _engine.setParameter('phaser_enabled', value ? 1.0 : 0.0);
+    }
+    notifyListeners();
+  }
+
+  void setPhaserRate(double value) {
+    _phaserRate = value.clamp(0.1, 10.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('phaser_rate', _phaserRate);
+    }
+    notifyListeners();
+  }
+
+  void setPhaserDepth(double value) {
+    _phaserDepth = value.clamp(0.0, 1.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('phaser_depth', _phaserDepth);
+    }
+    notifyListeners();
+  }
+
+  void setCompressorEnabled(bool value) {
+    _compressorEnabled = value;
+    if (_engine.isInitialized) {
+      _engine.setParameter('compressor_enabled', value ? 1.0 : 0.0);
+    }
+    notifyListeners();
+  }
+
+  void setCompressorRatio(double value) {
+    _compressorRatio = value.clamp(1.0, 20.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('compressor_ratio', _compressorRatio);
+    }
+    notifyListeners();
+  }
+
+  void setFlangerEnabled(bool value) {
+    _flangerEnabled = value;
+    if (_engine.isInitialized) {
+      _engine.setParameter('flanger_enabled', value ? 1.0 : 0.0);
+    }
+    notifyListeners();
+  }
+
+  void setFlangerDepth(double value) {
+    _flangerDepth = value.clamp(0.0, 1.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('flanger_depth', _flangerDepth);
+    }
+    notifyListeners();
+  }
+
+  void setFlangerRate(double value) {
+    _flangerRate = value.clamp(0.1, 10.0);
+    if (_engine.isInitialized) {
+      _engine.setParameter('flanger_rate', _flangerRate);
+    }
+    notifyListeners();
+  }
+
+  // NEW: LFO setters
+  void setLFOValue(int index, double value) {
+    if (index >= 0 && index < 4) {
+      _lfoValues[index] = value.clamp(0.0, 1.0);
+      notifyListeners();
+    }
+  }
+
+  void setLFORate(int index, double value) {
+    if (index >= 0 && index < 4) {
+      _lfoRates[index] = value.clamp(0.01, 20.0);
+      notifyListeners();
+    }
+  }
+
+  void setLFOWaveform(int index, String waveform) {
+    if (index >= 0 && index < 4) {
+      _lfoWaveforms[index] = waveform;
+      notifyListeners();
+    }
+  }
   
   void setXYPadPosition(double x, double y) {
     _xyPadX = x.clamp(0, 1);

@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'parameter_visualizer_bridge.dart';
 import 'synth_parameters.dart';
+import 'effect_visual_integration.dart';
+import 'visualizer_configuration.dart';
 
 /// Audio-Reactive Visual Controller
 ///
@@ -16,6 +18,7 @@ import 'synth_parameters.dart';
 /// - Brilliance (6k-20kHz) → Fine detail, chromatic aberration, sparkle
 class AudioReactiveController extends ChangeNotifier {
   final ParameterVisualizerBridge _visualBridge;
+  late final EffectVisualIntegration _effectVisuals;
 
   // 7-band frequency analysis
   final List<double> _bandLevels = List.filled(7, 0.0);
@@ -52,6 +55,7 @@ class AudioReactiveController extends ChangeNotifier {
   static const double _highDetailSensitivity = 0.15;
 
   AudioReactiveController(this._visualBridge) {
+    _effectVisuals = EffectVisualIntegration(_visualBridge);
     _startReactiveLoop();
   }
 
@@ -288,44 +292,110 @@ class AudioReactiveController extends ChangeNotifier {
     // Master volume affects overall visual intensity
     _visualBridge.updateParameter('patternIntensity', 0.5 + (synth.masterVolume * 1.5));
 
-    // NEW Phase 4 & 6: Effect-to-geometry auto-switching
-    // This creates immediate visual parity when effects are enabled
+    // NEW Phase 6: Effect-to-visual integration with auto-geometry switching
+    _updateEffectVisuals(synth);
 
-    // Note: These would require effect enable/disable flags in SynthParametersModel
-    // For now, we'll check effect mix/amount values
+    // NEW Phase 5: Update LFO-driven visual modulation
+    for (int i = 0; i < 4; i++) {
+      updateFromLFO(
+        i,
+        synth.getLFOValue(i),
+        synth.getLFORate(i),
+        waveform: synth.getLFOWaveform(i),
+      );
+    }
+  }
 
-    // If reverb is high, suggest using membrane geometry (rippling)
+  /// NEW Phase 6: Update effect visual integration
+  void _updateEffectVisuals(SynthParametersModel synth) {
+    // Chorus → Interference geometry
+    if (synth.chorusEnabled && synth.chorusMix > 0.05) {
+      _effectVisuals.enableEffect(
+        EffectType.chorus,
+        parameters: {
+          'mix': synth.chorusMix,
+          'rate': synth.chorusRate,
+        },
+        autoSwitchGeometry: true,
+      );
+    } else {
+      _effectVisuals.disableEffect(EffectType.chorus);
+    }
+
+    // Distortion → Crystalline geometry
+    if (synth.distortionEnabled && synth.distortionAmount > 0.05) {
+      _effectVisuals.enableEffect(
+        EffectType.distortion,
+        parameters: {'amount': synth.distortionAmount},
+        autoSwitchGeometry: true,
+      );
+    } else {
+      _effectVisuals.disableEffect(EffectType.distortion);
+    }
+
+    // Phaser → Helix geometry
+    if (synth.phaserEnabled) {
+      _effectVisuals.enableEffect(
+        EffectType.phaser,
+        parameters: {
+          'rate': synth.phaserRate,
+          'depth': synth.phaserDepth,
+        },
+        autoSwitchGeometry: true,
+      );
+    } else {
+      _effectVisuals.disableEffect(EffectType.phaser);
+    }
+
+    // Compressor → Breathing effect (no geometry change)
+    if (synth.compressorEnabled) {
+      _effectVisuals.enableEffect(
+        EffectType.compressor,
+        parameters: {'ratio': synth.compressorRatio},
+        autoSwitchGeometry: false,
+      );
+    } else {
+      _effectVisuals.disableEffect(EffectType.compressor);
+    }
+
+    // Flanger → Ribbon geometry
+    if (synth.flangerEnabled) {
+      _effectVisuals.enableEffect(
+        EffectType.flanger,
+        parameters: {
+          'depth': synth.flangerDepth,
+          'rate': synth.flangerRate,
+        },
+        autoSwitchGeometry: true,
+      );
+    } else {
+      _effectVisuals.disableEffect(EffectType.flanger);
+    }
+
+    // Reverb → Membrane geometry
     if (synth.reverbMix > 0.4) {
-      // Could auto-switch: _visualBridge.setGeometryType(GeometryType.membrane);
-      // For now, just set effect-specific parameters
+      _effectVisuals.enableEffect(
+        EffectType.reverb,
+        parameters: {
+          'mix': synth.reverbMix,
+          'size': 0.8, // Default size
+        },
+        autoSwitchGeometry: true,
+      );
+    } else {
+      _effectVisuals.disableEffect(EffectType.reverb);
     }
 
-    // If delay feedback is high, suggest echo trails
-    if (synth.delayFeedback > 0.5) {
-      _visualBridge.updateParameter('universeModifier', 1.2 + (synth.delayFeedback * 0.8));
+    // Delay → Echo trails (no geometry change)
+    if (synth.delayFeedback > 0.3) {
+      _effectVisuals.enableEffect(
+        EffectType.delay,
+        parameters: {'feedback': synth.delayFeedback},
+        autoSwitchGeometry: false,
+      );
+    } else {
+      _effectVisuals.disableEffect(EffectType.delay);
     }
-
-    // Placeholder for future chorus/phaser/distortion/compressor
-    // These require adding effect enable flags to SynthParametersModel:
-    //
-    // if (synth.chorusEnabled && synth.chorusMix > 0.1) {
-    //   _visualBridge.setGeometryType(GeometryType.interference);
-    //   _visualBridge.updateParameter('interferenceAmount', synth.chorusMix);
-    // }
-    //
-    // if (synth.phaserEnabled && synth.phaserRate > 0.0) {
-    //   _visualBridge.setGeometryType(GeometryType.helix);
-    //   _visualBridge.updateParameter('helixRotationSpeed', synth.phaserRate * 2.0);
-    // }
-    //
-    // if (synth.distortionAmount > 0.1) {
-    //   _visualBridge.setGeometryType(GeometryType.crystalline);
-    //   _visualBridge.updateParameter('facetSharpness', synth.distortionAmount);
-    // }
-    //
-    // if (synth.compressorEnabled) {
-    //   _visualBridge.updateParameter('breathingDepth', synth.compressorRatio * 0.3);
-    // }
   }
 
   /// Get current band levels (for optional UI display)
