@@ -45,7 +45,12 @@ class _UnifiedHolographicInterfaceState
     _pulseController = AnimationController(
       duration: const Duration(seconds: 2),
       vsync: this,
-    )..repeat();
+    )..repeat()
+    ..addListener(() {
+        // Update LFO animation on every frame (~60Hz)
+        final synthParams = Provider.of<SynthParametersModel>(context, listen: false);
+        synthParams.updateLFOAnimation();
+      });
 
     _visualBridge = ParameterVisualizerBridge();
 

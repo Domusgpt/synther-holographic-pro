@@ -60,6 +60,9 @@ class SynthParametersModel extends ChangeNotifier {
   final List<double> _lfoValues = List.filled(4, 0.5); // 4 LFOs, values 0-1
   final List<double> _lfoRates = List.filled(4, 1.0); // Hz
   final List<String> _lfoWaveforms = ['sine', 'triangle', 'square', 'sawtooth']; // Waveform types
+  final List<bool> _lfoEnabled = [false, false, false, false]; // Auto-animation enabled
+  final List<double> _lfoPhases = [0.0, 0.0, 0.0, 0.0]; // Current phase (0-2π)
+  DateTime? _lastLFOUpdate;
   
   // XY Pad parameters
   double _xyPadX = 0.5; // 0-1
@@ -197,6 +200,7 @@ class SynthParametersModel extends ChangeNotifier {
   double getLFOValue(int index) => (index >= 0 && index < 4) ? _lfoValues[index] : 0.5;
   double getLFORate(int index) => (index >= 0 && index < 4) ? _lfoRates[index] : 1.0;
   String getLFOWaveform(int index) => (index >= 0 && index < 4) ? _lfoWaveforms[index] : 'sine';
+  bool getLFOEnabled(int index) => (index >= 0 && index < 4) ? _lfoEnabled[index] : false;
   
   
   // Setters
@@ -457,6 +461,75 @@ class SynthParametersModel extends ChangeNotifier {
   void setLFOWaveform(int index, String waveform) {
     if (index >= 0 && index < 4) {
       _lfoWaveforms[index] = waveform;
+      notifyListeners();
+    }
+  }
+
+  void setLFOEnabled(int index, bool enabled) {
+    if (index >= 0 && index < 4) {
+      _lfoEnabled[index] = enabled;
+      if (enabled && _lastLFOUpdate == null) {
+        _lastLFOUpdate = DateTime.now();
+      }
+      notifyListeners();
+    }
+  }
+
+  // NEW: Update LFO values based on time (call this periodically, e.g. 60Hz)
+  void updateLFOAnimation() {
+    final now = DateTime.now();
+    if (_lastLFOUpdate == null) {
+      _lastLFOUpdate = now;
+      return;
+    }
+
+    final deltaTime = now.difference(_lastLFOUpdate!).inMicroseconds / 1000000.0;
+    _lastLFOUpdate = now;
+
+    bool anyUpdated = false;
+    for (int i = 0; i < 4; i++) {
+      if (!_lfoEnabled[i]) continue;
+
+      // Update phase based on rate
+      _lfoPhases[i] += deltaTime * _lfoRates[i] * 2 * 3.14159265359; // 2π per cycle
+      if (_lfoPhases[i] > 2 * 3.14159265359) {
+        _lfoPhases[i] -= 2 * 3.14159265359;
+      }
+
+      // Calculate value based on waveform
+      double newValue = 0.5;
+      switch (_lfoWaveforms[i]) {
+        case 'sine':
+          newValue = (math.sin(_lfoPhases[i]) + 1.0) / 2.0; // 0-1 range
+          break;
+        case 'triangle':
+          // Triangle wave: ramp up then down
+          final normalized = _lfoPhases[i] / (2 * 3.14159265359);
+          newValue = normalized < 0.5
+              ? normalized * 2.0
+              : 2.0 - (normalized * 2.0);
+          break;
+        case 'square':
+          newValue = _lfoPhases[i] < 3.14159265359 ? 1.0 : 0.0;
+          break;
+        case 'sawtooth':
+          newValue = _lfoPhases[i] / (2 * 3.14159265359);
+          break;
+        case 'random':
+          // Sample-and-hold random values at zero crossings
+          if (_lfoPhases[i] < deltaTime * _lfoRates[i] * 2 * 3.14159265359) {
+            newValue = math.Random().nextDouble();
+          } else {
+            newValue = _lfoValues[i]; // Hold previous value
+          }
+          break;
+      }
+
+      _lfoValues[i] = newValue.clamp(0.0, 1.0);
+      anyUpdated = true;
+    }
+
+    if (anyUpdated) {
       notifyListeners();
     }
   }

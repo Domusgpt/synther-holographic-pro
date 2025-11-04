@@ -207,19 +207,32 @@ class _LFOSection extends StatelessWidget {
     final value = synth.getLFOValue(index);
     final rate = synth.getLFORate(index);
     final waveform = synth.getLFOWaveform(index);
+    final enabled = synth.getLFOEnabled(index);
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            name,
-            style: const TextStyle(
-              color: Colors.cyan,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            children: [
+              Switch(
+                value: enabled,
+                onChanged: (v) => synth.setLFOEnabled(index, v),
+                activeColor: Colors.purple,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  name,
+                  style: TextStyle(
+                    color: enabled ? Colors.cyan : Colors.grey,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 4),
           Row(
@@ -241,15 +254,19 @@ class _LFOSection extends StatelessWidget {
               Expanded(
                 child: Slider(
                   value: value,
-                  onChanged: (v) => synth.setLFOValue(index, v),
+                  onChanged: enabled ? null : (v) => synth.setLFOValue(index, v), // Disable slider when auto-animating
                   activeColor: Colors.cyan,
+                  inactiveColor: Colors.grey.withOpacity(0.3),
                 ),
               ),
               SizedBox(
                 width: 40,
                 child: Text(
                   '${(value * 100).toInt()}%',
-                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  style: TextStyle(
+                    color: enabled ? Colors.white : Colors.grey,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ],

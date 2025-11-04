@@ -11,6 +11,15 @@ const DEFAULT_STATE = {
     morphFactor: 0.5, rotationSpeed: 0.2, universeModifier: 1.0, patternIntensity: 1.0,
     gridDensity: 8.0, lineThickness: 0.03, shellWidth: 0.025, tetraThickness: 0.035,
     glitchIntensity: 0.0, colorShift: 0.0,
+    // NEW Phase 4: Envelope visual parameters
+    contractionSpeed: 1.0, // Geometry contraction rate (0.1-3.0)
+    stabilityFactor: 0.5, // Jitter/chaos amount (0-1)
+    dissolveFactor: 0.5, // Fade-out opacity curve (0-1)
+    // NEW Phase 6: Effect-specific visual parameters
+    interferenceAmount: 0.0, // Chorus wave intensity (0-1)
+    helixRotationSpeed: 0.0, // Phaser spiral rate (0-4)
+    facetSharpness: 0.0, // Distortion edge definition (0-1)
+    breathingDepth: 0.0, // Compressor scale pulsation (0-1)
     audioLevels: { bass: 0, mid: 0, high: 0 },
     colorScheme: { primary: [1.0, 0.2, 0.8], secondary: [0.2, 1.0, 1.0], background: [0.05, 0.0, 0.2] },
     needsShaderUpdate: false, _dirtyUniforms: new Set(), isRendering: false, animationFrameId: null,
@@ -31,7 +40,7 @@ class HypercubeCore {
     }
 
     _markAllUniformsDirty() { this.state._dirtyUniforms = new Set(); for (const key in DEFAULT_STATE) { if (['_dirtyUniforms', 'isRendering', 'animationFrameId', 'callbacks', 'startTime', 'lastUpdateTime', 'deltaTime', 'needsShaderUpdate', 'polytope', 'geometryType', 'projectionMethod', 'shaderProgramName'].includes(key)) continue; this._markUniformDirty(key); } }
-    _markUniformDirty(stateKey) { let uniformNames = []; switch (stateKey) { case 'time': uniformNames.push('u_time'); break; case 'resolution': uniformNames.push('u_resolution'); break; case 'dimensions': uniformNames.push('u_dimension'); break; case 'morphFactor': uniformNames.push('u_morphFactor'); break; case 'rotationSpeed': uniformNames.push('u_rotationSpeed'); break; case 'universeModifier': uniformNames.push('u_universeModifier'); break; case 'patternIntensity': uniformNames.push('u_patternIntensity'); break; case 'gridDensity': uniformNames.push('u_gridDensity'); break; case 'lineThickness': uniformNames.push('u_lineThickness'); break; case 'shellWidth': uniformNames.push('u_shellWidth'); break; case 'tetraThickness': uniformNames.push('u_tetraThickness'); break; case 'glitchIntensity': uniformNames.push('u_glitchIntensity'); break; case 'colorShift': uniformNames.push('u_colorShift'); break; case 'audioLevels': uniformNames.push('u_audioBass', 'u_audioMid', 'u_audioHigh'); break; case 'colorScheme': uniformNames.push('u_primaryColor', 'u_secondaryColor', 'u_backgroundColor'); break; default: break; } uniformNames.forEach(name => this.state._dirtyUniforms.add(name)); }
+    _markUniformDirty(stateKey) { let uniformNames = []; switch (stateKey) { case 'time': uniformNames.push('u_time'); break; case 'resolution': uniformNames.push('u_resolution'); break; case 'dimensions': uniformNames.push('u_dimension'); break; case 'morphFactor': uniformNames.push('u_morphFactor'); break; case 'rotationSpeed': uniformNames.push('u_rotationSpeed'); break; case 'universeModifier': uniformNames.push('u_universeModifier'); break; case 'patternIntensity': uniformNames.push('u_patternIntensity'); break; case 'gridDensity': uniformNames.push('u_gridDensity'); break; case 'lineThickness': uniformNames.push('u_lineThickness'); break; case 'shellWidth': uniformNames.push('u_shellWidth'); break; case 'tetraThickness': uniformNames.push('u_tetraThickness'); break; case 'glitchIntensity': uniformNames.push('u_glitchIntensity'); break; case 'colorShift': uniformNames.push('u_colorShift'); break; case 'contractionSpeed': uniformNames.push('u_contractionSpeed'); break; case 'stabilityFactor': uniformNames.push('u_stabilityFactor'); break; case 'dissolveFactor': uniformNames.push('u_dissolveFactor'); break; case 'interferenceAmount': uniformNames.push('u_interferenceAmount'); break; case 'helixRotationSpeed': uniformNames.push('u_helixRotationSpeed'); break; case 'facetSharpness': uniformNames.push('u_facetSharpness'); break; case 'breathingDepth': uniformNames.push('u_breathingDepth'); break; case 'audioLevels': uniformNames.push('u_audioBass', 'u_audioMid', 'u_audioHigh'); break; case 'colorScheme': uniformNames.push('u_primaryColor', 'u_secondaryColor', 'u_backgroundColor'); break; default: break; } uniformNames.forEach(name => this.state._dirtyUniforms.add(name)); }
     _setupWebGLState() { const gl = this.gl; const bg = this.state.colorScheme.background; gl.clearColor(bg[0], bg[1], bg[2], 1.0); gl.viewport(0, 0, gl.canvas.width, gl.canvas.height); gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); }
     _initBuffers() { const gl = this.gl; const pos = new Float32Array([-1,-1, 1,-1, -1,1, 1,1]); this.quadBuffer = gl.createBuffer(); if (!this.quadBuffer) throw new Error("Buffer creation failed."); gl.bindBuffer(gl.ARRAY_BUFFER, this.quadBuffer); gl.bufferData(gl.ARRAY_BUFFER, pos, gl.STATIC_DRAW); gl.bindBuffer(gl.ARRAY_BUFFER, null); }
     _updateShaderIfNeeded() { if (!this.state.needsShaderUpdate) return true; const progName=this.state.shaderProgramName, polytopeName=this.state.polytope, geomName=this.state.geometryType, projName=this.state.projectionMethod; console.log(`Updating shader '${progName}' (Polytope:${polytopeName}, Geom:${geomName}, Proj:${projName})`); const program = this.shaderManager.createDynamicProgram(progName, polytopeName, geomName, projName); if (!program) { console.error(`Shader update failed.`); this.state.callbacks.onError?.(new Error(`Shader update failed`)); this.stop(); return false; } this.state.needsShaderUpdate = false; this.shaderManager.useProgram(progName); this.aPositionLoc = this.shaderManager.getAttributeLocation('a_position'); if (this.aPositionLoc === null) { console.warn(`Attr 'a_position' missing.`); } else { try { this.gl.enableVertexAttribArray(this.aPositionLoc); } catch (e) { console.error(`Enable attr error:`, e); this.aPositionLoc = -1; } } this._markAllUniformsDirty(); console.log(`Shader updated.`); return true; }
@@ -133,6 +142,15 @@ class HypercubeCore {
                         case 'u_primaryColor': gl.uniform3fv(loc, this.state.colorScheme.primary); break;
                         case 'u_secondaryColor': gl.uniform3fv(loc, this.state.colorScheme.secondary); break;
                         case 'u_backgroundColor': gl.uniform3fv(loc, this.state.colorScheme.background); break;
+                        // NEW Phase 4: Envelope parameters
+                        case 'u_contractionSpeed': gl.uniform1f(loc, this.state.contractionSpeed); break;
+                        case 'u_stabilityFactor': gl.uniform1f(loc, this.state.stabilityFactor); break;
+                        case 'u_dissolveFactor': gl.uniform1f(loc, this.state.dissolveFactor); break;
+                        // NEW Phase 6: Effect parameters
+                        case 'u_interferenceAmount': gl.uniform1f(loc, this.state.interferenceAmount); break;
+                        case 'u_helixRotationSpeed': gl.uniform1f(loc, this.state.helixRotationSpeed); break;
+                        case 'u_facetSharpness': gl.uniform1f(loc, this.state.facetSharpness); break;
+                        case 'u_breathingDepth': gl.uniform1f(loc, this.state.breathingDepth); break;
                         default:
                             // console.warn(`Uniform '${name}' marked dirty but not handled in _setUniforms.`);
                             stillDirtyUniforms.add(name); // Keep it dirty if not explicitly handled
