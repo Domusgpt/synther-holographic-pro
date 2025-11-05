@@ -24,6 +24,7 @@ class ParameterVisualizerBridge extends ChangeNotifier {
   /// Current visualizer configuration (Tiers 1-3)
   VisualizerConfiguration _configuration = const VisualizerConfiguration();
   VisualizerConfiguration get configuration => _configuration;
+  VisualizerConfiguration get currentConfiguration => _configuration; // Alias for preset system
 
   /// Update callback for visualizer numeric parameters
   Function(String, double)? _visualizerUpdateCallback;

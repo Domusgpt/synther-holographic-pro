@@ -9,6 +9,7 @@ import '../widgets/visual_system_controls.dart';
 import '../widgets/synth_components/holographic_knob.dart';
 import '../widgets/embedded_hyperav_visualizer.dart';
 import '../widgets/visual_effects_test_panel.dart';
+import '../widgets/enhanced_visual_control_panel.dart';
 import 'holographic/holographic_theme.dart';
 import 'audio_reactive_ui_effects.dart';
 
@@ -37,6 +38,7 @@ class _UnifiedHolographicInterfaceState
 
   bool _showAnalyzerOverlay = false;
   bool _showTestPanel = false;
+  bool _showEnhancedPanel = false;
 
   @override
   void initState() {
@@ -147,6 +149,18 @@ class _UnifiedHolographicInterfaceState
               child: const VisualEffectsTestPanel(),
             ),
 
+          // Enhanced Visual Control Panel with Presets
+          if (_showEnhancedPanel)
+            Positioned(
+              right: 16,
+              top: 100,
+              bottom: 100,
+              width: 500,
+              child: EnhancedVisualControlPanel(
+                visualBridge: _visualBridge,
+              ),
+            ),
+
           // Toggle button for debug analyzer
           Positioned(
             bottom: 16,
@@ -182,6 +196,26 @@ class _UnifiedHolographicInterfaceState
               child: Icon(
                 _showTestPanel ? Icons.visibility_off : Icons.science,
                 color: HolographicTheme.secondaryEnergy,
+                size: 20,
+              ),
+            ),
+          ),
+
+          // Toggle button for enhanced control panel
+          Positioned(
+            bottom: 16,
+            right: 136,
+            child: FloatingActionButton(
+              mini: true,
+              backgroundColor: HolographicTheme.accentEnergy.withOpacity(0.3),
+              onPressed: () {
+                setState(() {
+                  _showEnhancedPanel = !_showEnhancedPanel;
+                });
+              },
+              child: Icon(
+                _showEnhancedPanel ? Icons.visibility_off : Icons.dashboard_customize,
+                color: HolographicTheme.accentEnergy,
                 size: 20,
               ),
             ),
