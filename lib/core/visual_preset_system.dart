@@ -474,4 +474,115 @@ class PresetManager extends ChangeNotifier {
   Future<void> loadFromStorage() async {
     // Load _customPresets from local storage
   }
+
+  /// Export a preset to JSON string
+  String exportPreset(VisualPreset preset) {
+    return jsonEncode(preset.toJson());
+  }
+
+  /// Export multiple presets to JSON string
+  String exportPresets(List<VisualPreset> presets) {
+    return jsonEncode(presets.map((p) => p.toJson()).toList());
+  }
+
+  /// Export all custom presets to JSON string
+  String exportAllCustomPresets() {
+    return exportPresets(_customPresets);
+  }
+
+  /// Import a preset from JSON string
+  /// Returns the imported preset or null if import failed
+  VisualPreset? importPreset(String jsonString) {
+    try {
+      final json = jsonDecode(jsonString);
+      final preset = VisualPreset.fromJson(json);
+
+      // Generate new ID if it conflicts with existing presets
+      final existingIds = allPresets.map((p) => p.id).toSet();
+      if (existingIds.contains(preset.id)) {
+        final newPreset = VisualPreset(
+          id: 'imported_${DateTime.now().millisecondsSinceEpoch}',
+          name: preset.name,
+          description: preset.description,
+          category: preset.category,
+          family: preset.family,
+          polytope: preset.polytope,
+          geometry: preset.geometry,
+          effectsEnabled: preset.effectsEnabled,
+          effectParameters: preset.effectParameters,
+          lfoEnabled: preset.lfoEnabled,
+          lfoRates: preset.lfoRates,
+          lfoWaveforms: preset.lfoWaveforms,
+          rotationSpeed: preset.rotationSpeed,
+          morphFactor: preset.morphFactor,
+          gridDensity: preset.gridDensity,
+          glitchIntensity: preset.glitchIntensity,
+          colorShift: preset.colorShift,
+          tags: preset.tags,
+          isBuiltIn: false,
+        );
+        addCustomPreset(newPreset);
+        return newPreset;
+      } else {
+        addCustomPreset(preset);
+        return preset;
+      }
+    } catch (e) {
+      debugPrint('Failed to import preset: $e');
+      return null;
+    }
+  }
+
+  /// Import multiple presets from JSON string
+  /// Returns list of successfully imported presets
+  List<VisualPreset> importPresets(String jsonString) {
+    try {
+      final jsonList = jsonDecode(jsonString) as List;
+      final imported = <VisualPreset>[];
+
+      for (final json in jsonList) {
+        try {
+          final preset = VisualPreset.fromJson(json);
+
+          // Generate new ID if it conflicts
+          final existingIds = allPresets.map((p) => p.id).toSet();
+          if (existingIds.contains(preset.id)) {
+            final newPreset = VisualPreset(
+              id: 'imported_${DateTime.now().millisecondsSinceEpoch}_${imported.length}',
+              name: preset.name,
+              description: preset.description,
+              category: preset.category,
+              family: preset.family,
+              polytope: preset.polytope,
+              geometry: preset.geometry,
+              effectsEnabled: preset.effectsEnabled,
+              effectParameters: preset.effectParameters,
+              lfoEnabled: preset.lfoEnabled,
+              lfoRates: preset.lfoRates,
+              lfoWaveforms: preset.lfoWaveforms,
+              rotationSpeed: preset.rotationSpeed,
+              morphFactor: preset.morphFactor,
+              gridDensity: preset.gridDensity,
+              glitchIntensity: preset.glitchIntensity,
+              colorShift: preset.colorShift,
+              tags: preset.tags,
+              isBuiltIn: false,
+            );
+            addCustomPreset(newPreset);
+            imported.add(newPreset);
+          } else {
+            addCustomPreset(preset);
+            imported.add(preset);
+          }
+        } catch (e) {
+          debugPrint('Failed to import preset from batch: $e');
+        }
+      }
+
+      return imported;
+    } catch (e) {
+      debugPrint('Failed to import presets: $e');
+      return [];
+    }
+  }
 }
