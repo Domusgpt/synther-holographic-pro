@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'synth_parameters.dart';
+import 'visualizer_configuration.dart';
 import '../design_system/design_system.dart';
 
 /// Advanced parameter-to-visualizer binding engine for Morph-UI
@@ -13,19 +14,27 @@ class ParameterVisualizerBridge extends ChangeNotifier {
 
   /// Active parameter bindings: Flutter parameter -> Visualizer parameter
   final Map<String, VisualizerBinding> _bindings = {};
-  
+
   /// Real-time parameter values cache for smooth updates
   final Map<String, double> _parameterCache = {};
-  
+
   /// Visual feedback colors for each parameter
   final Map<String, Color> _parameterColors = {};
-  
-  /// Update callback for visualizer
+
+  /// Current visualizer configuration (Tiers 1-3)
+  VisualizerConfiguration _configuration = const VisualizerConfiguration();
+  VisualizerConfiguration get configuration => _configuration;
+  VisualizerConfiguration get currentConfiguration => _configuration; // Alias for preset system
+
+  /// Update callback for visualizer numeric parameters
   Function(String, double)? _visualizerUpdateCallback;
-  
+
+  /// Update callback for visualizer configuration changes
+  Function(Map<String, dynamic>)? _configurationUpdateCallback;
+
   /// Tinting callback for UI elements
   Function(String, Color, double)? _uiTintCallback;
-  
+
   /// Connection status
   bool _isConnected = false;
   bool get isConnected => _isConnected;
@@ -149,22 +158,147 @@ class ParameterVisualizerBridge extends ChangeNotifier {
       category: VisualizerCategory.effects,
       color: DesignTokens.neonCyan,
     ),
+
+    // NEW Phase 4: Envelope-driven parameters
+    'contractionSpeed': VisualizerParameter(
+      id: 'contractionSpeed',
+      name: 'Contraction Speed',
+      description: 'Rate of geometry shrinking after attack peak',
+      min: 0.1,
+      max: 3.0,
+      defaultValue: 1.0,
+      category: VisualizerCategory.effects,
+      color: DesignTokens.neonOrange,
+    ),
+    'stabilityFactor': VisualizerParameter(
+      id: 'stabilityFactor',
+      name: 'Stability Factor',
+      description: 'Amount of jitter/chaos during sustain',
+      min: 0.0,
+      max: 1.0,
+      defaultValue: 0.5,
+      category: VisualizerCategory.effects,
+      color: DesignTokens.neonGreen,
+    ),
+    'dissolveFactor': VisualizerParameter(
+      id: 'dissolveFactor',
+      name: 'Dissolve Factor',
+      description: 'Fade-out opacity curve on release',
+      min: 0.0,
+      max: 1.0,
+      defaultValue: 0.5,
+      category: VisualizerCategory.effects,
+      color: DesignTokens.neonPurple,
+    ),
+
+    // NEW Phase 4: Effect-specific parameters
+    'interferenceAmount': VisualizerParameter(
+      id: 'interferenceAmount',
+      name: 'Interference Amount',
+      description: 'Wave interference depth for chorus',
+      min: 0.0,
+      max: 1.0,
+      defaultValue: 0.5,
+      category: VisualizerCategory.effects,
+      color: DesignTokens.neonBlue,
+    ),
+    'helixRotationSpeed': VisualizerParameter(
+      id: 'helixRotationSpeed',
+      name: 'Helix Rotation Speed',
+      description: 'Spiral rotation rate for phaser',
+      min: 0.0,
+      max: 5.0,
+      defaultValue: 1.0,
+      category: VisualizerCategory.effects,
+      color: DesignTokens.neonPink,
+    ),
+    'facetSharpness': VisualizerParameter(
+      id: 'facetSharpness',
+      name: 'Facet Sharpness',
+      description: 'Angular sharpness for distortion',
+      min: 0.0,
+      max: 1.0,
+      defaultValue: 0.5,
+      category: VisualizerCategory.effects,
+      color: DesignTokens.neonOrange,
+    ),
+    'breathingDepth': VisualizerParameter(
+      id: 'breathingDepth',
+      name: 'Breathing Depth',
+      description: 'Scale pulsing amount for compressor',
+      min: 0.0,
+      max: 1.0,
+      defaultValue: 0.3,
+      category: VisualizerCategory.effects,
+      color: DesignTokens.neonCyan,
+    ),
   };
   
   /// Initialize the bridge with callbacks
   void initialize({
     required Function(String, double) visualizerUpdateCallback,
+    Function(Map<String, dynamic>)? configurationUpdateCallback,
     Function(String, Color, double)? uiTintCallback,
   }) {
     _visualizerUpdateCallback = visualizerUpdateCallback;
+    _configurationUpdateCallback = configurationUpdateCallback;
     _uiTintCallback = uiTintCallback;
     _isConnected = true;
-    
+
     // Set up default bindings
     _setupDefaultBindings();
-    
+
+    // Send initial configuration to visualizer
+    _updateVisualizerConfiguration();
+
     debugPrint('ParameterVisualizerBridge initialized with ${_bindings.length} bindings');
     notifyListeners();
+  }
+
+  /// Update visualizer family (Tier 1)
+  void setVisualizerFamily(VisualizerFamily family) {
+    _configuration = _configuration.copyWith(family: family);
+    _updateVisualizerConfiguration();
+    debugPrint('Visualizer family changed to: ${family.displayName}');
+    notifyListeners();
+  }
+
+  /// Update polytope (Tier 2)
+  void setPolytope(Polytope polytope) {
+    _configuration = _configuration.copyWith(polytope: polytope);
+    _updateVisualizerConfiguration();
+    debugPrint('Polytope changed to: ${polytope.displayName}');
+    notifyListeners();
+  }
+
+  /// Update geometry type (Tier 3)
+  void setGeometryType(GeometryType geometryType) {
+    _configuration = _configuration.copyWith(geometryType: geometryType);
+    _updateVisualizerConfiguration();
+    debugPrint('Geometry type changed to: ${geometryType.displayName}');
+    notifyListeners();
+  }
+
+  /// Send the current configuration to the visualizer
+  void _updateVisualizerConfiguration() {
+    if (_configurationUpdateCallback != null && _isConnected) {
+      final configData = _configuration.toJson();
+      _configurationUpdateCallback!(configData);
+      debugPrint('Sent configuration to visualizer: $configData');
+    }
+  }
+
+  /// Update 7-band levels for 5-layer system
+  /// This sends raw band data to JavaScript LayerManager
+  void updateBandLevels(List<double> bandLevels) {
+    if (!_isConnected || _visualizerUpdateCallback == null) return;
+    if (bandLevels.length != 7) return;
+
+    // Send band levels as a special parameter
+    // JavaScript will handle this to update LayerManager
+    for (int i = 0; i < 7; i++) {
+      _visualizerUpdateCallback!('band$i', bandLevels[i]);
+    }
   }
   
   /// Create a binding between a Flutter parameter and visualizer parameter
